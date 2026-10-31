@@ -134,6 +134,20 @@ bus and ferry; `classify` holds the line-number rules. A station serves the line
 ([`geo/store.py`](../../backend/src/findhome/geo/store.py)) gives the test point the line shapes, so itinerary legs
 follow the track and carry the line colour. Nothing here changes scores.
 
+## Connectivity matrix
+
+[`domain/connectivity.py`](../../backend/src/findhome/domain/connectivity.py) answers "how well connected is each
+zone to my points". `plan` makes one transit request per zone × enabled point × trip direction × window (the
+window's middle slot, the trip's first day type) from a point inside the zone (its centroid, or a point surely
+inside it). `run` is a background job in the API (`POST /api/connectivity/refresh`, `findhome connectivity refresh`;
+one at a time, cancellable): it uses the commute providers, `routing_cache` and the reference dates of the commute
+matrix, stops at `budget.max_connectivity_calls_per_run`, commits after every zone, and stores rows in
+`zone_commute` under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so search-area or
+weight edits keep the matrix). A refresh skips pairs already stored, except straight-line estimates when a real
+provider is available, which it replaces. `aggregate` gives per zone the window-weighted minutes per point and the
+point-weighted mix (point weights as in the commute score). With the current points that is ~2,100 requests
+for the 263 zones. Nothing here changes scores.
+
 ## Zones and the search area
 
 **Zones** are SCB RegSO 2025 statistical areas (CC0) of the municipalities in `geo.yaml` (263 for the 9 around

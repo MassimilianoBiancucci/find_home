@@ -28,9 +28,10 @@ run_app = typer.Typer(help="Agent run folders (scratchpads).", no_args_is_help=T
 scores_app = typer.Typer(help="Scores.", no_args_is_help=True)
 geo_app = typer.Typer(help="Build the map's geodata under data/geo/ (zones, POIs, transit).", no_args_is_help=True)
 area_app = typer.Typer(help="The search area (Map → Area): zones, weights, checks.", no_args_is_help=True)
+connectivity_app = typer.Typer(help="Zone × point commute matrix (Map → Connectivity).", no_args_is_help=True)
 for name, sub in (("db", db_app), ("config", config_app), ("listings", listings_app), ("digest", digest_app),
                   ("ingest", ingest_app), ("site", site_app), ("run", run_app), ("scores", scores_app),
-                  ("geo", geo_app), ("area", area_app)):
+                  ("geo", geo_app), ("area", area_app), ("connectivity", connectivity_app)):
     app.add_typer(sub, name=name)
 
 STATE = {"json": False, "api": None}
@@ -450,6 +451,26 @@ def area_check(lat: float, lon: float):
     r = _api().post("/api/area/eval", {"points": [{"lat": lat, "lon": lon}]})["items"][0]
     where = "inside" if r["inside"] else f"{r['distance_m']} m outside"
     _out(r, f"{where} · score {r['score']} · best {r['best_piece'] or '-'} · zone {(r['zone'] or {}).get('name', '-')}")
+
+
+# ── connectivity ─────────────────────────────────────────────────
+def _job_line(j: dict) -> str:
+    state = "running" if j["running"] else (j["stopped"] or "idle")
+    eta = f" · eta {j['eta_s'] // 60} min" if j.get("eta_s") else ""
+    return (f"{state} · {j['done']}/{j['total']} · calls {j['calls']} · cached {j['cached']} · estimated {j['estimated']}"
+            f" · errors {j['errors']} · provider {j['provider'] or '-'}{eta}" + (f"\nlast error: {j['last_error']}" if j["last_error"] else ""))
+
+
+@connectivity_app.command("refresh")
+def connectivity_refresh():
+    """Start the background refresh in the API (resumes; skips pairs already computed)."""
+    _out(j := _api().post("/api/connectivity/refresh", {}), _job_line(j))
+
+
+@connectivity_app.command("status")
+def connectivity_status():
+    """Progress of the running or last refresh."""
+    _out(j := _api().get("/api/connectivity/status"), _job_line(j))
 
 
 if __name__ == "__main__":

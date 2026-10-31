@@ -55,6 +55,12 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
       }
     }
     @if (transit.error()) { <div class="small text-danger">{{ transit.error() }}</div> }
+    <div class="fh-section mt-2">Commute</div>
+    <label class="fh-row" title="Zones tinted by weighted commute minutes (Connectivity mode); hover a zone for its numbers">
+      <input type="checkbox" class="form-check-input" [checked]="state.isVisible('connectivity-tint', false)" (change)="state.setVisible('connectivity-tint', !state.isVisible('connectivity-tint', false))" />
+      <span class="fh-line" style="background:linear-gradient(90deg,#1f9d55,#d6c94a,#b0303a)"></span>
+      <span class="fh-grow">Zone commute tint</span>
+    </label>
   </ng-template>
 
   <ng-template #legendTpl>

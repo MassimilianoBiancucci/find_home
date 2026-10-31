@@ -3,8 +3,9 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
-  AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail,
-  PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta,
+  AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
+  GeoCollection, Health, Listing, ListingDetail,
+  PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta, ZoneCommute,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -84,6 +85,12 @@ export class ApiService {
   transitMeta() { return this.http.get<TransitMeta>('/api/geo/transit'); }
   transitLayer(name: string) { return this.http.get<GeoCollection>(`/api/geo/transit/${name}`); }
   transitLine(mode: string, ref: string) { return this.http.get<TransitLine>(`/api/geo/transit/line/${mode}/${encodeURIComponent(ref)}`); }
+
+  connectivity() { return this.http.get<ConnectivityMatrix>('/api/connectivity'); }
+  connectivityZone(id: string) { return this.http.get<ZoneCommute>(`/api/connectivity/zone/${encodeURIComponent(id)}`); }
+  connectivityStatus() { return this.http.get<ConnectivityJob>('/api/connectivity/status'); }
+  connectivityRefresh() { return this.http.post<ConnectivityJob>('/api/connectivity/refresh', {}); }
+  connectivityCancel() { return this.http.post<{ cancelled: boolean }>('/api/connectivity/cancel', {}); }
 }
 
 /** Pull a readable message out of an API error (422 config errors, FastAPI detail, network). */

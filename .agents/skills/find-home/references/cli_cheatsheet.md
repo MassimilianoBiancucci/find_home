@@ -28,6 +28,7 @@ output. Everything except `db`, `config validate|hash|show|schema` and `run new`
 | `geo fetch zones` | build `data/geo/zones.geojson` (SCB RegSO + OSM), works without the API | one line |
 | `geo fetch poi [-c category]` | fetch POIs of `poi.yaml` for the region into `data/geo/poi/` (weekly), works without the API | counts per category |
 | `geo fetch transit` | build transit lines and stations into `data/geo/transit/` (SL GTFS with key, else OSM), works without the API | counts per mode |
+| `connectivity refresh` / `connectivity status` | start / follow the zone × point commute matrix refresh (background, resumable) | one status line |
 | `db migrate [--check]` | migrations | applied / up to date |
 | `serve` | run the API without VS Code | uvicorn log |
 

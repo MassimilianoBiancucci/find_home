@@ -26,7 +26,8 @@ Each request gets one connection, committed when the request succeeds.
 real flat, rent and buy columns), `listing_sources` (one row per site item, with its own content hash),
 `listing_status_events`, `feedback`, `evaluations`, `scores` and `commute_results` (both keyed by `config_hash`),
 the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`, `scan_runs`, `agent_runs`.
-[`002_probes.sql`](../../backend/migrations/002_probes.sql) adds `probes` (alpha: saved test points).
+[`002_probes.sql`](../../backend/migrations/002_probes.sql) adds `probes` (alpha: saved test points);
+[`003_zone_commute.sql`](../../backend/migrations/003_zone_commute.sql) adds `zone_commute` (the Connectivity matrix).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/profile.yaml) and [`sites/`](../../sites/README.md), described in
@@ -99,6 +100,11 @@ the alpha saved test points and their side-by-side compare.
 [`TransitLayersService`](../../frontend/src/app/pages/map/transit-layers.service.ts) draws one line layer per transit
 mode (data loaded when first shown; buses from zoom 12) and the stations as blips; the inspector shows a line's
 stations in order or the lines serving a station.
+[`ConnectivityService`](../../frontend/src/app/pages/map/connectivity.service.ts) holds the zone × point matrix:
+the Connectivity mode ([`connectivity-mode.ts`](../../frontend/src/app/pages/map/connectivity-mode.ts)) fills the zones
+by minutes for one point or the weighted mix and starts or cancels the refresh; Explore can show a light tint of
+the same colours; hovering a zone shows its minutes over the map; the test point shows its zone's matrix value
+next to its own itinerary.
 
 ## Main flows
 
@@ -143,4 +149,5 @@ flowchart LR
 | Map GeoJSON | [`api/routers/map.py`](../../backend/src/findhome/api/routers/map.py) |
 | Zones, search area, brush | [`api/routers/geo.py`](../../backend/src/findhome/api/routers/geo.py) |
 | POIs, test point, saved test points | [`api/routers/probe.py`](../../backend/src/findhome/api/routers/probe.py) |
+| Connectivity matrix and refresh | [`api/routers/connectivity.py`](../../backend/src/findhome/api/routers/connectivity.py) |
 | SQL | [`db/repo.py`](../../backend/src/findhome/db/repo.py) |

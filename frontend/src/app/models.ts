@@ -143,3 +143,17 @@ export interface SavedProbe { id: string; name: string; lat: number; lon: number
 export interface TransitMode { mode: string; label: string; color: string; count: number; }
 export interface TransitMeta { built: boolean; source?: 'gtfs' | 'osm'; built_at?: string; stations?: number; modes: TransitMode[]; }
 export interface TransitLine { mode: string; ref: string; colour: string | null; length_km: number; stations: string[]; }
+export interface ConnectivityJob {
+  running: boolean; inputs_hash: string | null; total: number; done: number; calls: number; cached: number; estimated: number;
+  skipped: number; errors: number; last_error: string | null; provider: string | null; eta_s: number | null; stopped: string | null;
+}
+export interface ConnectivityMatrix {
+  inputs_hash: string; covered: number; zone_count: number; stale_rows: number; job: ConnectivityJob;
+  points: { id: string; label: string; color: string | null; icon: string | null; weight: number }[];
+  zones: Record<string, { by_point: Record<string, number>; weighted: number | null; estimate: boolean }>;
+}
+export interface ZoneCommute {
+  zone: { id: string; name: string; district: string; kommun: string }; origin: [number, number];
+  rows: { point_id: string; direction: string; day_type: string; window_label: string; window_weight: number; provider: string;
+    minutes: number | null; estimate: boolean }[];
+}

@@ -18,6 +18,7 @@ from findhome.api.routers import digest, ingest, listings, map as map_router, ru
 from findhome.api.routers import geocode as geocode_router
 from findhome.api.routers import geo as geo_router
 from findhome.api.routers import probe as probe_router
+from findhome.api.routers import connectivity as connectivity_router
 from findhome.config.loader import ConfigError
 from findhome.config.store import get_store
 from findhome.core import db
@@ -113,5 +114,5 @@ async def health():
 
 
 for r in (config_router, listings, ingest, scoring, digest, sites, runs, map_router, geocode_router, geo_router,
-          probe_router):
+          probe_router, connectivity_router):
     app.include_router(r.router)

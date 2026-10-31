@@ -62,6 +62,7 @@ poi:
     key_env: GOOGLE_MAPS_SERVER_KEY
 budget:
   max_routing_calls_per_run: 500
+  max_connectivity_calls_per_run: 2500   # Map → Connectivity refresh (zones × points × windows, ResRobot)
 cache:
   routing_ttl_days: 30
   geocode_ttl_days: 365

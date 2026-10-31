@@ -9,6 +9,7 @@ import { MapLib, MapStateService } from './map-state.service';
 import { ProbeService } from './probe.service';
 import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
+import { ConnectivityService } from './connectivity.service';
 
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
 
@@ -36,7 +37,16 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
       @if (missing().length) { <span class="small text-warning" title="Set an address or coords in Locations">no coords: {{ missing().join(', ') }}</span> }
       @if (error()) { <span class="small text-danger">{{ error() }}</span> }
     </div>
-    <div #mapEl class="fh-map" [class.picking]="probe.picking()"></div>
+    <div class="fh-map-wrap">
+      <div #mapEl class="fh-map" [class.picking]="probe.picking()"></div>
+      @if (conn.hover(); as h) {
+        <div class="fh-hover">
+          <b>{{ h.name }}</b>@if (h.estimate) {<sup title="straight-line estimate">~</sup>}
+          @for (v of h.values; track v.label) { <span>{{ v.label }} {{ v.minutes == null ? '–' : v.minutes + '′' }}</span> }
+          @if (h.weighted != null) { <span class="w">mix {{ h.weighted }}′</span> }
+        </div>
+      }
+    </div>
     <router-outlet />
   </div>`,
   styles: [`
@@ -45,7 +55,12 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
     .fh-modes { display: inline-flex; border: 1px solid var(--bs-border-color); border-radius: 999px; padding: 2px; background: var(--fh-sub);
       a { padding: 3px 14px; border-radius: 999px; text-decoration: none; color: var(--bs-secondary-color); font-size: .85rem; font-weight: 500;
         &.on { background: var(--fh-accent-fill); color: var(--fh-on-accent); box-shadow: 0 0 0 1px var(--fh-violet); } } }
+    .fh-map-wrap { flex: 1; min-height: 320px; position: relative; display: flex; }
     .fh-map { flex: 1; min-height: 320px; border-radius: 8px; border: 1px solid var(--bs-border-color); overflow: hidden; }
+    .fh-hover { position: absolute; left: 10px; top: 10px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; max-width: 70%;
+      padding: 5px 10px; border-radius: 8px; font-size: .8rem; background: rgba(20, 20, 24, .86); color: #f2f2f7;
+      border: 1px solid rgba(192, 132, 252, .5); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); pointer-events: none;
+      .w { color: #d8b4fe; font-weight: 600; } }
     .fh-map.picking { cursor: crosshair; }
   `],
 })
@@ -56,6 +71,7 @@ export class MapShell {
   protected probe = inject(ProbeService);
   private poiLayers = inject(PoiLayersService);
   private transit = inject(TransitLayersService);
+  protected conn = inject(ConnectivityService);
   private el = viewChild.required<ElementRef<HTMLDivElement>>('mapEl');
   protected tilted = signal(false);
   protected error = signal('');
@@ -119,6 +135,7 @@ export class MapShell {
         this.probe.install();
         this.poiLayers.install();
         this.transit.install();
+        this.conn.installTint();
       },
       error: (e) => this.error.set(apiError(e)),
     });

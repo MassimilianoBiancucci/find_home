@@ -94,6 +94,10 @@
         "max_routing_calls_per_run": {
           "type": "integer",
           "minimum": 0
+        },
+        "max_connectivity_calls_per_run": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "additionalProperties": false

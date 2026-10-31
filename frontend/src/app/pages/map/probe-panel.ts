@@ -7,6 +7,7 @@ import { ApiService, apiError } from '../../services/api.service';
 import { blipUrl } from '../../components/map-icons';
 import { MapStateService } from './map-state.service';
 import { MODE_COLOURS, ProbeService } from './probe.service';
+import { ConnectivityService } from './connectivity.service';
 
 /** Alpha: named test points kept in the database, compared side by side (2-3). */
 @Injectable({ providedIn: 'root' })
@@ -115,7 +116,8 @@ export class SavedProbesList {
             <b>{{ t.minutes == null ? '–' : (t.minutes | number: '1.0-0') + '′' }}</b>@if (t.est) {<sup title="straight-line estimate">~</sup>}
           </div>
           <div class="small text-body-secondary text-start">{{ t.direction === 'to_point' ? 'there' : 'back' }} · {{ t.day_type }} {{ t.kind === 'arrive_by' ? 'arrive' : 'leave' }} {{ t.slot }}
-            @if (t.transfers != null) { · {{ t.transfers }} change{{ t.transfers === 1 ? '' : 's' }} }</div>
+            @if (t.transfers != null) { · {{ t.transfers }} change{{ t.transfers === 1 ? '' : 's' }} }
+            @if (zoneMin(r, t.point_id); as zm) { · <span [class.text-warning]="t.minutes != null && abs(zm - t.minutes) > 10" title="Connectivity matrix value for this zone">zone ~{{ zm | number: '1.0-0' }}′</span> }</div>
           @if (t.legs.length) {
             <div class="fh-legs">
               @for (l of t.legs; track $index) {
@@ -169,6 +171,7 @@ export class ProbePanel {
   protected state = inject(MapStateService);
   protected probe = inject(ProbeService);
   protected saved = inject(SavedProbesService);
+  private conn = inject(ConnectivityService);
   protected name = '';
   protected pinIcon = blipUrl('target', '#b45cf0');
 
@@ -191,4 +194,6 @@ export class ProbePanel {
   protected short(d: string): string { return d.replace(/ stadsdelsområde$/, ''); }
   protected walkReason(e: string): string { return e.includes('not set') ? 'add ORS_API_KEY for real walking routes' : 'walking service unavailable'; }
   protected save(lat: number, lon: number): void { this.saved.save(this.name.trim(), lat, lon); this.name = ''; }
+  protected zoneMin(r: ProbeResult, pointId: string): number | null { return this.conn.minutes(r.area.zone?.id, pointId); }
+  protected abs(v: number): number { return Math.abs(v); }
 }
