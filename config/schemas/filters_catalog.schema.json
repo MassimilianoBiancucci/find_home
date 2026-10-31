@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/filters_catalog.schema.json",
+  "title": "Canonical filter vocabulary",
+  "type": "object",
+  "properties": {
+    "filters": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "enum": [
+              "integer",
+              "number",
+              "boolean",
+              "date",
+              "string_list",
+              "enum_list",
+              "map"
+            ]
+          },
+          "unit": {
+            "type": "string"
+          },
+          "values": {
+            "type": "array"
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "rent",
+                "buy"
+              ]
+            },
+            "minItems": 1
+          },
+          "derived_from": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "kinds",
+          "description"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "filters"
+  ]
+}

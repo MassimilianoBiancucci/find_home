@@ -1,0 +1,204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/locations.schema.json",
+  "title": "Points of interest and trips",
+  "type": "object",
+  "properties": {
+    "categories": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "default_weight": {
+            "type": "number",
+            "minimum": 0
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "icon": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "default_weight"
+        ]
+      }
+    },
+    "points": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "category": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "coords": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2,
+            "description": "[lat, lon]"
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0
+          },
+          "notes": {
+            "type": "string"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "transit",
+                "walk",
+                "bike",
+                "drive"
+              ]
+            },
+            "minItems": 1
+          },
+          "trips": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "direction": {
+                  "enum": [
+                    "to_point",
+                    "from_point",
+                    "both"
+                  ],
+                  "description": "to_point = home → point; from_point = point → home"
+                },
+                "day_types": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1
+                },
+                "windows": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "enum": [
+                          "arrive_by",
+                          "depart_at"
+                        ],
+                        "description": "arrive_by: be at the destination between from..to; depart_at: leave between from..to"
+                      },
+                      "from": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "Time of day, HH:MM (24h)"
+                      },
+                      "to": {
+                        "type": "string",
+                        "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                        "description": "End of window; may be earlier than from (crosses midnight)"
+                      },
+                      "weight": {
+                        "type": "number",
+                        "minimum": 0,
+                        "default": 1.0
+                      },
+                      "step_min": {
+                        "type": "integer",
+                        "minimum": 5,
+                        "maximum": 240,
+                        "default": 60
+                      },
+                      "label": {
+                        "type": "string"
+                      }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                      "type",
+                      "from",
+                      "to"
+                    ]
+                  }
+                },
+                "use_default_grid": {
+                  "type": "boolean"
+                },
+                "modes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "transit",
+                      "walk",
+                      "bike",
+                      "drive"
+                    ]
+                  },
+                  "description": "Override the point's modes for this trip"
+                }
+              },
+              "additionalProperties": false,
+              "required": [
+                "direction",
+                "day_types"
+              ]
+            },
+            "minItems": 1
+          },
+          "enabled": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "label",
+          "modes",
+          "trips"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "address"
+            ]
+          },
+          {
+            "required": [
+              "coords"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "categories",
+    "points"
+  ]
+}

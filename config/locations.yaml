@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=./schemas/locations.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Points you care about, and the trips between each point and a candidate home.
+#  Add as many points as you like per category (several workplaces, several partner
+#  places, generic points). Each trip says:
+#    direction  to_point (home → point) | from_point (point → home) | both
+#    day_types  keys of time_model.yaml day_types
+#    windows    time slots: arrive_by (be there between from..to) or depart_at
+#               (leave between from..to); each window has a weight and a sampling step.
+#               Windows may cross midnight (e.g. 18:00 → 03:00).
+#    use_default_grid: true  → sample time_model.yaml default_grid instead of windows
+#  Give either `address` or `coords: [lat, lon]`.
+# ─────────────────────────────────────────────────────────────
+categories:
+  work: {label: Work, default_weight: 1.0, color: "#990ae3", icon: briefcase}
+  partner: {label: Partner, default_weight: 0.8, color: "#e91e63", icon: heart}
+  transit_hub: {label: Transit hub, default_weight: 0.5, color: "#2196f3", icon: train}
+  generic: {label: Point, default_weight: 0.3, color: "#607d8b", icon: pin}
+
+points:
+  - id: work-main
+    category: work
+    label: Office
+    address: "TODO(user): office street address, Stockholm"
+    weight: 1.0
+    notes: Must arrive 08:00-09:00, flexible; a farther home means leaving earlier.
+    modes: [transit, bike]
+    trips:
+      - direction: to_point
+        day_types: [weekday]
+        windows:
+          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1.0, step_min: 15}
+      - direction: from_point
+        day_types: [weekday]
+        windows:
+          - {type: depart_at, from: "16:30", to: "18:30", weight: 0.6, step_min: 30}
+
+  - id: stockholm-central
+    category: transit_hub
+    label: Stockholm C
+    coords: [59.3303, 18.0586]
+    weight: 0.5
+    notes: Trains to the rest of Sweden and Arlanda.
+    modes: [transit, walk]
+    trips:
+      - direction: both
+        day_types: [weekday, saturday, sunday]
+        use_default_grid: true
+
+  - id: partner-1
+    category: partner
+    label: Partner home
+    address: "TODO(user): partner address"
+    weight: 0.8
+    notes: Evenings and weekends, sometimes late.
+    modes: [transit]
+    trips:
+      - direction: both
+        day_types: [weekday, saturday, sunday]
+        windows:
+          - {type: depart_at, from: "18:00", to: "03:00", weight: 1.0, step_min: 60}

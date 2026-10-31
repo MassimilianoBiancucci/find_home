@@ -1,0 +1,4 @@
+# Keep the virtualenv inside the project (backend/.venv) so VS Code launch.json and
+# tasks.json can point at a fixed interpreter path. Do not use a global/cache venv.
+[virtualenvs]
+in-project = true

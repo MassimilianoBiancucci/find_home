@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/agent.schema.json",
+  "title": "Headless agent run profiles",
+  "type": "object",
+  "properties": {
+    "profiles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "minLength": 1
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prompt_file": {
+            "type": "string"
+          },
+          "timeout_min": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 600
+          },
+          "env_passthrough": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "command",
+          "args",
+          "prompt_file",
+          "timeout_min"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "profiles"
+  ]
+}

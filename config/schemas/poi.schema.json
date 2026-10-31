@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/poi.schema.json",
+  "title": "Nearby-service categories",
+  "type": "object",
+  "properties": {
+    "categories": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "osm_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "radius_m": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 10000
+          },
+          "max_walk_min": {
+            "type": "number",
+            "minimum": 0
+          },
+          "weight": {
+            "type": "number",
+            "minimum": 0
+          },
+          "provider": {
+            "enum": [
+              "overpass",
+              "google_places"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "label",
+          "osm_tags",
+          "radius_m",
+          "weight",
+          "provider"
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "categories"
+  ]
+}

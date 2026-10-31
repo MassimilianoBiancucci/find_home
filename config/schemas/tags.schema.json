@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/tags.schema.json",
+  "title": "Lifecycle statuses and feedback tags",
+  "type": "object",
+  "properties": {
+    "statuses": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]*$"
+          },
+          "minItems": 2
+        },
+        "by_kind": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_-]*$"
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "default"
+      ]
+    },
+    "terminal_statuses": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9_-]*$"
+      }
+    },
+    "tags": {
+      "type": "object",
+      "properties": {
+        "positive": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "label"
+            ]
+          }
+        },
+        "negative": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "label": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "label"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "positive",
+        "negative"
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "statuses",
+    "tags"
+  ]
+}

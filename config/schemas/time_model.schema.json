@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/time_model.schema.json",
+  "title": "Commute sampling defaults",
+  "type": "object",
+  "properties": {
+    "timezone": {
+      "type": "string"
+    },
+    "day_types": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "days": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "mon",
+                "tue",
+                "wed",
+                "thu",
+                "fri",
+                "sat",
+                "sun"
+              ]
+            },
+            "minItems": 1
+          },
+          "prefer": {
+            "enum": [
+              "mon",
+              "tue",
+              "wed",
+              "thu",
+              "fri",
+              "sat",
+              "sun"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "days"
+        ]
+      }
+    },
+    "skip_dates": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "default_grid": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "description": "Time of day, HH:MM (24h)"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+          "description": "Time of day, HH:MM (24h)"
+        },
+        "step_min": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 240
+        },
+        "dense": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "from": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Time of day, HH:MM (24h)"
+              },
+              "to": {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "description": "Time of day, HH:MM (24h)"
+              },
+              "step_min": {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 240
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "to",
+              "step_min"
+            ]
+          }
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "from",
+        "to",
+        "step_min"
+      ]
+    },
+    "reliability": {
+      "type": "object",
+      "properties": {
+        "stats": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "median",
+              "p90",
+              "worst",
+              "spread"
+            ]
+          }
+        },
+        "spread_definition": {
+          "enum": [
+            "p90_minus_median",
+            "worst_minus_best"
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "timezone",
+    "day_types",
+    "default_grid"
+  ]
+}

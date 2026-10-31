@@ -1,0 +1,67 @@
+# yaml-language-server: $schema=./schemas/profile.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Search profile, per listing kind.
+#    hard_filters  gate a listing in or out (keys from filters_catalog.yaml)
+#    preferences   weighted score groups (0..1 each); disable a group to ignore it
+#  Edit freely; run `findhome config validate` afterwards. Scores are stored per
+#  config hash, so changing a weight marks old scores as stale.
+# ─────────────────────────────────────────────────────────────
+kinds:
+  rent:
+    enabled: true
+    hard_filters:
+      max_rent_sek: null            # TODO(user): max monthly rent in SEK
+      min_size_m2: null             # TODO(user): minimum living area
+      min_rooms_rok: 2              # "rum och kök": 2 rok ≈ 1 bedroom + living room
+      accept_sovalkov: false        # TODO(user): does 1 rok + sleeping alcove count as a bedroom?
+      move_in_from: null            # TODO(user): earliest move-in date (YYYY-MM-DD)
+      move_in_to: null              # TODO(user): latest move-in date
+      areas_include: []             # TODO(user): e.g. [Södermalm, Kungsholmen]; empty = anywhere
+      areas_exclude: []
+      contract_types: [first_hand, second_hand, sublet]
+      pet_status_exclude: ["no"]    # two cats: an explicit "no" is a hard exclude
+      max_commute_min_by_category:  # median minutes, any trip of that category
+        work: 60
+    preferences:
+      cost:
+        enabled: true
+        weight: 3
+        params: {ideal_rent_sek: null}          # below ideal = 1.0, at max_rent = 0.0
+      space:
+        enabled: true
+        weight: 2
+        params: {ideal_size_m2: 55}
+      commute:
+        enabled: true
+        weight: 4
+        params: {good_min: 20, bad_min: 60, reliability_spread_penalty_min: 10}
+      cat_suitability:
+        enabled: true
+        weight: 3
+        params:
+          pet_status_score: {"yes": 1.0, ask: 0.5, unknown: 0.4}
+          balcony_bonus: 0.15
+          low_floor_or_elevator_bonus: 0.1
+      building_comfort:
+        enabled: true
+        weight: 1
+        params: {elevator_needed_from_floor: 3}
+      contract_availability:
+        enabled: true
+        weight: 2
+        params: {first_hand_bonus: 0.3, min_contract_months: 12}
+      neighbourhood:
+        enabled: false                          # needs the POI layer (tasks/BACKLOG.md: poi-layer)
+        weight: 1
+        params: {}
+  buy:
+    enabled: false                              # buy-ready schema; switched on in task buy-mode
+    hard_filters:
+      max_price_sek: null
+      max_avgift_sek: null
+      min_size_m2: null
+      min_rooms_rok: 2
+      areas_include: []
+      areas_exclude: []
+      pet_status_exclude: []
+    preferences: {}

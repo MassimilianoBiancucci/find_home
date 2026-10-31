@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/site.schema.json",
+  "title": "Listing site registry entry",
+  "type": "object",
+  "properties": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]*$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "url": {
+      "type": "string"
+    },
+    "kinds": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "rent",
+          "buy"
+        ]
+      },
+      "minItems": 1
+    },
+    "status": {
+      "enum": [
+        "unverified",
+        "active",
+        "broken",
+        "disabled"
+      ]
+    },
+    "last_verified": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "fetch": {
+      "type": "object",
+      "properties": {
+        "order": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "api",
+              "http",
+              "playwright",
+              "agent_browser"
+            ]
+          }
+        },
+        "method": {
+          "enum": [
+            "api",
+            "http",
+            "playwright",
+            "agent_browser",
+            null
+          ]
+        },
+        "list_url_template": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "api": {
+          "type": "object",
+          "properties": {
+            "endpoint": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "method": {
+              "enum": [
+                "GET",
+                "POST"
+              ]
+            },
+            "items_path": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "body": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "selectors": {
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "pagination": {
+          "type": "object",
+          "properties": {
+            "type": {
+              "enum": [
+                "page_param",
+                "offset_param",
+                "cursor",
+                "none"
+              ]
+            },
+            "param": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "max_pages": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "order",
+        "method"
+      ]
+    },
+    "filter_map": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "param": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ui_step": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "local_only": {
+            "type": "boolean"
+          },
+          "value_map": {
+            "type": "object"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "field_map": {
+      "type": "object"
+    },
+    "pets": {
+      "type": "object",
+      "properties": {
+        "filter_available": {
+          "enum": [
+            "yes",
+            "no",
+            "unknown"
+          ]
+        },
+        "typical_wording": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "none",
+            "browser_session"
+          ]
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ]
+    },
+    "politeness": {
+      "type": "object",
+      "properties": {
+        "min_delay_s": {
+          "type": "number",
+          "minimum": 0
+        },
+        "max_pages_per_run": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "respect_robots": {
+          "type": "boolean"
+        },
+        "user_agent": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "min_delay_s",
+        "max_pages_per_run",
+        "respect_robots"
+      ]
+    },
+    "schedule": {
+      "type": "object",
+      "properties": {
+        "interval": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "e.g. 6h, 1d — read by an external scheduler"
+        }
+      },
+      "additionalProperties": false
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "slug",
+    "name",
+    "url",
+    "kinds",
+    "status",
+    "fetch",
+    "filter_map",
+    "auth",
+    "politeness"
+  ]
+}

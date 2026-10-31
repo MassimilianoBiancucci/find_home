@@ -1,0 +1,50 @@
+[tool.poetry]
+name = "findhome"
+version = "0.1.0"
+description = "find_home backend: FastAPI app, findhome CLI, scanners and provider adapters (no LLM code)"
+authors = ["Massimiliano Biancucci <massimiliano.biancucci@deerdata.se>"]
+readme = "README.md"
+packages = [{ include = "findhome", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = ">=0.115"
+uvicorn = { version = ">=0.32", extras = ["standard"] }
+pydantic = ">=2.9"
+pydantic-settings = ">=2.6"
+psycopg = { version = ">=3.2", extras = ["binary", "pool"] }
+httpx = ">=0.27"
+"ruamel.yaml" = ">=0.18"
+jsonschema = ">=4.23"
+watchfiles = ">=0.24"
+typer = ">=0.13"
+rich = ">=13.9"
+rapidfuzz = ">=3.10"
+selectolax = ">=0.3"
+python-dotenv = ">=1.0"
+playwright = { version = ">=1.48", optional = true }
+
+[tool.poetry.extras]
+scrape = ["playwright"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.3"
+pytest-asyncio = ">=0.24"
+ruff = ">=0.7"
+
+[tool.poetry.scripts]
+findhome = "findhome.cli.main:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "--tb=short -q"
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"
+
+[build-system]
+requires = ["poetry-core>=1.9"]
+build-backend = "poetry.core.masonry.api"

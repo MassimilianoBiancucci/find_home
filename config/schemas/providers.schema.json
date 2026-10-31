@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/providers.schema.json",
+  "title": "External providers",
+  "type": "object",
+  "properties": {
+    "routing": {
+      "type": "object",
+      "properties": {
+        "haversine": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": true
+        },
+        "osm": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": true
+        },
+        "resrobot": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": true
+        },
+        "google": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "haversine"
+      ]
+    },
+    "mode_priority": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "geocoding": {
+      "type": "object"
+    },
+    "poi": {
+      "type": "object"
+    },
+    "budget": {
+      "type": "object",
+      "properties": {
+        "max_routing_calls_per_run": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "cache": {
+      "type": "object",
+      "properties": {
+        "routing_ttl_days": {
+          "type": "integer"
+        },
+        "geocode_ttl_days": {
+          "type": "integer"
+        },
+        "poi_ttl_days": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "prefilter": {
+      "type": "object",
+      "properties": {
+        "max_haversine_km_by_category": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "map": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "enum": [
+            "maplibre",
+            "google"
+          ]
+        },
+        "style_url": {
+          "type": "string"
+        },
+        "attribution": {
+          "type": "string"
+        },
+        "center": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "zoom": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "routing",
+    "mode_priority",
+    "budget",
+    "cache",
+    "map"
+  ]
+}

@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=./schemas/poi.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Nearby-service categories. OSM tags use key=value (value may be a|b alternatives).
+#  provider: overpass (free, default) | google_places (needs a key, see docs/google-apis.md)
+# ─────────────────────────────────────────────────────────────
+categories:
+  grocery: {label: Groceries, osm_tags: ["shop=supermarket|convenience|greengrocer"], radius_m: 800, max_walk_min: 10, 
+      weight: 1.0, provider: overpass}
+  metro: {label: Metro, osm_tags: ["station=subway", "railway=station&subway=yes"], radius_m: 1200, max_walk_min: 12, 
+      weight: 1.0, provider: overpass}
+  commuter_rail: {label: Pendeltåg, osm_tags: ["train=yes&public_transport=station"], radius_m: 1500, max_walk_min: 15, 
+      weight: 0.6, provider: overpass}
+  bus_stop: {label: Bus stop, osm_tags: ["highway=bus_stop"], radius_m: 400, max_walk_min: 5, weight: 0.5, provider: 
+      overpass}
+  park: {label: Park, osm_tags: ["leisure=park|nature_reserve"], radius_m: 800, max_walk_min: 10, weight: 0.6, provider: 
+      overpass}
+  vet: {label: Vet, osm_tags: ["amenity=veterinary"], radius_m: 3000, max_walk_min: 30, weight: 0.5, provider: overpass}
+  pharmacy: {label: Pharmacy, osm_tags: ["amenity=pharmacy"], radius_m: 1000, max_walk_min: 12, weight: 0.3, provider: 
+      overpass}
+  gym: {label: Gym, osm_tags: ["leisure=fitness_centre"], radius_m: 1000, max_walk_min: 12, weight: 0.3, provider: 
+      overpass}

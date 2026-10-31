@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=./schemas/tags.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Lifecycle statuses and feedback reason tags. The history digest turns tag
+#  counts into "liked / disliked traits" that steer the next agent run.
+# ─────────────────────────────────────────────────────────────
+statuses:
+  default: [new, shortlisted, contacted, viewing, applied, rejected, archived]
+  by_kind:
+    buy: [new, shortlisted, contacted, viewing, bidding, rejected, archived]
+terminal_statuses: [rejected, archived]
+tags:
+  positive:
+    great_commute: {label: Great commute}
+    cat_friendly: {label: Cat friendly}
+    bright: {label: Bright}
+    quiet: {label: Quiet}
+    good_layout: {label: Good layout}
+    balcony: {label: Balcony}
+    green_area: {label: Green area nearby}
+    good_value: {label: Good value}
+  negative:
+    too_far: {label: Too far}
+    no_pets: {label: No pets}
+    noisy: {label: Noisy}
+    too_small: {label: Too small}
+    over_budget: {label: Over budget}
+    bad_layout: {label: Bad layout}
+    short_contract: {label: Short contract}
+    dark: {label: Dark}
+    suspicious: {label: Suspicious / scam risk}
+    bad_area: {label: Area not for me}

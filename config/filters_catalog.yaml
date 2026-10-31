@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=./schemas/filters_catalog.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Canonical filter vocabulary. profile.yaml hard_filters use these keys;
+#  every sites/<slug>/site.yaml maps them in its filter_map (to a URL param,
+#  an API field, a UI step, or local_only = applied after parsing).
+# ─────────────────────────────────────────────────────────────
+filters:
+  max_rent_sek: {type: integer, unit: SEK/month, kinds: [rent], description: Maximum monthly rent}
+  min_size_m2: {type: number, unit: m2, kinds: [rent, buy], description: Minimum living area}
+  min_rooms_rok: {type: number, unit: rok, kinds: [rent, buy], description: "Minimum rooms counted as 'rum och kök' (2 rok
+      ≈ 1 bedroom)"}
+  accept_sovalkov: {type: boolean, kinds: [rent, buy], description: Whether a sleeping alcove counts as a bedroom}
+  move_in_from: {type: date, kinds: [rent], description: Earliest acceptable move-in date}
+  move_in_to: {type: date, kinds: [rent], description: Latest acceptable move-in date}
+  areas_include: {type: string_list, kinds: [rent, buy], description: Areas or districts to keep (empty = all)}
+  areas_exclude: {type: string_list, kinds: [rent, buy], description: Areas or districts to drop}
+  contract_types: {type: enum_list, values: [first_hand, second_hand, sublet], kinds: [rent], description: Accepted 
+      contract types}
+  pet_status_exclude: {type: enum_list, values: ["yes", "no", ask, unknown], kinds: [rent, buy], description: Pet 
+      statuses that exclude a listing}
+  pets_allowed: {type: boolean, kinds: [rent, buy], derived_from: pet_status_exclude, description: "Site-side 'pets allowed'
+      filter; true when 'no' is excluded"}
+  max_commute_min_by_category: {type: map, kinds: [rent, buy], description: Max median commute minutes per location 
+      category}
+  max_price_sek: {type: integer, unit: SEK, kinds: [buy], description: Maximum asking price}
+  max_avgift_sek: {type: integer, unit: SEK/month, kinds: [buy], description: Maximum monthly association fee}

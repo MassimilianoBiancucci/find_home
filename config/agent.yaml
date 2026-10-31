@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=./schemas/agent.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Headless agent commands started by the app's "Run agent" button
+#  (backend/src/findhome/agentrun). The app never calls an LLM itself: it
+#  spawns the command, streams its output to runs/<id>/log.jsonl and records
+#  the run. `{prompt}` in args is replaced by the prompt file's text.
+#  The agent CLI must be installed and logged in on this machine.
+#  Verify the exact flags of your CLI version before first use.
+# ─────────────────────────────────────────────────────────────
+profiles:
+  claude_scan:
+    label: Claude Code - scan for new listings
+    command: claude
+    args: ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
+    prompt_file: .agents/skills/find-home/prompts/run_scan.md
+    timeout_min: 45
+    env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
+  claude_evaluate:
+    label: Claude Code - evaluate new listings
+    command: claude
+    args: ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
+    prompt_file: .agents/skills/find-home/prompts/run_evaluate.md
+    timeout_min: 30
+    env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
+  codex_scan:
+    label: Codex - scan for new listings
+    command: codex
+    args: ["exec", "{prompt}"]
+    prompt_file: .agents/skills/find-home/prompts/run_scan.md
+    timeout_min: 45
+    env_passthrough: [PATH, HOME, OPENAI_API_KEY]

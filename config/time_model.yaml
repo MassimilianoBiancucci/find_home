@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=./schemas/time_model.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Defaults for commute sampling. Trips in locations.yaml inherit these unless
+#  they define their own windows.
+#  Sampled times use a reference date per day type (the next matching date that is
+#  not in skip_dates), so timetable answers stay comparable across runs.
+# ─────────────────────────────────────────────────────────────
+timezone: Europe/Stockholm
+day_types:
+  weekday: {days: [mon, tue, wed, thu, fri], prefer: tue}
+  saturday: {days: [sat]}
+  sunday: {days: [sun]}
+skip_dates: []                  # e.g. public holidays you do not want sampled
+default_grid:
+  from: "07:00"
+  to: "03:00"                   # crosses midnight
+  step_min: 60
+  dense:
+    - {from: "07:00", to: "09:00", step_min: 15}     # morning peak, sampled more finely
+reliability:
+  stats: [median, p90, worst, spread]
+  spread_definition: p90_minus_median

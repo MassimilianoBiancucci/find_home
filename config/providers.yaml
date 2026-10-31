@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=./schemas/providers.schema.json
+# ─────────────────────────────────────────────────────────────
+#  External providers. Keys live in config/providers.env (gitignored).
+#  Paid providers are off by default. See docs/providers.md and docs/google-apis.md.
+# ─────────────────────────────────────────────────────────────
+routing:
+  haversine:
+    enabled: true
+    speeds_kmh: {walk: 4.8, bike: 15, transit: 22, drive: 30}
+    detour_factor: 1.3
+  osm:
+    enabled: true
+    modes: [walk, bike, drive]
+    osrm_url: https://router.project-osrm.org
+    max_requests_per_s: 1
+  resrobot:
+    enabled: true
+    modes: [transit]
+    base_url: https://api.resrobot.se/v2.1
+    key_env: TRAFIKLAB_RESROBOT_KEY
+    max_calls_per_minute: 45
+    max_calls_per_month: 30000
+  google:
+    enabled: false
+    modes: [transit, drive]
+    base_url: https://routes.googleapis.com
+    key_env: GOOGLE_MAPS_SERVER_KEY
+    max_elements_per_month: 5000
+    price_per_1000_usd: 10.0        # assume Pro tier until transit tier is verified
+mode_priority:
+  transit: [resrobot, google, haversine]
+  walk: [osm, haversine]
+  bike: [osm, haversine]
+  drive: [osm, google, haversine]
+geocoding:
+  order: [nominatim, google]
+  nominatim:
+    base_url: https://nominatim.openstreetmap.org
+    email_env: NOMINATIM_EMAIL
+    max_requests_per_s: 1
+    countrycodes: se
+poi:
+  overpass:
+    enabled: true
+    url: https://overpass-api.de/api/interpreter
+  google_places:
+    enabled: false
+    key_env: GOOGLE_MAPS_SERVER_KEY
+budget:
+  max_routing_calls_per_run: 500
+cache:
+  routing_ttl_days: 30
+  geocode_ttl_days: 365
+  poi_ttl_days: 90
+prefilter:
+  max_haversine_km_by_category: {work: 25, partner: 25, transit_hub: 30, generic: 40}
+map:
+  provider: maplibre
+  style_url: https://tiles.openfreemap.org/styles/liberty
+  attribution: "© OpenStreetMap contributors"
+  center: [59.3293, 18.0686]
+  zoom: 11
