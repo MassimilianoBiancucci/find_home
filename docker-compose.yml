@@ -1,0 +1,63 @@
+# ════════════════════════════════════════════════════════════
+#  find_home — local infrastructure (data stores only)
+#
+#  The FastAPI backend and Angular dev server run on the host via the
+#  VS Code debugger / tasks (see .vscode/). Only Postgres + pgAdmin live here.
+#
+#  Usage:
+#    docker compose up -d --wait     # start (waits for healthchecks)
+#    docker compose down             # stop, keep data
+#    docker compose down -v          # stop and wipe data
+#
+#  ┌──────────────────────────────────────────────┐
+#  │  Service    Host port  Purpose               │
+#  ├──────────────────────────────────────────────┤
+#  │  Postgres   5434       Listings, cache, runs │
+#  │  pgAdmin    5052       DB admin UI           │
+#  └──────────────────────────────────────────────┘
+#  Ports chosen not to clash with Interactions_analytics (5433/5051)
+#  and the Debug UI stack (5432/5050). See docs/ports.md.
+# ════════════════════════════════════════════════════════════
+name: findhome
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: fh-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: findhome
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d findhome"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - fh_pgdata:/var/lib/postgresql/data
+
+  pgadmin:
+    image: dpage/pgadmin4:8.12
+    container_name: fh-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@findhome.local"
+      PGADMIN_DEFAULT_PASSWORD: "admin"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_SERVER_JSON_FILE: "/pgadmin4/servers.json"
+    ports:
+      - "5052:80"
+    volumes:
+      - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./infra/pgadmin/pgpass:/pgadmin4/pgpass:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  fh_pgdata:
+    driver: local

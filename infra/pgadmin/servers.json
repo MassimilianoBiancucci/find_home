@@ -1,0 +1,14 @@
+{
+    "Servers": {
+        "1": {
+            "Name": "find_home Postgres",
+            "Group": "find_home",
+            "Host": "postgres",
+            "Port": 5432,
+            "MaintenanceDB": "findhome",
+            "Username": "postgres",
+            "PassFile": "/pgadmin4/pgpass",
+            "SSLMode": "prefer"
+        }
+    }
+}

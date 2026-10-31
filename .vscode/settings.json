@@ -1,0 +1,22 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/backend/.venv/bin/python",
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.cwd": "${workspaceFolder}/backend",
+    "python.testing.pytestArgs": ["tests"],
+    "yaml.schemas": {
+        "config/schemas/profile.schema.json": "config/profile.yaml",
+        "config/schemas/filters_catalog.schema.json": "config/filters_catalog.yaml",
+        "config/schemas/locations.schema.json": "config/locations.yaml",
+        "config/schemas/time_model.schema.json": "config/time_model.yaml",
+        "config/schemas/poi.schema.json": "config/poi.yaml",
+        "config/schemas/tags.schema.json": "config/tags.yaml",
+        "config/schemas/providers.schema.json": "config/providers.yaml",
+        "config/schemas/agent.schema.json": "config/agent.yaml",
+        "config/schemas/site.schema.json": "sites/*/site.yaml"
+    },
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true
+    }
+}

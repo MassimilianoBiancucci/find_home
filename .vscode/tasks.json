@@ -1,0 +1,164 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  find_home — VS Code tasks
+//
+//  Open the find_home folder as the workspace root: every path uses
+//  ${workspaceFolder}. Pattern adapted from the telia_env Debug UI v2
+//  (sequenced orchestrator + background problemMatchers) and
+//  Interactions_analytics (project-local .vscode, in-project venv).
+//
+//  Orchestration used by launch.json "FH: Full Stack":
+//    preLaunchTask "FH: Dev Prereqs"  (dependsOrder: sequence)
+//      ├─ "FH: Free Ports"   → scripts/free-ports.sh (8200, 4400)
+//      ├─ "FH: Infra Up"     → docker compose up -d --wait (Postgres :5434, pgAdmin :5052)
+//      ├─ "FH: Migrate DB"   → findhome db migrate
+//      └─ "FH: ng serve"     → Angular :4400 (background, proxy → FastAPI :8200)
+//    postDebugTask "FH: Infra Down" (only in "FH: Full Stack", not "keep infra")
+// ════════════════════════════════════════════════════════════════════════════
+{
+    "version": "2.0.0",
+    "tasks": [
+        // ═══ Infrastructure ═════════════════════════════════════════════════
+        {
+            "label": "FH: Free Ports",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/free-ports.sh",
+            "presentation": { "reveal": "silent", "panel": "shared", "close": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Infra Up",
+            "type": "shell",
+            "command": "docker compose up -d --wait",
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Infra Down",
+            "type": "shell",
+            "command": "docker compose down",
+            "options": { "cwd": "${workspaceFolder}" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Migrate DB",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/findhome db migrate",
+            "options": { "cwd": "${workspaceFolder}/backend" },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+
+        // ═══ Frontend ═══════════════════════════════════════════════════════
+        // Background matcher lets the sequenced "FH: Dev Prereqs" continue once
+        // the first build is done (same technique as the Debug UI ng serve task).
+        {
+            "label": "FH: ng serve",
+            "type": "shell",
+            "command": "npx ng serve --port 4400 --proxy-config proxy.conf.json",
+            "options": { "cwd": "${workspaceFolder}/frontend" },
+            "isBackground": true,
+            "presentation": { "reveal": "always", "panel": "dedicated", "group": "fh-ui" },
+            "problemMatcher": {
+                "owner": "fh-ng",
+                "pattern": { "regexp": "^$" },
+                "background": {
+                    "activeOnStart": true,
+                    "beginsPattern": "Building|Compiling|Initial chunk files",
+                    "endsPattern": "bundle generation complete|Compiled successfully|Watch mode enabled|Application bundle generation (complete|failed)"
+                }
+            }
+        },
+        {
+            "label": "FH: Frontend tests",
+            "type": "shell",
+            "command": "npx ng test --watch=false",
+            "options": { "cwd": "${workspaceFolder}/frontend" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Generate API types",
+            "type": "shell",
+            "command": "npm run gen:api",
+            "options": { "cwd": "${workspaceFolder}/frontend" },
+            "problemMatcher": []
+        },
+
+        // ═══ Orchestrator ═══════════════════════════════════════════════════
+        {
+            "label": "FH: Dev Prereqs",
+            "dependsOn": ["FH: Free Ports", "FH: Infra Up", "FH: Migrate DB", "FH: ng serve"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        },
+
+        // ═══ Tools (findhome CLI) ═══════════════════════════════════════════
+        {
+            "label": "FH: Config Validate",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/findhome config validate",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Scan site",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/findhome scan ${input:siteSlug}",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Scan site (dry run)",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/findhome scan ${input:siteSlug} --dry-run --max-pages 1",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: History Digest",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/findhome digest history",
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Pytest",
+            "type": "shell",
+            "command": "${workspaceFolder}/backend/.venv/bin/pytest -q",
+            "options": { "cwd": "${workspaceFolder}/backend" },
+            "problemMatcher": []
+        },
+
+        // ═══ Setup & checks ═════════════════════════════════════════════════
+        {
+            "label": "FH: Install",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/install.sh",
+            "presentation": { "reveal": "always", "panel": "shared", "focus": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Smoke Check",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/smoke-check.sh",
+            "presentation": { "reveal": "always", "panel": "shared", "focus": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Sync Skills",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/sync-skills.sh",
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "siteSlug",
+            "type": "pickString",
+            "description": "Site to scan (sites/<slug>)",
+            "options": ["--all", "qasa", "blocket-bostad", "samtrygg", "bostadsformedlingen"],
+            "default": "--all"
+        }
+    ]
+}

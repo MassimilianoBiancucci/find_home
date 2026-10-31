@@ -1,0 +1,83 @@
+// ════════════════════════════════════════════════════════════════════════════
+//  find_home — VS Code launch configurations
+//
+//  Processes:
+//    • FastAPI backend :8200  — debugpy (breakpoints)        "FH: Backend (FastAPI)"
+//    • Angular dev    :4400   — task "FH: ng serve" (started by the preLaunchTask)
+//    • Postgres :5434 / pgAdmin :5052 — docker compose (task "FH: Infra Up")
+//
+//  "FH: Full Stack"              stops docker compose when debugging ends.
+//  "FH: Full Stack (keep infra)" leaves Postgres/pgAdmin running.
+//  No BFF: Angular calls FastAPI through the ng serve proxy (frontend/proxy.conf.json).
+// ════════════════════════════════════════════════════════════════════════════
+{
+    "version": "0.2.0",
+    "compounds": [
+        {
+            "name": "FH: Full Stack",
+            "preLaunchTask": "FH: Dev Prereqs",
+            "configurations": ["FH: Backend (FastAPI)"],
+            "stopAll": true,
+            "postDebugTask": "FH: Infra Down",
+            "presentation": { "group": "find_home", "order": 1 }
+        },
+        {
+            "name": "FH: Full Stack (keep infra)",
+            "preLaunchTask": "FH: Dev Prereqs",
+            "configurations": ["FH: Backend (FastAPI)"],
+            "stopAll": true,
+            "presentation": { "group": "find_home", "order": 2 }
+        }
+    ],
+    "configurations": [
+        {
+            "name": "FH: Backend (FastAPI)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["findhome.api.main:app", "--host", "127.0.0.1", "--port", "8200", "--reload", "--reload-dir", "src"],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "envFile": "${workspaceFolder}/config/backend.env",
+            "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "presentation": { "group": "find_home", "order": 10 }
+        },
+        {
+            "name": "FH: CLI (prompt for args)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "findhome.cli.main",
+            "args": "${input:cliArgs}",
+            "cwd": "${workspaceFolder}",
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "envFile": "${workspaceFolder}/config/backend.env",
+            "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "presentation": { "group": "find_home", "order": 11 }
+        },
+        {
+            "name": "FH: Pytest",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": ["-q"],
+            "cwd": "${workspaceFolder}/backend",
+            "python": "${workspaceFolder}/backend/.venv/bin/python",
+            "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
+            "justMyCode": false,
+            "console": "integratedTerminal",
+            "presentation": { "group": "find_home", "order": 12 }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "cliArgs",
+            "type": "promptString",
+            "description": "findhome CLI arguments, e.g. 'digest history' or 'scan qasa --dry-run'",
+            "default": "digest history"
+        }
+    ]
+}

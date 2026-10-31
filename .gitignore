@@ -1,0 +1,32 @@
+# Secrets: real env files are personal; *.env.example templates are committed
+config/*.env
+!config/*.env.example
+*.env.local
+
+# Python
+backend/.venv/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+
+# Runtime data (caches, raw snapshots, exports)
+data/
+# Agent run folders (scratchpads, logs); keep the README
+runs/*
+!runs/README.md
+
+# Site probe raw dumps (reports are committed)
+sites/*/probe/raw/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+
+# Task scratch backups
+tasks/**/scripts/.*.md
