@@ -1,0 +1,25 @@
+<div class="fh-shell">
+  <aside class="fh-sidebar">
+    <div class="fh-brand">find<span>_home</span></div>
+    <nav>
+      @for (item of nav; track item.path) {
+        <a [routerLink]="item.path" routerLinkActive="active" class="fh-nav">{{ item.label }}</a>
+      }
+    </nav>
+    <div class="fh-sidebar-foot">
+      @if (apiDown()) {
+        <div class="small text-danger">API down. Start “FH: Full Stack”.</div>
+      } @else if (health(); as h) {
+        <div class="small text-body-secondary" [title]="h.config_errors.join('\n')">
+          <span class="fh-dot" [class.ok]="h.status === 'ok'"></span>
+          {{ h.status }} · cfg {{ h.config_hash?.slice(0, 7) }}
+          @if (h.config_errors.length) { <span class="text-warning">· config errors</span> }
+        </div>
+      }
+      <button class="btn btn-sm btn-outline-secondary mt-2" (click)="theme.toggle()">
+        {{ theme.theme() === 'dark' ? 'Light' : 'Dark' }} mode
+      </button>
+    </div>
+  </aside>
+  <main class="fh-main"><router-outlet /></main>
+</div>

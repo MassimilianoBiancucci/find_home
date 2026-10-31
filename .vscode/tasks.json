@@ -77,13 +77,6 @@
             "options": { "cwd": "${workspaceFolder}/frontend" },
             "problemMatcher": []
         },
-        {
-            "label": "FH: Generate API types",
-            "type": "shell",
-            "command": "npm run gen:api",
-            "options": { "cwd": "${workspaceFolder}/frontend" },
-            "problemMatcher": []
-        },
 
         // ═══ Orchestrator ═══════════════════════════════════════════════════
         {
