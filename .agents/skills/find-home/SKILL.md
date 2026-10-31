@@ -41,8 +41,17 @@ you (agent) ──scripts/findhome──▶ local API :8200 ──▶ Postgres �
 | Add a website | [prompts/site_onboarding.md](prompts/site_onboarding.md) |
 | A site's scan broke | [prompts/site_repair.md](prompts/site_repair.md) |
 | Scan a site that needs a browser | [prompts/browser_scan.md](prompts/browser_scan.md) |
+| Qasa scan from the Claude desktop app (no shell to the API; fine on Haiku) | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
 | Ask a landlord about the two cats | [prompts/pet_inquiry.md](prompts/pet_inquiry.md) |
 | Turn feedback into search changes | [prompts/research_guidance.md](prompts/research_guidance.md) |
+
+## Running in the Claude desktop app (Cowork)
+
+There, you work through the connected `find_home` folder and the built-in browser, and the app's API on
+`127.0.0.1:8200` is usually not reachable. Then: read state from `runs/state/<site>.json` (written by the app:
+`last_published`, `scan_urls`) instead of calling `findhome`, and write results as JSON files into `inbox/`
+(format in `inbox/README.md`); the running app imports them. Site prompts written for this mode are short and
+procedural so a small model (Haiku) can run them on a schedule.
 
 ## Hard rules
 
@@ -51,7 +60,8 @@ you (agent) ──scripts/findhome──▶ local API :8200 ──▶ Postgres �
 - After any YAML edit run `scripts/findhome config validate` and fix what it reports.
 - Never change profile weights or hard filters on your own: propose them in
   `$FINDHOME_RUN_DIR/proposed_config.patch.yaml` ([prompts/research_guidance.md](prompts/research_guidance.md)).
-- Never store or type credentials. Sites with `auth.mode: browser_session` are used only through the user's
+- Never store or type credentials. Never try to get around a site's bot protection (spoofed user agents,
+  headless browsers, private APIs): browse in the user's own browser session or stop and report. Sites with `auth.mode: browser_session` are used only through the user's
   already logged-in browser session.
 - Respect each site's `politeness` (delay, max pages) and robots rules. Personal use only.
 - Set `pet_status` only with quoted evidence (`pet_evidence`). Two cats: an explicit "no" excludes a listing.

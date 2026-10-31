@@ -16,7 +16,8 @@ long-running server is part of the pre-launch chain, so the launch never depends
 
 **API.** [`api/main.py`](../../backend/src/findhome/api/main.py) builds the FastAPI app, binds to 127.0.0.1:8200,
 opens an async psycopg pool ([`core/db.py`](../../backend/src/findhome/core/db.py)) without waiting for the
-database, loads the config bundle and starts a file watcher that reloads it. The API starts even when Postgres is
+database, loads the config bundle and starts two watchers: one reloads the config, one imports JSON files dropped
+into `inbox/` ([agent_contract.md](agent_contract.md)). The API starts even when Postgres is
 down: it logs the database URL (password hidden) and whether it is reachable, `/health` reports `db_error`, and
 any request needing the database returns 503 with the cause while the pool keeps retrying. Routers live in [`api/routers/`](../../backend/src/findhome/api/routers/listings.py).
 Each request gets one connection, committed when the request succeeds.

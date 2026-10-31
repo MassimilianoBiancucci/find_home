@@ -39,3 +39,14 @@ def runs_dir() -> Path:
 
 def data_dir() -> Path:
     return repo_root() / "data"
+
+
+def inbox_dir() -> Path:
+    """Drop folder for agents without shell access to the API (e.g. Claude desktop): JSON files here are
+    imported by the running backend. See inbox/README.md."""
+    return repo_root() / "inbox"
+
+
+def state_dir() -> Path:
+    """Small state files the backend writes for agents (e.g. last seen listing per site)."""
+    return repo_root() / "runs" / "state"

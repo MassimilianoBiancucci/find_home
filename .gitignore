@@ -17,9 +17,12 @@ frontend/.angular/
 
 # Runtime data (caches, raw snapshots, exports)
 data/
-# Agent run folders (scratchpads, logs); keep the README
+# Agent run folders (scratchpads, logs, state); keep the README
 runs/*
 !runs/README.md
+# File inbox for agents without API access; keep the README
+inbox/*
+!inbox/README.md
 
 # Site probe raw dumps (reports are committed)
 sites/*/probe/raw/

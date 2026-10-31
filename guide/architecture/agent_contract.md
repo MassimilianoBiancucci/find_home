@@ -47,6 +47,21 @@ The contract models are in [`domain/models.py`](../../backend/src/findhome/domai
 `EvaluationIn` forbid unknown fields. An evaluation may set `pet_status` only together with `pet_evidence`.
 When `FINDHOME_AGENT_RUN_ID` is set, `ingest evaluations` links the evaluations to that run.
 
+## File inbox (agents without API access)
+
+Claude in the desktop app works through the connected folder and its built-in browser and usually cannot reach
+`127.0.0.1:8200`. It writes JSON files into `inbox/` instead ([`inbox/README.md`](../../inbox/README.md)):
+`{"site", "parser", "source", "docs"}` for raw site items converted by the site's `to_listing`, or
+`{"listings": [ListingIn]}`. [`findhome.inbox`](../../backend/src/findhome/inbox.py) imports them on API startup,
+when a file appears (watcher) and on `POST /api/inbox/import` (`findhome ingest inbox`), then moves each file to
+`inbox/processed/` or `inbox/failed/` with an `.error.txt`.
+
+The API also writes `runs/state/<site>.json` (on startup, on config changes and after each inbox import):
+`last_published` (newest `attributes.publishedAt` seen), `known_listings`, and `scan_urls`, the result-page URLs
+built by the same filter mapping as the scripted scanner. Browser prompts such as
+[`qasa_browser_scan.md`](../../.agents/skills/find-home/prompts/qasa_browser_scan.md) read only this file and
+`extract.js`, so a small model can run them.
+
 ## Runs
 
 A run folder `runs/<UTC timestamp>-<profile>/` holds `run.yaml`, `scratchpad.md` (Goal, Context loaded, Sites

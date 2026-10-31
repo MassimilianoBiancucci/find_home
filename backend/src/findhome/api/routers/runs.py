@@ -17,6 +17,15 @@ from findhome.domain.models import AgentRunRequest
 router = APIRouter(prefix="/api", tags=["runs"])
 
 
+@router.post("/inbox/import")
+async def inbox_import():
+    """Import inbox/*.json now (the backend also does it automatically when files appear)."""
+    from findhome import inbox
+    from findhome.core.db import pool
+
+    return {"results": await inbox.import_all(pool())}
+
+
 @router.get("/runs")
 async def list_runs(conn=Depends(get_conn)):
     return await repo.list_runs(conn)

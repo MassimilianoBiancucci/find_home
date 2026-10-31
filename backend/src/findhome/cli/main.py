@@ -186,6 +186,15 @@ def _site_parser(slug: str):
     return mod.to_listing
 
 
+@ingest_app.command("inbox")
+def ingest_inbox():
+    """Import inbox/*.json now (files written by agents that cannot reach the API)."""
+    res = _api().post("/api/inbox/import")
+    _out(res, "\n".join(f"{r['file']}: " + (f"ERROR {r['error']}" if "error" in r else
+                         f"{r['created']} new, {r['updated']} changed, {r['unchanged']} unchanged, {r['duplicate']} dup")
+                         for r in res["results"]) or "inbox empty")
+
+
 @ingest_app.command("evaluations")
 def ingest_evaluations(file: Path = typer.Option(..., "--file", "-f", help="JSON list of EvaluationIn; - for stdin")):
     """Store agent evaluations (pros, cons, landlord questions, extracted facts)."""

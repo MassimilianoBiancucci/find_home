@@ -182,3 +182,35 @@ def test_agent_run_launch_and_log(client):
         import shutil
         shutil.rmtree(run_dir, ignore_errors=True)
     assert client.post("/api/agent-runs", json={"profile": "missing"}).status_code == 409
+
+
+def test_inbox_import_and_state(client, monkeypatch, tmp_path):
+    """Claude-desktop flow: extract.js output dropped in inbox/ → imported → runs/state/qasa.json updated."""
+    import importlib.util
+    import json
+
+    from findhome import inbox
+
+    monkeypatch.setattr(inbox, "inbox_dir", lambda: tmp_path / "inbox")
+    monkeypatch.setattr(inbox, "state_dir", lambda: tmp_path / "state")
+    spec = importlib.util.spec_from_file_location("qasa_inbox_t", REPO / "sites" / "qasa" / "scanner.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    nodes, _ = mod.search_documents((REPO / "backend" / "tests" / "fixtures" / "qasa" / "search_page.html").read_text())
+    (tmp_path / "inbox").mkdir()
+    (tmp_path / "inbox" / "qasa-20261031T200000Z-p1.json").write_text(json.dumps(
+        {"site": "qasa", "parser": "qasa", "source": "agent_browser", "page": 1, "docs": nodes}))
+    (tmp_path / "inbox" / "bad.json").write_text('{"docs": [1, 2]}')
+    res = client.post("/api/inbox/import").json()["results"]
+    ok = next(r for r in res if r["file"].startswith("qasa"))
+    bad = next(r for r in res if r["file"] == "bad.json")
+    assert ok["created"] == 3 and "parser" in bad["error"]
+    assert (tmp_path / "inbox" / "processed" / "qasa-20261031T200000Z-p1.json").exists()
+    assert (tmp_path / "inbox" / "failed" / "bad.error.txt").exists()
+    state = json.loads((tmp_path / "state" / "qasa.json").read_text())
+    assert state["known_listings"] == 3 and state["last_published"] == "2026-10-31T14:24:45Z"
+    assert state["scan_urls"][0].startswith("https://qasa.com/se/sv/find-home?") and len(state["scan_urls"]) == 5
+    rows = client.get("/api/listings").json()["items"]
+    assert {r["short_id"] for r in rows} and all(r["status"] == "new" for r in rows)
+    again = client.post("/api/inbox/import").json()["results"]
+    assert again == []

@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from psycopg import OperationalError
 from psycopg_pool import PoolTimeout
 
-from findhome import __version__
+from findhome import __version__, inbox
 from findhome.api.routers import config as config_router
 from findhome.api.routers import digest, ingest, listings, map as map_router, runs, scoring, sites
 from findhome.config.loader import ConfigError
@@ -30,6 +30,8 @@ async def _sync_sites() -> None:
         return
     async with db.pool().connection() as conn:
         await repo.sync_sites(conn, store.bundle.sites, store.bundle.site_hashes)
+        await conn.commit()
+        await inbox.write_state(conn, store.bundle)     # scan URLs follow profile/site changes
 
 
 async def _sync_sites_safe() -> None:
@@ -56,12 +58,14 @@ async def lifespan(app: FastAPI):
     store.listeners.append(lambda _b: loop.create_task(_sync_sites_safe()))
     await _sync_sites_safe()
     watcher = asyncio.create_task(store.watch())
+    inbox_watcher = asyncio.create_task(inbox.watch(db.pool()))
     try:
         yield
     finally:
-        watcher.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await watcher
+        for task in (watcher, inbox_watcher):
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
         await db.close_pool()
 
 
