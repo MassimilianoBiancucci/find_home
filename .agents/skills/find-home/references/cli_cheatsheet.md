@@ -23,6 +23,9 @@ output. Everything except `db`, `config validate|hash|show|schema` and `run new`
 | `config schema ingest --markdown` | the data contract | Markdown tables |
 | `run new [profile]` / `run close` | run folder with scratchpad + digest / store Handover | env lines / one line |
 | `geocode "<address>" [--refresh]` | check an address through the app's geocode cache | `lat, lon  display [cache\|provider]` or `not found (sent: ...)` |
+| `area show` | the search area: zones per piece with weight, kommuner, aliases, bbox, centre | ~5 lines |
+| `area check <lat> <lon>` | area score of a coordinate | `inside \| N m outside · score · best piece · zone` |
+| `geo fetch zones` | build `data/geo/zones.geojson` (SCB RegSO + OSM), works without the API | one line |
 | `db migrate [--check]` | migrations | applied / up to date |
 | `serve` | run the API without VS Code | uvicorn log |
 

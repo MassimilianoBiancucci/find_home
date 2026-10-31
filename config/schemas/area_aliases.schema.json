@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/area_aliases.schema.json",
+  "title": "Popular area names mapped to zone ids",
+  "type": "object",
+  "properties": {
+    "aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"type": "string"}, "minItems": 1}
+    }
+  },
+  "additionalProperties": false,
+  "required": ["aliases"]
+}

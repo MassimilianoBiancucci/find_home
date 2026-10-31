@@ -12,7 +12,8 @@ around a site's bot protection (spoofed user agents, headless browsers, private 
 and report it.
 
 1. Read `sites/<slug>/NAVIGATION.md` §2-§7 and `site.yaml` `filter_map` (`ui_step` entries tell you what to
-   click). Use the profile's hard filters from the history digest.
+   click). Use the profile's hard filters and the **Search area** section from the history digest: search those
+   zones or the smallest wider area the site offers, never outside `findhome area show`'s bbox.
 2. If the site folder has an `extract.js` (e.g. `sites/qasa/extract.js`), use it: open each result page, run the
    file's code with the browser's JavaScript tool, save the returned JSON to the run folder and ingest it with
    `scripts/findhome ingest listings -f <file> --parser <slug> --source agent_browser`. Then skip steps 3-6.

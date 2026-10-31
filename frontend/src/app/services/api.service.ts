@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
-  AddressSuggestion, AgentProfile, AgentRun, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail, ScanRun, Site,
+  AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail, ScanRun, Site,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -62,6 +62,15 @@ export class ApiService {
   mapListings() { return this.http.get<GeoCollection>('/api/map/listings'); }
 
   suggestAddress(q: string) { return this.http.get<{ items: AddressSuggestion[] }>('/api/geocode/suggest', { params: { q } }); }
+
+  geoZones() { return this.http.get<GeoCollection>('/api/geo/zones'); }
+  area() { return this.http.get<AreaState>('/api/area'); }
+  areaEval(points: { lat: number; lon: number }[]) {
+    return this.http.post<{ defined: boolean; items: AreaResult[] }>('/api/area/eval', { points });
+  }
+  areaBrush(body: { stroke: [number, number][]; radius_m: number; base?: unknown; mode?: 'add' | 'erase' }) {
+    return this.http.post<{ geometry: any | null; area_km2: number }>('/api/area/brush', body);
+  }
 }
 
 /** Pull a readable message out of an API error (422 config errors, FastAPI detail, network). */

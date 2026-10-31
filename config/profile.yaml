@@ -54,6 +54,10 @@ kinds:
         enabled: false                          # needs the POI layer (tasks/BACKLOG.md: poi-layer)
         weight: 1
         params: {}
+      area:
+        enabled: true                           # search area from Map → Area (config/search_area.yaml)
+        weight: 3
+        params: {}
   buy:
     enabled: false                              # buy-ready schema; switched on in task buy-mode
     hard_filters:

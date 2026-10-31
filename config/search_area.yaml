@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=./schemas/search_area.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Where you want to live. Edited in the UI (Map → Area); part of the config hash.
+#  pieces: zone sets (RegSO zone ids, see Map → Area) or drawn shapes (GeoJSON, lon/lat),
+#          each with a weight 0..1; kind: eraser cuts every other piece.
+#  A listing scores max(weight × falloff): 1 inside, falling linearly to 0 at buffer_m outside.
+#  Beyond the buffer it is rejected (outside_search_area). With no pieces, profile.yaml's
+#  areas_include / areas_exclude text filters apply instead.
+# ─────────────────────────────────────────────────────────────
+buffer_m: 1500
+pieces: []

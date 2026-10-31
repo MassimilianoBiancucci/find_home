@@ -31,9 +31,12 @@ CONFIG_FILES: dict[str, type[m._Base]] = {
     "tags": m.Tags,
     "providers": m.Providers,
     "agent": m.AgentConfig,
+    "geo": m.GeoConfig,
+    "search_area": m.SearchArea,
+    "area_aliases": m.AreaAliases,
 }
 # files whose content changes scores; their canonical JSON makes the config hash
-SCORING_FILES = ("profile", "locations", "time_model", "poi", "tags")
+SCORING_FILES = ("profile", "locations", "time_model", "poi", "tags", "search_area")
 
 
 class ConfigError(Exception):
@@ -52,6 +55,9 @@ class ConfigBundle:
     tags: m.Tags
     providers: m.Providers
     agent: m.AgentConfig
+    geo: m.GeoConfig
+    search_area: m.SearchArea
+    area_aliases: m.AreaAliases
     sites: dict[str, m.SiteConfig]
     raw: dict[str, Any] = field(repr=False)
     config_hash: str = ""
@@ -133,6 +139,37 @@ def _cross_checks(raw: dict[str, Any], sites: dict[str, Any]) -> list[str]:
                 errors.append(f"sites/{slug}/site.yaml: filter_map/{key}: not in filters_catalog.yaml")
         if site.get("slug") != slug:
             errors.append(f"sites/{slug}/site.yaml: slug '{site.get('slug')}' does not match folder name")
+    errors += _area_checks(raw)
+    return errors
+
+
+def _area_checks(raw: dict[str, Any]) -> list[str]:
+    from shapely.geometry import shape
+
+    from findhome.geo.store import load_zones
+
+    errors: list[str] = []
+    pieces = raw["search_area"].get("pieces") or []
+    ids = [p["id"] for p in pieces]
+    for dup in sorted({i for i in ids if ids.count(i) > 1}):
+        errors.append(f"search_area.yaml: pieces: duplicate id '{dup}'")
+    zones = load_zones()
+    for i, p in enumerate(pieces):
+        where = f"search_area.yaml: pieces/{i} ({p['id']})"
+        if p.get("geometry"):
+            try:
+                if not shape(p["geometry"]).is_valid:
+                    errors.append(f"{where}: geometry is not a valid polygon")
+            except Exception as exc:  # noqa: BLE001 - any GeoJSON problem
+                errors.append(f"{where}: geometry: {exc}")
+        if zones is not None:
+            unknown = [z for z in p.get("zones") or [] if z not in zones.zones]
+            if unknown:
+                errors.append(f"{where}: unknown zone ids {unknown[:5]} (rebuild with: findhome geo fetch zones)")
+    known = zones.zones if zones is not None else None
+    for name, zs in (raw["area_aliases"].get("aliases") or {}).items():
+        if known is not None and any(z not in known for z in zs):
+            errors.append(f"area_aliases.yaml: aliases/{name}: unknown zone ids")
     return errors
 
 

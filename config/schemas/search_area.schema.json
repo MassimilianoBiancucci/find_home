@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/search_area.schema.json",
+  "title": "Search area: weighted pieces and erasers",
+  "type": "object",
+  "properties": {
+    "buffer_m": {"type": "number", "minimum": 0, "maximum": 20000},
+    "pieces": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9_.-]+$"},
+          "label": {"type": "string"},
+          "weight": {"type": "number", "minimum": 0, "maximum": 1},
+          "kind": {"enum": ["zones", "shape", "eraser"]},
+          "source": {"enum": ["zones", "brush", "circle", "lasso", "polygon"]},
+          "zones": {"type": "array", "items": {"type": "string"}},
+          "geometry": {
+            "type": "object",
+            "properties": {
+              "type": {"enum": ["Polygon", "MultiPolygon"]},
+              "coordinates": {"type": "array"}
+            },
+            "required": ["type", "coordinates"]
+          },
+          "visible": {"type": "boolean"}
+        },
+        "additionalProperties": false,
+        "required": ["id", "kind"],
+        "allOf": [
+          {"if": {"properties": {"kind": {"const": "zones"}}}, "then": {"required": ["zones"]}},
+          {"if": {"properties": {"kind": {"enum": ["shape", "eraser"]}}}, "then": {"required": ["geometry"]}}
+        ]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": ["buffer_m", "pieces"]
+}

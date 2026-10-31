@@ -12,6 +12,21 @@ from findhome.domain.models import CommuteRequest
 from findhome.domain.scoring import score_listing
 
 router = APIRouter(prefix="/api", tags=["commute & scores"])
+GEOCODE_PER_RECOMPUTE = 60          # Nominatim allows 1 req/s; cached answers are free
+
+
+async def ensure_coords(conn, reg, L: dict) -> dict:
+    """Geocode a listing without coordinates from its address (cached) and store the result."""
+    if L["lat"] is not None or not L.get("address_raw"):
+        return L
+    from findhome.providers.geocode import geocode
+
+    hit = await geocode(conn, reg, L["address_raw"])
+    if not hit:
+        return L
+    await conn.execute("UPDATE listings SET lat = %s, lon = %s, geocode_source = 'nominatim' WHERE id = %s",
+                       (hit.lat, hit.lon, L["id"]))
+    return {**L, "lat": hit.lat, "lon": hit.lon}
 
 
 class RecomputeBody(BaseModel):
@@ -25,14 +40,7 @@ async def compute(body: CommuteRequest, conn=Depends(get_conn)):
     coords = await resolve_point_coords(conn, reg, b.locations.points, int(b.providers.cache.get("geocode_ttl_days", 365)))
     results = {}
     for sid in body.short_ids:
-        L = await repo.get_listing(conn, sid)
-        if L["lat"] is None and L["address_raw"]:
-            from findhome.providers.geocode import geocode
-            hit = await geocode(conn, reg, L["address_raw"])
-            if hit:
-                await conn.execute("UPDATE listings SET lat = %s, lon = %s, geocode_source = 'nominatim' WHERE id = %s",
-                                   (hit.lat, hit.lon, L["id"]))
-                L = {**L, "lat": hit.lat, "lon": hit.lon}
+        L = await ensure_coords(conn, reg, await repo.get_listing(conn, sid))
         if L["lat"] is None:
             results[L["short_id"]] = {"error": "no coordinates (address could not be geocoded)"}
             continue
@@ -54,10 +62,14 @@ async def recompute(body: RecomputeBody | None = None, conn=Depends(get_conn)):
         rows = [await repo.get_listing(conn, s) for s in body.short_ids]
     else:
         rows = await (await conn.execute("SELECT * FROM listings WHERE status <> 'archived'")).fetchall()
-    scored = rejected = 0
+    scored = rejected = geocoded = 0
+    reg = registry()
     for L in rows:
+        if L["lat"] is None and L.get("address_raw") and geocoded < GEOCODE_PER_RECOMPUTE:
+            geocoded += 1
+            L = await ensure_coords(conn, reg, L)
         result = score_listing(b, L, await repo.commute_for(conn, L["id"], b.config_hash))
         await repo.save_score(conn, L["id"], b.config_hash, result)
         scored += 1
         rejected += bool(result["rejected_by"])
-    return {"config_hash": b.config_hash, "scored": scored, "rejected": rejected}
+    return {"config_hash": b.config_hash, "scored": scored, "rejected": rejected, "geocoded": geocoded}

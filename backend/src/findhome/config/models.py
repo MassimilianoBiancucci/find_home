@@ -159,6 +159,33 @@ class AgentConfig(_Base):
     profiles: dict[str, AgentProfile]
 
 
+# ── geo, search area ─────────────────────────────────────────
+class GeoConfig(_Base):
+    region: dict[str, Any]
+    datasets: dict[str, dict[str, Any]]
+    attribution: list[str] = Field(default_factory=list)
+
+
+class AreaPiece(_Base):
+    id: str
+    kind: Literal["zones", "shape", "eraser"]
+    label: str | None = None
+    weight: float = 1.0
+    source: str | None = None
+    zones: list[str] = Field(default_factory=list)
+    geometry: dict[str, Any] | None = None
+    visible: bool = True
+
+
+class SearchArea(_Base):
+    buffer_m: float
+    pieces: list[AreaPiece]
+
+
+class AreaAliases(_Base):
+    aliases: dict[str, list[str]]
+
+
 # ── sites ───────────────────────────────────────────────────
 class SiteConfig(_Base):
     slug: str

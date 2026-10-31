@@ -67,7 +67,10 @@ export class MapShell {
   private applyStyle(mode: string): void {
     const map = this.state.map();
     const url = this.styleUrl(mode);
-    if (map && url && !this.styleFailed) map.setStyle(url, { diff: false });
+    if (map && url && !this.styleFailed) {
+      this.state.styleChanging();
+      map.setStyle(url, { diff: false });
+    }
   }
 
   private async init(destroy: DestroyRef): Promise<void> {
@@ -87,14 +90,13 @@ export class MapShell {
         map.addControl(new ml.ScaleControl({ unit: 'metric' }), 'bottom-left');
         new ResizeObserver(() => map.resize()).observe(this.el().nativeElement);
         map.on('error', () => {
-          if (map.isStyleLoaded() || this.styleFailed) return;
+          if (this.state.ready() || this.styleFailed) return;
           this.styleFailed = true;
           this.error.set('Map style could not be loaded (offline or blocked): blank background. Check map.style_url in config/providers.yaml.');
           map.setStyle(BLANK);
         });
         map.on('style.load', () => this.state.reapply());
         this.addBaseLayers(map, pts, lst);
-        if (map.isStyleLoaded()) this.state.reapply();
       },
       error: (e) => this.error.set(apiError(e)),
     });
@@ -141,8 +143,10 @@ export class MapShell {
       ],
     });
     const select = (kind: 'listing' | 'point') => (e: any) => {
-      const p = e.features?.[0]?.properties;
-      if (p) this.state.selection.set({ kind, props: p });
+      const f = e.features?.[0];
+      if (!f) return;
+      const [lon, lat] = f.geometry?.coordinates ?? [e.lngLat.lng, e.lngLat.lat];
+      this.state.selection.set({ kind, props: { ...f.properties, lat, lon } });
     };
     map.on('click', 'listings', select('listing'));
     map.on('click', 'points-mark', select('point'));

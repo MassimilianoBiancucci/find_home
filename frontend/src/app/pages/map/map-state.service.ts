@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, isDevMode, signal } from '@angular/core';
 import type { LayerSpecification, Map as MlMap, SourceSpecification, StyleSpecification } from 'maplibre-gl';
 
 export type MapLib = typeof import('maplibre-gl');
@@ -32,9 +32,20 @@ export class MapStateService {
   readonly visible = signal<Record<string, boolean>>(this.readVisible());
   private groups = new Map<string, LayerGroup>();
   private data = new Map<string, unknown>();
+  private loaded = false;                           // map.isStyleLoaded() is false while tiles load, so track the style ourselves
 
-  attach(ml: MapLib, map: MlMap): void { this.ml = ml; this.map.set(map); }
-  detach(): void { this.map.set(null); this.groups.clear(); this.data.clear(); this.selection.set(null); }
+  /** True once the current style has loaded and groups can be added. */
+  ready(): boolean { return this.loaded && this.map() !== null; }
+
+  /** Call before map.setStyle: groups are re-applied on the next style load. */
+  styleChanging(): void { this.loaded = false; }
+
+  attach(ml: MapLib, map: MlMap): void {
+    this.ml = ml;
+    this.map.set(map);
+    if (isDevMode()) (window as any).fhMap = map;   // inspect from the browser console while developing
+  }
+  detach(): void { this.loaded = false; this.map.set(null); this.groups.clear(); this.data.clear(); this.selection.set(null); }
 
   isVisible(id: string, fallback = true): boolean { return this.visible()[id] ?? fallback; }
 
@@ -43,14 +54,14 @@ export class MapStateService {
     try { localStorage.setItem(VIS_KEY, JSON.stringify(this.visible())); } catch { /* storage unavailable */ }
     const map = this.map();
     const g = this.groups.get(id);
-    if (!map || !g || !map.isStyleLoaded()) return;
+    if (!map || !g || !this.loaded) return;
     for (const l of this.layersOf(g, map)) if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', on ? 'visible' : 'none');
   }
 
   addGroup(g: LayerGroup): void {
     this.groups.set(g.id, g);
     const map = this.map();
-    if (map?.isStyleLoaded()) this.apply(map, g);
+    if (map && this.loaded) this.apply(map, g);
   }
 
   removeGroup(id: string): void {
@@ -73,6 +84,7 @@ export class MapStateService {
   reapply(): void {
     const map = this.map();
     if (!map) return;
+    this.loaded = true;
     for (const g of this.groups.values()) this.apply(map, g);
     this.styleReady.update((n) => n + 1);
   }

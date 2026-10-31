@@ -25,7 +25,8 @@ def _as_date(v: Any) -> date | None:
     return date.fromisoformat(str(v))
 
 
-def hard_filter_failures(hf: dict[str, Any], listing: dict[str, Any], commute: list[dict]) -> list[str]:
+def hard_filter_failures(hf: dict[str, Any], listing: dict[str, Any], commute: list[dict],
+                         area: dict[str, Any] | None = None) -> list[str]:
     fails: list[str] = []
     rent, size, rooms = listing.get("rent_sek"), listing.get("size_m2"), listing.get("rooms_rok")
     if hf.get("max_rent_sek") and rent is not None and rent > hf["max_rent_sek"]:
@@ -45,11 +46,14 @@ def hard_filter_failures(hf: dict[str, Any], listing: dict[str, Any], commute: l
     ct = listing.get("contract_type")
     if hf.get("contract_types") and ct and ct != "unknown" and ct not in hf["contract_types"]:
         fails.append("contract_types")
-    area = (listing.get("area") or "").lower()
-    if hf.get("areas_include") and area and not any(a.lower() in area for a in hf["areas_include"]):
-        fails.append("areas_include")
-    if hf.get("areas_exclude") and area and any(a.lower() in area for a in hf["areas_exclude"]):
-        fails.append("areas_exclude")
+    area_text = (listing.get("area") or "").lower()
+    if area is None:
+        if hf.get("areas_include") and area_text and not any(a.lower() in area_text for a in hf["areas_include"]):
+            fails.append("areas_include")
+        if hf.get("areas_exclude") and area_text and any(a.lower() in area_text for a in hf["areas_exclude"]):
+            fails.append("areas_exclude")
+    elif area.get("score") == 0:
+        fails.append("outside_search_area")
     avail = _as_date(listing.get("available_from"))
     if avail and hf.get("move_in_to") and avail > _as_date(hf["move_in_to"]):
         fails.append("move_in_to")
@@ -138,6 +142,27 @@ def _contract(p, hf, L):
     return max(0.0, min(1.0, s)), f"{ct}, {months or '?'} months"
 
 
+def _area(area: dict[str, Any] | None):
+    if area is None:
+        return None, "no search area defined (Map → Area)"
+    if area.get("unknown"):
+        return None, "area_unknown: no coordinates"
+    where = "inside" if area["inside"] else f"{area['distance_m']} m outside"
+    return area["score"], f"{where} · best {area['best_piece'] or '-'}"
+
+
+def evaluate_area(bundle: ConfigBundle, listing: dict[str, Any]) -> dict[str, Any] | None:
+    """None when no search area is defined; {'unknown': True} without coordinates; else the AreaResult dict."""
+    from findhome.geo.area import area_eval, compiled_for
+
+    area = compiled_for(bundle.raw.get("search_area"))
+    if not area.defined:
+        return None
+    if listing.get("lat") is None or listing.get("lon") is None:
+        return {"unknown": True}
+    return area_eval(area, float(listing["lat"]), float(listing["lon"])).as_dict()
+
+
 def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[dict]) -> dict[str, Any]:
     kind = listing.get("listing_kind", "rent")
     prof = bundle.profile.kinds.get(kind)
@@ -146,7 +171,8 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
     cats = {pt.id: pt.category for pt in bundle.locations.points}
     commute = [{**c, "category": cats.get(c["point_id"])} for c in commute]
     hf = prof.hard_filters
-    failures = hard_filter_failures(hf, listing, commute)
+    area = evaluate_area(bundle, listing)
+    failures = hard_filter_failures(hf, listing, commute, area)
     groups = {
         "cost": lambda p: _cost(p, hf, listing),
         "space": lambda p: _space(p, hf, listing),
@@ -154,6 +180,7 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
         "cat_suitability": lambda p: _cats(p, hf, listing),
         "building_comfort": lambda p: _building(p, hf, listing),
         "contract_availability": lambda p: _contract(p, hf, listing),
+        "area": lambda p: _area(area),
     }
     breakdown: dict[str, Any] = {}
     num = den = 0.0
@@ -166,6 +193,8 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
             continue
         s, why = fn(pref.params)
         breakdown[name] = {"score": None if s is None else round(s, 3), "weight": pref.weight, "why": why}
+        if name == "area" and area and not area.get("unknown"):
+            breakdown[name]["detail"] = area
         if s is not None:
             num, den = num + pref.weight * s, den + pref.weight
     total = None if failures or den == 0 else round(num / den, 4)

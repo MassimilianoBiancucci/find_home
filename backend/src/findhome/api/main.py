@@ -16,6 +16,7 @@ from findhome import __version__, inbox
 from findhome.api.routers import config as config_router
 from findhome.api.routers import digest, ingest, listings, map as map_router, runs, scoring, sites
 from findhome.api.routers import geocode as geocode_router
+from findhome.api.routers import geo as geo_router
 from findhome.config.loader import ConfigError
 from findhome.config.store import get_store
 from findhome.core import db
@@ -110,5 +111,5 @@ async def health():
     return JSONResponse(status_code=200 if db_ok and store.bundle else 503, content=body)
 
 
-for r in (config_router, listings, ingest, scoring, digest, sites, runs, map_router, geocode_router):
+for r in (config_router, listings, ingest, scoring, digest, sites, runs, map_router, geocode_router, geo_router):
     app.include_router(r.router)

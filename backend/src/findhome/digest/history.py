@@ -22,6 +22,26 @@ def _hf_line(hf: dict) -> str:
     return ", ".join(f"{k}={_fmt(v)}" for k, v in hf.items() if v not in (None, [], {}, ""))
 
 
+def _area_lines(bundle) -> list[str]:
+    """Search area for agents: where to search (zone names per weight, kommuner), compact."""
+    from findhome.geo.area import compiled_for
+
+    area = compiled_for(bundle.raw.get("search_area"))
+    if not area.defined:
+        return ["\n## Search area", "- none defined (Map → Area); text area filters apply"]
+    lines = ["\n## Search area (stay inside; `findhome area show` for the bbox)"]
+    zones = area.zones.zones if area.zones else {}
+    kommuner: set[str] = set()
+    for p in area.pieces:
+        names = [zones[z].name for z in p.zones if z in zones]
+        kommuner.update(zones[z].kommun for z in p.zones if z in zones)
+        shown = ", ".join(names[:12]) + (f" +{len(names) - 12}" if len(names) > 12 else "")
+        lines.append(f"- {p.label} ×{p.weight:g}: {shown or p.kind}")
+    if kommuner:
+        lines.append(f"- kommuner: {', '.join(sorted(kommuner))} · buffer {area.buffer_m:g} m (listings beyond it are rejected)")
+    return lines
+
+
 async def history_digest(conn, bundle, since: str | None = None, list_limit: int = 15) -> str:
     q = lambda sql, p=(): conn.execute(sql, p)  # noqa: E731
     out: list[str] = [f"# find_home history digest · {datetime.now(UTC):%Y-%m-%d %H:%M} UTC · config {bundle.config_hash}"]
@@ -38,6 +58,7 @@ async def history_digest(conn, bundle, since: str | None = None, list_limit: int
         out.append(f"- {kind} weights: " + ", ".join(f"{g} {w:g}" for g, w in top))
     pts = ", ".join(f"{p.id}({p.category})" for p in bundle.locations.points if p.enabled)
     out.append(f"- points: {pts}")
+    out += _area_lines(bundle)
 
     fb = await (await q("SELECT polarity, tags FROM feedback")).fetchall()
     liked, disliked = Counter(), Counter()

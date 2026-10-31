@@ -10,7 +10,10 @@ stop:    API down · config invalid · budget reached · 45 minutes
 ```
 
 1. `bash .agents/skills/find-home/scripts/preflight.sh`, then export the two printed variables.
-2. Read `$FINDHOME_RUN_DIR/context/history_digest.md`. Write the Goal in the scratchpad.
+2. Read `$FINDHOME_RUN_DIR/context/history_digest.md`. Write the Goal in the scratchpad. Its **Search area**
+   section says where to search: on every site, search only those zones, or the smallest wider area the site
+   offers that contains them (e.g. "Solna" or "Stockholm"), never outside `findhome area show`'s bbox. Listings
+   are checked by coordinates after ingest, so you do not need to match the site's area names exactly.
 3. `scripts/findhome site list`. For `active` sites: `scripts/findhome scan --all`. Note each site line
    in Findings. If a site reports parse errors or 0 items, set its `status: broken` in `sites/<slug>/site.yaml`,
    validate, and list it under Decisions (do not repair it in this run).

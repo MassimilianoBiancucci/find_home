@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=./schemas/geo.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Geodata for the map and the search area. Files are built under data/geo/ (gitignored)
+#  by `findhome geo fetch <dataset>`; nothing here changes scores.
+# ─────────────────────────────────────────────────────────────
+region:
+  name: Stockholm core
+  kommuner:                       # SCB municipality code → name
+    "0180": Stockholm
+    "0184": Solna
+    "0183": Sundbyberg
+    "0186": Lidingö
+    "0162": Danderyd
+    "0163": Sollentuna
+    "0123": Järfälla
+    "0126": Huddinge
+    "0182": Nacka
+datasets:
+  zones:
+    source: scb_regso_2025        # SCB RegSO 2025 (CC0), grouped by Stockholm stadsdelsområde from OSM
+    wfs_url: https://geodata.scb.se/geoserver/stat/wfs
+    type_name: stat:RegSO_2025
+    simplify_m: 8
+attribution:
+  - "Statistical areas: Source: Statistics Sweden (SCB)"
+  - "© OpenStreetMap contributors"

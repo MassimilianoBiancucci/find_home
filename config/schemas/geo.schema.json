@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/geo.schema.json",
+  "title": "Geodata region and datasets",
+  "type": "object",
+  "properties": {
+    "region": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "kommuner": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[0-9]{4}$"},
+          "additionalProperties": {"type": "string"},
+          "minProperties": 1
+        }
+      },
+      "additionalProperties": false,
+      "required": ["kommuner"]
+    },
+    "datasets": {
+      "type": "object",
+      "additionalProperties": {"type": "object"}
+    },
+    "attribution": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false,
+  "required": ["region", "datasets"]
+}

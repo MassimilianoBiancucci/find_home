@@ -26,8 +26,11 @@ ingest_app = typer.Typer(help="Write listings/evaluations from JSON files (agent
 site_app = typer.Typer(help="Site registry tools.", no_args_is_help=True)
 run_app = typer.Typer(help="Agent run folders (scratchpads).", no_args_is_help=True)
 scores_app = typer.Typer(help="Scores.", no_args_is_help=True)
+geo_app = typer.Typer(help="Build the map's geodata under data/geo/ (zones, POIs, transit).", no_args_is_help=True)
+area_app = typer.Typer(help="The search area (Map → Area): zones, weights, checks.", no_args_is_help=True)
 for name, sub in (("db", db_app), ("config", config_app), ("listings", listings_app), ("digest", digest_app),
-                  ("ingest", ingest_app), ("site", site_app), ("run", run_app), ("scores", scores_app)):
+                  ("ingest", ingest_app), ("site", site_app), ("run", run_app), ("scores", scores_app),
+                  ("geo", geo_app), ("area", area_app)):
     app.add_typer(sub, name=name)
 
 STATE = {"json": False, "api": None}
@@ -384,6 +387,56 @@ def geocode(address: str, refresh: bool = typer.Option(False, "--refresh", help=
     text = (f"{hit['lat']:.5f}, {hit['lon']:.5f}  {hit.get('display') or ''} [{src}]" if hit
             else f"not found [{src}] (sent: {r['sent']})")
     _out(r, text)
+
+
+# ── geo ─────────────────────────────────────────────────────
+@geo_app.command("fetch")
+def geo_fetch(dataset: str = typer.Argument(..., help="zones")):
+    """Download and build one dataset into data/geo/ (runs locally, no API needed)."""
+    from findhome.config.loader import load_all
+
+    b = load_all()
+    if dataset != "zones":
+        typer.secho(f"unknown dataset '{dataset}' (available: zones)", fg="red", err=True)
+        raise typer.Exit(2)
+    from findhome.config.writer import apply_ops
+    from findhome.geo.build_zones import build_zones
+
+    rep = build_zones(b.geo)
+    seeded = 0
+    if not b.area_aliases.aliases and rep["aliases"]:
+        apply_ops("area_aliases", [{"op": "replace", "path": "/aliases", "value": rep["aliases"]}])
+        seeded = len(rep["aliases"])
+    _out({**rep, "aliases_seeded": seeded},
+         f"zones: {rep['zones']} ({rep['districts']} Stockholm districts) → {rep['file']}"
+         + (f"\naliases seeded: {seeded} names → config/area_aliases.yaml" if seeded else ""))
+
+
+# ── area ────────────────────────────────────────────────────
+@area_app.command("show")
+def area_show():
+    """The search area for agents: zones with weight, aliases, bounding box and centre."""
+    a = _api().get("/api/area/summary")
+    if not a["defined"]:
+        _out(a, "no search area defined (Map → Area); profile areas_include/areas_exclude apply")
+        return
+    lines = [f"search area · buffer {a['buffer_m']} m · {a['area_km2']} km² · bbox {a['bbox']} · centre {a['centre']}"]
+    for p in a["pieces"]:
+        names = ", ".join(z["name"] for z in p["zones"][:40]) or p["kind"]
+        lines.append(f"- {p['label']} ×{p['weight']}: {names}")
+    if a["kommuner"]:
+        lines.append(f"kommuner: {', '.join(a['kommuner'])}")
+    if a["aliases"]:
+        lines.append(f"also known as: {', '.join(a['aliases'][:30])}")
+    _out(a, "\n".join(lines))
+
+
+@area_app.command("check")
+def area_check(lat: float, lon: float):
+    """Area score of one coordinate (inside / distance to the border / per-piece contributions)."""
+    r = _api().post("/api/area/eval", {"points": [{"lat": lat, "lon": lon}]})["items"][0]
+    where = "inside" if r["inside"] else f"{r['distance_m']} m outside"
+    _out(r, f"{where} · score {r['score']} · best {r['best_piece'] or '-'} · zone {(r['zone'] or {}).get('name', '-')}")
 
 
 if __name__ == "__main__":

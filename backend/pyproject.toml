@@ -23,6 +23,8 @@ rapidfuzz = ">=3.10"
 selectolax = ">=1.0"
 python-dotenv = ">=1.0"
 playwright = { version = ">=1.48", optional = true }
+shapely = ">=2.0"
+pyproj = ">=3.6"
 
 [tool.poetry.extras]
 scrape = ["playwright"]

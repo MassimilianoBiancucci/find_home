@@ -99,5 +99,19 @@ export interface LocationsConfig { categories: Record<string, Category>; points:
 export interface Health { status: string; db: boolean; db_error?: string | null; config_hash: string | null; config_errors: string[]; version: string; }
 export interface AddressSuggestion { label: string; lat: number; lon: number; source: string; }
 
+export interface AreaPiece {
+  id: string; kind: 'zones' | 'shape' | 'eraser'; label?: string; weight?: number;
+  source?: 'zones' | 'brush' | 'circle' | 'lasso' | 'polygon'; zones?: string[]; geometry?: any; visible?: boolean;
+}
+export interface AreaState {
+  config_hash: string; buffer_m: number; pieces: AreaPiece[]; defined: boolean; outline: any | null;
+  missing_zones: string[]; area_km2: number; listings: { inside: number; near: number; outside: number; unknown: number };
+}
+export interface AreaResult {
+  inside: boolean | null; distance_m: number | null; depth_m?: number | null; score: number | null; best_piece: string | null;
+  contributions: { piece: string; label: string; weight: number; distance_m: number; value: number }[];
+  zone: { id: string; name: string; district: string; kommun: string } | null;
+}
+
 export interface GeoFeature { type: 'Feature'; geometry: { type: 'Point'; coordinates: [number, number] } | null; properties: Record<string, any>; }
 export interface GeoCollection { type: 'FeatureCollection'; features: GeoFeature[]; }
