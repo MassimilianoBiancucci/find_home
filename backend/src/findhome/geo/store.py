@@ -112,3 +112,62 @@ def load_poi(category: str) -> PoiIndex | None:
     idx = PoiIndex(category, feats, pts, STRtree(pts), mtime)
     _poi_cache[category] = idx
     return idx
+
+
+@dataclass
+class TransitIndex:
+    """Lines per (mode, ref) in EPSG:3006, to draw itinerary legs along the real track."""
+    lines: dict[tuple[str, str], BaseGeometry]
+    colours: dict[tuple[str, str], str]
+    mtime: float
+
+    def leg_path(self, mode: str, ref: str | None, a: tuple[float, float], b: tuple[float, float],
+                 max_off_m: float = 300) -> list[list[float]] | None:
+        """[lon, lat] points along the line between boarding a and alighting b ([lon, lat]); None if not found."""
+        from shapely.geometry import LineString, Point
+        from shapely.ops import substring
+
+        from findhome.geo.crs import point_metric, to_wgs84
+
+        geom = self.lines.get((mode, ref or ""))
+        if geom is None:
+            return None
+        pa, pb = Point(point_metric(*a)), Point(point_metric(*b))
+        parts = list(getattr(geom, "geoms", [geom]))
+        best = min(parts, key=lambda g: g.distance(pa) + g.distance(pb))
+        if best.distance(pa) > max_off_m or best.distance(pb) > max_off_m:
+            return None
+        da, db = best.project(pa), best.project(pb)
+        seg = substring(best, min(da, db), max(da, db))
+        if not isinstance(seg, LineString) or seg.length == 0:
+            return None
+        coords = [[round(x, 6), round(y, 6)] for x, y in to_wgs84(seg).coords]
+        return coords if da <= db else coords[::-1]
+
+
+_transit_cache: dict[str, TransitIndex] = {}
+
+
+def transit_dir() -> Path:
+    return data_dir() / "geo" / "transit"
+
+
+def load_transit() -> TransitIndex | None:
+    """None until `findhome geo fetch transit` has run."""
+    meta = transit_dir() / "meta.json"
+    if not meta.exists():
+        return None
+    mtime = meta.stat().st_mtime
+    hit = _transit_cache.get("idx")
+    if hit and hit.mtime == mtime:
+        return hit
+    lines, colours = {}, {}
+    for p in transit_dir().glob("lines_*.geojson"):
+        for f in read_geojson(p)["features"]:
+            pr = f["properties"]
+            key = (pr["mode"], pr.get("ref") or "")
+            lines[key] = to_metric(shape(f["geometry"]))
+            colours[key] = pr.get("colour")
+    idx = TransitIndex(lines, colours, mtime)
+    _transit_cache["idx"] = idx
+    return idx

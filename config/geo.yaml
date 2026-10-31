@@ -21,6 +21,14 @@ datasets:
     wfs_url: https://geodata.scb.se/geoserver/stat/wfs
     type_name: stat:RegSO_2025
     simplify_m: 8
+  transit:                        # `findhome geo fetch transit`: SL GTFS when TRAFIKLAB_GTFS_KEY is set, else OSM routes
+    order: [gtfs, osm]
+    gtfs_url: https://opendata.samtrafiken.se/gtfs/sl/sl.zip
+    key_env: TRAFIKLAB_GTFS_KEY
+    refresh_days: 7               # Bronze key: 50 static downloads/month
+    simplify_m: {rail: 5, bus: 10}
+    station_snap_m: 80            # a station serves the lines passing within this distance
 attribution:
   - "Statistical areas: Source: Statistics Sweden (SCB)"
   - "© OpenStreetMap contributors"
+  - "Transit data: Trafiklab.se / Samtrafiken (CC0), when built from GTFS"

@@ -37,6 +37,15 @@ Sweden-wide journey planner on official timetables (SL included).
 - The map's test point also asks ResRobot for one itinerary per point (`passlist=1`: legs with stops and
   coordinates), cached per ~100 m origin cell.
 
+## Transit network for the map: SL GTFS or OSM routes
+`findhome geo fetch transit` builds the map's lines and stations under `data/geo/transit/`. With
+`TRAFIKLAB_GTFS_KEY` (Trafiklab project + "GTFS Regional Static data" API; CC0; Bronze key: 50 downloads/month) it
+uses SL's GTFS (`sl.zip`, downloaded at most every `refresh_days`). Without a key it uses OpenStreetMap route
+relations from Overpass (three requests, raw answers kept in `data/geo/raw/` for `refresh_days`). SL lines without a
+number or with a future `start_date` (the yellow metro line under construction) are skipped. GTFS has no line
+colours: they come from [`config/transit_colours.yaml`](../config/transit_colours.yaml) (approximate, **to verify**
+against SL's network map), then from OSM's `colour` tag.
+
 ## Google Maps Platform (optional, off)
 Routes API (transit and traffic-aware driving), Geocoding, Places, Maps JS / 3D tiles. Needs a billing account.
 Costs, free caps and key setup: [google-apis.md](google-apis.md). The adapter pins a minimal `X-Goog-FieldMask`

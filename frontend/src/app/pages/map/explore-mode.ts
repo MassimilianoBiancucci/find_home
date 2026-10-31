@@ -1,10 +1,13 @@
-import { Component, DestroyRef, TemplateRef, afterNextRender, computed, inject, viewChild } from '@angular/core';
+import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
+import { TransitLine } from '../../models';
+import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
 import { blipUrl } from '../../components/map-icons';
 import { MapStateService } from './map-state.service';
 import { PoiLayersService } from './poi-layers.service';
+import { TransitLayersService } from './transit-layers.service';
 import { ProbeService } from './probe.service';
 import { ProbePanel, SavedProbesList } from './probe-panel';
 
@@ -32,6 +35,26 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
       </label>
     }
     @if (poi.error()) { <div class="small text-danger">{{ poi.error() }}</div> }
+    <div class="fh-section mt-2">Transit</div>
+    @if (transit.meta(); as m) {
+      @if (!m.built) { <div class="small text-body-secondary">Not built yet: <code>findhome geo fetch transit</code></div> }
+      @else {
+        @for (t of m.modes; track t.mode) {
+          <label class="fh-row">
+            <input type="checkbox" class="form-check-input" [checked]="transit.isOn('transit-' + t.mode)" (change)="transit.toggle('transit-' + t.mode)" />
+            <span class="fh-line" [style.background]="t.color"></span>
+            <span class="fh-grow">{{ t.label }} <span class="text-body-secondary small">{{ t.count }}</span></span>
+          </label>
+        }
+        <label class="fh-row">
+          <input type="checkbox" class="form-check-input" [checked]="transit.isOn('transit-stations')" (change)="transit.toggle('transit-stations')" />
+          <img [src]="icon('metro', '#0089ca')" width="20" height="20" alt="" />
+          <span class="fh-grow">Stations <span class="text-body-secondary small">{{ m.stations }}</span></span>
+        </label>
+        <div class="small text-body-secondary">Source: {{ m.source === 'gtfs' ? 'SL GTFS (Trafiklab)' : 'OpenStreetMap routes' }}</div>
+      }
+    }
+    @if (transit.error()) { <div class="small text-danger">{{ transit.error() }}</div> }
   </ng-template>
 
   <ng-template #legendTpl>
@@ -71,7 +94,20 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
       }
       @case ('feature') {
         @let f = sel()!;
-        @if (f.kind === 'feature') {
+        @if (f.kind === 'feature' && f.props['kind'] === 'line') {
+          <h6 class="mb-1"><span class="fh-ref" [style.background]="f.props['colour']">{{ f.props['ref'] ?? '–' }}</span> {{ f.props['name'] }}</h6>
+          @if (line(); as l) {
+            <div class="small text-body-secondary mb-1">{{ l.length_km }} km · {{ l.stations.length }} stations</div>
+            <ol class="fh-stops">@for (s of l.stations; track s) { <li>{{ s }}</li> }</ol>
+          }
+        } @else if (f.kind === 'feature' && f.props['kind'] === 'station') {
+          <h6 class="mb-1"><img [src]="icon(f.props['icon'], f.props['color'])" width="20" class="me-1" alt="" />{{ f.props['name'] }}</h6>
+          @for (entry of stationLines(f.props['lines']); track entry.mode) {
+            <div class="d-flex flex-wrap gap-1 align-items-center small mb-1"><span class="text-body-secondary me-1">{{ entry.label }}</span>
+              @for (r of entry.refs; track r) { <span class="fh-ref" [style.background]="entry.color">{{ r }}</span> }</div>
+          }
+          <button class="btn btn-sm btn-outline-secondary mt-2" (click)="probeAt(f.lngLat[1], f.lngLat[0])">Test point here</button>
+        } @else if (f.kind === 'feature') {
           <h6 class="mb-1"><img [src]="icon(f.props['icon'], f.props['color'])" width="20" class="me-1" alt="" />{{ f.props['name'] ?? f.props['category_label'] }}</h6>
           <dl class="fh-kv">
             <dt>Type</dt><dd>{{ f.props['category_label'] }}</dd>
@@ -85,10 +121,19 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
     @if (sel()) { <hr class="my-3" /> }
     <fh-probe-panel />
   </ng-template>`,
+  styles: [`
+    .fh-line { display: inline-block; width: 18px; height: 4px; border-radius: 2px; box-shadow: 0 0 0 1px #0006; }
+    .fh-ref { display: inline-block; min-width: 22px; padding: 0 5px; border-radius: 4px; color: #fff; font-weight: 700; font-size: .78rem;
+      text-align: center; text-shadow: 0 1px 1px #0008; }
+    .fh-stops { font-size: .82rem; padding-left: 1.4rem; margin: 0; columns: 2; }
+  `],
 })
 export class ExploreMode {
   protected state = inject(MapStateService);
   protected poi = inject(PoiLayersService);
+  protected transit = inject(TransitLayersService);
+  private api = inject(ApiService);
+  protected line = signal<TransitLine | null>(null);
   private probe = inject(ProbeService);
   private layout = inject(LayoutService);
   private router = inject(Router);
@@ -105,6 +150,14 @@ export class ExploreMode {
 
   constructor() {
     const destroy = inject(DestroyRef);
+    effect(() => {
+      const s = this.sel();
+      untracked(() => {
+        this.line.set(null);
+        if (s?.kind === 'feature' && s.props['kind'] === 'line' && s.props['ref'])
+          this.api.transitLine(s.props['mode'], s.props['ref']).subscribe({ next: (l) => this.line.set(l), error: () => {} });
+      });
+    });
     afterNextRender(() => this.layout.register(destroy, [
       { id: 'map-layers', title: 'Layers', tpl: this.layersTpl() },
       { id: 'map-legend', title: 'Legend', tpl: this.legendTpl() },
@@ -115,4 +168,11 @@ export class ExploreMode {
   protected icon(glyph: string | null | undefined, color: string | null | undefined): string { return blipUrl(glyph, color); }
   protected open(id: string): void { this.router.navigate(['/candidates', id]); }
   protected probeAt(lat: number, lon: number): void { this.probe.set(lat, lon); }
+  protected stationLines(lines: Record<string, string[]>): { mode: string; label: string; color: string; refs: string[] }[] {
+    const modes = this.transit.meta()?.modes ?? [];
+    return Object.entries(lines ?? {}).map(([mode, refs]) => {
+      const m = modes.find((x) => x.mode === mode);
+      return { mode, label: m?.label ?? mode, color: m?.color ?? '#8a8aa0', refs };
+    });
+  }
 }

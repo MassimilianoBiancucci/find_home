@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=./schemas/transit_colours.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Line colours for the transit layer and itinerary legs. SL's GTFS has no route_color, so they live here.
+#  Keys: map mode → default colour + per-line colours (line number without letters: "14", not "T14").
+#  UNVERIFIED: hex values approximated from SL's network map; check them against sl.se before trusting them.
+# ─────────────────────────────────────────────────────────────
+modes:
+  metro:
+    label: Tunnelbana
+    default: "#0089ca"
+    lines: {"10": "#0089ca", "11": "#0089ca", "13": "#d71d24", "14": "#d71d24", "17": "#148541", "18": "#148541",
+      "19": "#148541"}
+  commuter_rail:
+    label: Pendeltåg
+    default: "#ec619f"
+  local_rail:
+    label: Lokalbana
+    default: "#a05fa5"
+    lines: {"25": "#00a5ac", "26": "#00a5ac", "27": "#a05fa5", "28": "#a05fa5", "29": "#a05fa5"}
+  tram:
+    label: Spårväg
+    default: "#878787"
+    lines: {"7": "#878787", "12": "#878787", "21": "#878787", "30": "#f39200", "31": "#f39200"}
+  train:
+    label: Train
+    default: "#6b6b7a"
+  bus:
+    label: Bus
+    default: "#d71d24"
+    lines: {"1": "#0089ca", "2": "#0089ca", "3": "#0089ca", "4": "#0089ca", "6": "#0089ca"}
+  ferry:
+    label: Ferry
+    default: "#3ab4d8"

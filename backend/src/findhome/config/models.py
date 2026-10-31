@@ -189,6 +189,22 @@ class AreaAliases(_Base):
     aliases: dict[str, list[str]]
 
 
+class ModeColours(_Base):
+    label: str | None = None
+    default: str
+    lines: dict[str, str] = Field(default_factory=dict)
+
+
+class TransitColours(_Base):
+    modes: dict[str, ModeColours]
+
+    def colour(self, mode: str, line: str | None) -> str:
+        m = self.modes.get(mode)
+        if m is None:
+            return "#8a8aa0"
+        return m.lines.get(line or "", m.default)
+
+
 # ── sites ───────────────────────────────────────────────────
 class SiteConfig(_Base):
     slug: str

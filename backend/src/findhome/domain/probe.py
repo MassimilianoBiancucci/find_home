@@ -155,7 +155,29 @@ async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, poin
             continue
         await _cache_put(conn, key, "resrobot", it["minutes"], it, ttl)
         out.append({**base, **it, "est": False, "cached": False})
+    for trip in out:
+        dress_legs(trip.get("legs") or [], bundle)
     return out
+
+
+def dress_legs(legs: list[dict], bundle: ConfigBundle) -> None:
+    """Colour each transit leg by its line and follow the real track when the transit layer has the line."""
+    from findhome.geo.build_transit import RAILISH, norm_ref
+    from findhome.geo.store import load_transit
+
+    transit = load_transit()
+    for leg in legs:
+        if leg.get("mode") == "walk":
+            continue
+        ref = norm_ref(str(leg.get("line") or "")) or ""
+        if transit and (leg["mode"], ref) not in transit.lines and leg["mode"] in RAILISH:
+            leg["mode"] = next((m for m in RAILISH if (m, ref) in transit.lines), leg["mode"])   # e.g. Roslagsbanan as "lokaltåg"
+        leg["color"] = (transit.colours.get((leg["mode"], ref)) if transit else None) or bundle.transit_colours.colour(leg["mode"], ref)
+        a, b = leg.get("from") or {}, leg.get("to") or {}
+        if transit and a.get("lat") is not None and b.get("lat") is not None:
+            path = transit.leg_path(leg["mode"], ref, (a["lon"], a["lat"]), (b["lon"], b["lat"]))
+            if path:
+                leg["path"] = path
 
 
 async def probe(conn, registry, bundle: ConfigBundle, lat: float, lon: float, point_coords: dict[str, LatLon],

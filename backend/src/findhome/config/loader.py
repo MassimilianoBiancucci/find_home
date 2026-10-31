@@ -34,6 +34,7 @@ CONFIG_FILES: dict[str, type[m._Base]] = {
     "geo": m.GeoConfig,
     "search_area": m.SearchArea,
     "area_aliases": m.AreaAliases,
+    "transit_colours": m.TransitColours,
 }
 # files whose content changes scores; their canonical JSON makes the config hash
 SCORING_FILES = ("profile", "locations", "time_model", "poi", "tags", "search_area")
@@ -58,6 +59,7 @@ class ConfigBundle:
     geo: m.GeoConfig
     search_area: m.SearchArea
     area_aliases: m.AreaAliases
+    transit_colours: m.TransitColours
     sites: dict[str, m.SiteConfig]
     raw: dict[str, Any] = field(repr=False)
     config_hash: str = ""

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/transit_colours.schema.json",
+  "title": "Transit line colours",
+  "type": "object",
+  "properties": {
+    "modes": {
+      "type": "object",
+      "propertyNames": {"enum": ["metro", "commuter_rail", "local_rail", "tram", "train", "bus", "ferry"]},
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {"type": "string"},
+          "default": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"},
+          "lines": {
+            "type": "object",
+            "additionalProperties": {"type": "string", "pattern": "^#[0-9a-fA-F]{6}$"}
+          }
+        },
+        "additionalProperties": false,
+        "required": ["default"]
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": ["modes"]
+}

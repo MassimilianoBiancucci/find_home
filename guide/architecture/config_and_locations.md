@@ -19,6 +19,7 @@ validated, the locations model (points, trips, windows), the config hash, the co
 | [`geo.yaml`](../../config/geo.yaml) | geodata region (municipalities) and dataset sources for `data/geo/` |
 | [`search_area.yaml`](../../config/search_area.yaml) | the search area: weighted pieces, erasers, buffer (edited in Map → Area) |
 | [`area_aliases.yaml`](../../config/area_aliases.yaml) | popular area names → zone ids (seeded from OSM place names) |
+| [`transit_colours.yaml`](../../config/transit_colours.yaml) | line colours and labels per transit mode (GTFS has no colours) |
 | `backend.env`, `providers.env` | process settings and provider keys (gitignored; `*.env.example` committed) |
 
 [`config/loader.py`](../../backend/src/findhome/config/loader.py) `load_all` parses every file, validates it against
@@ -119,6 +120,19 @@ per category, one ORS matrix call for all of them, each pair cached in `routing_
 fallback) and one ResRobot itinerary per enabled point (first trip, its first day type, the middle slot of its
 first window), cached by ~100 m origin cell. Saved, named test points (`probes` table, `/api/probes`) are an
 **alpha** feature; nothing else depends on them.
+
+## Transit network
+
+`findhome geo fetch transit` ([`geo/build_transit.py`](../../backend/src/findhome/geo/build_transit.py)) writes
+`data/geo/transit/lines_<mode>.geojson` (one feature per line, both directions merged), `stations.geojson` and
+`meta.json`. Sources follow `geo.yaml` `datasets.transit.order`: SL GTFS when `TRAFIKLAB_GTFS_KEY` is set (dominant
+shape per route and direction, parent stations), else OSM route relations. Modes are metro, commuter_rail,
+local_rail (Roslagsbanan, Saltsjöbanan), tram (incl. Tvärbanan, Lidingö- and Nockebybanan), train (regional),
+bus and ferry; `classify` holds the line-number rules. A station serves the lines that pass within
+`station_snap_m` of it (no timetables needed); platforms with the same name and mode are merged. Colours:
+`transit_colours.yaml` per line, then OSM `colour`, then the mode default. `load_transit`
+([`geo/store.py`](../../backend/src/findhome/geo/store.py)) gives the test point the line shapes, so itinerary legs
+follow the track and carry the line colour. Nothing here changes scores.
 
 ## Zones and the search area
 

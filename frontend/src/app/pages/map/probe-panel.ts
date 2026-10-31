@@ -119,7 +119,7 @@ export class SavedProbesList {
           @if (t.legs.length) {
             <div class="fh-legs">
               @for (l of t.legs; track $index) {
-                <span class="fh-leg" [style.background]="colour(l.mode)" [class.walk]="l.mode === 'walk'"
+                <span class="fh-leg" [style.background]="l.color ?? colour(l.mode)" [class.walk]="l.mode === 'walk'"
                   [title]="(l.name ?? l.mode) + ': ' + l.from.name + ' → ' + l.to.name">{{ l.mode === 'walk' ? '🚶' : (l.line ?? l.mode) }}{{ l.minutes ? ' ' + l.minutes + '′' : '' }}</span>
               }
             </div>

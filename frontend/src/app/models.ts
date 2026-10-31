@@ -123,6 +123,7 @@ export interface PoiHit {
 }
 export interface ProbeLeg {
   mode: string; line?: string | null; name?: string | null; direction?: string | null; minutes: number | null; distance_m?: number | null;
+  color?: string | null;
   from: { name: string; lat: number; lon: number; time: string | null }; to: { name: string; lat: number; lon: number; time: string | null };
   path: [number, number][];
 }
@@ -139,3 +140,6 @@ export interface ProbeResult {
   trips: ProbeTrip[];
 }
 export interface SavedProbe { id: string; name: string; lat: number; lon: number; note: string | null; created_at: string; }
+export interface TransitMode { mode: string; label: string; color: string; count: number; }
+export interface TransitMeta { built: boolean; source?: 'gtfs' | 'osm'; built_at?: string; stations?: number; modes: TransitMode[]; }
+export interface TransitLine { mode: string; ref: string; colour: string | null; length_km: number; stations: string[]; }

@@ -1,6 +1,8 @@
 """Zones, the search area and its function: data for the Area mode, the inspector and the CLI."""
 from __future__ import annotations
 
+import json
+import re
 from typing import Any
 
 import shapely
@@ -53,6 +55,61 @@ async def zones(request: Request):
 @router.get("/geo/attribution")
 async def attribution():
     return {"items": bundle().geo.attribution}
+
+
+@router.get("/geo/transit")
+async def transit_meta():
+    """Which transit layers exist, their labels and default colours, and where they came from."""
+    from findhome.geo.store import transit_dir
+
+    meta_path = transit_dir() / "meta.json"
+    if not meta_path.exists():
+        return {"built": False, "modes": []}
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    tc = bundle().transit_colours
+    modes = [{"mode": m, "label": (tc.modes[m].label if m in tc.modes else m) or m, "color": tc.colour(m, None),
+              "count": n} for m, n in meta["counts"].items() if m != "stations" and n]
+    return {"built": True, "source": meta["source"], "built_at": meta["built_at"], "stations": meta["counts"].get("stations", 0),
+            "modes": modes}
+
+
+@router.get("/geo/transit/{name}")
+async def transit_layer(name: str, request: Request):
+    """`lines_<mode>` or `stations` as GeoJSON."""
+    from findhome.geo.store import transit_dir
+
+    if not re.fullmatch(r"lines_[a-z_]+|stations", name):
+        raise HTTPException(404, "unknown transit layer")
+    path = transit_dir() / f"{name}.geojson"
+    if not path.exists():
+        raise HTTPException(404, "transit not built yet: run `findhome geo fetch transit`")
+    etag = f'"{int(path.stat().st_mtime)}"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304)
+    return Response(path.read_bytes(), media_type="application/geo+json", headers={"ETag": etag})
+
+
+@router.get("/geo/transit/line/{mode}/{ref}")
+async def transit_line(mode: str, ref: str):
+    """Stations of one line in order along it."""
+    from findhome.geo.crs import point_metric
+    from findhome.geo.store import load_transit, read_geojson, transit_dir
+
+    idx = load_transit()
+    geom = idx.lines.get((mode, ref)) if idx else None
+    if geom is None:
+        raise HTTPException(404, "line not found")
+    parts = list(getattr(geom, "geoms", [geom]))
+    main = max(parts, key=lambda g: g.length)
+    stations = []
+    for f in read_geojson(transit_dir() / "stations.geojson")["features"]:
+        if ref in (f["properties"]["lines"].get(mode) or []):
+            pt = shapely.Point(point_metric(*f["geometry"]["coordinates"]))
+            stations.append((main.project(pt), f["properties"]["name"]))
+    stations.sort()
+    names = list(dict.fromkeys(n for _, n in stations))
+    return {"mode": mode, "ref": ref, "colour": idx.colours.get((mode, ref)), "length_km": round(main.length / 1000, 1),
+            "stations": names}
 
 
 def _area():

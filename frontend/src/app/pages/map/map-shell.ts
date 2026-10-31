@@ -8,6 +8,7 @@ import { blipExpr, installBlip } from '../../components/map-icons';
 import { MapLib, MapStateService } from './map-state.service';
 import { ProbeService } from './probe.service';
 import { PoiLayersService } from './poi-layers.service';
+import { TransitLayersService } from './transit-layers.service';
 
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
 
@@ -54,6 +55,7 @@ export class MapShell {
   protected state = inject(MapStateService);
   protected probe = inject(ProbeService);
   private poiLayers = inject(PoiLayersService);
+  private transit = inject(TransitLayersService);
   private el = viewChild.required<ElementRef<HTMLDivElement>>('mapEl');
   protected tilted = signal(false);
   protected error = signal('');
@@ -116,6 +118,7 @@ export class MapShell {
         this.addBaseLayers(map, pts, lst);
         this.probe.install();
         this.poiLayers.install();
+        this.transit.install();
       },
       error: (e) => this.error.set(apiError(e)),
     });

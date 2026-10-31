@@ -4,7 +4,7 @@ import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
   AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail,
-  PoiCategory, ProbeResult, SavedProbe, ScanRun, Site,
+  PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -80,6 +80,10 @@ export class ApiService {
   saveProbe(body: { name: string; lat: number; lon: number; note?: string }) { return this.http.post<SavedProbe>('/api/probes', body); }
   renameProbe(id: string, name: string) { return this.http.patch<SavedProbe>(`/api/probes/${id}`, { name }); }
   deleteProbe(id: string) { return this.http.delete<void>(`/api/probes/${id}`); }
+
+  transitMeta() { return this.http.get<TransitMeta>('/api/geo/transit'); }
+  transitLayer(name: string) { return this.http.get<GeoCollection>(`/api/geo/transit/${name}`); }
+  transitLine(mode: string, ref: string) { return this.http.get<TransitLine>(`/api/geo/transit/line/${mode}/${encodeURIComponent(ref)}`); }
 }
 
 /** Pull a readable message out of an API error (422 config errors, FastAPI detail, network). */

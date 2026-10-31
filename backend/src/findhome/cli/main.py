@@ -391,7 +391,7 @@ def geocode(address: str, refresh: bool = typer.Option(False, "--refresh", help=
 
 # ── geo ─────────────────────────────────────────────────────
 @geo_app.command("fetch")
-def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi"),
+def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit"),
               category: Optional[list[str]] = typer.Option(None, "--category", "-c", help="poi: only these categories")):
     """Download and build one dataset into data/geo/ (runs locally, no API needed)."""
     from findhome.config.loader import load_all
@@ -403,8 +403,14 @@ def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi"),
         counts = fetch_poi(b.geo, b.poi, category)
         _out(counts, "poi: " + ", ".join(f"{k} {v}" for k, v in counts.items()))
         return
+    if dataset == "transit":
+        from findhome.geo.build_transit import build_transit
+
+        meta = build_transit(b.geo, b.transit_colours)
+        _out(meta, f"transit ({meta['source']}): " + ", ".join(f"{k} {v}" for k, v in meta["counts"].items()))
+        return
     if dataset != "zones":
-        typer.secho(f"unknown dataset '{dataset}' (available: zones, poi)", fg="red", err=True)
+        typer.secho(f"unknown dataset '{dataset}' (available: zones, poi, transit)", fg="red", err=True)
         raise typer.Exit(2)
     from findhome.config.writer import apply_ops
     from findhome.geo.build_zones import build_zones

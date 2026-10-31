@@ -91,7 +91,7 @@ export class ProbeService {
         geometry: { type: 'LineString', coordinates: [[p.lon, p.lat], [best.lon, best.lat]] } });
     }
     const legs = (this.trip()?.legs ?? []).filter((l) => l.path.length > 1).map((l) => ({
-      type: 'Feature', properties: { mode: l.mode, color: MODE_COLOURS[l.mode] ?? MODE_COLOURS['transit'] },
+      type: 'Feature', properties: { mode: l.mode, color: l.color ?? MODE_COLOURS[l.mode] ?? MODE_COLOURS['transit'] },
       geometry: { type: 'LineString', coordinates: l.path } }));
     this.state.setData('probe-pin', pin);
     this.state.setData('probe-walk', { type: 'FeatureCollection', features: walk });

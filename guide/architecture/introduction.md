@@ -96,6 +96,9 @@ the first time it is switched on. The **test point** (right-click, or the Test p
 `/api/probe`, and draws the pin, straight lines to the nearest places and the legs of the selected itinerary;
 [`probe-panel.ts`](../../frontend/src/app/pages/map/probe-panel.ts) shows it in the inspector of every mode, plus
 the alpha saved test points and their side-by-side compare.
+[`TransitLayersService`](../../frontend/src/app/pages/map/transit-layers.service.ts) draws one line layer per transit
+mode (data loaded when first shown; buses from zoom 12) and the stations as blips; the inspector shows a line's
+stations in order or the lines serving a station.
 
 ## Main flows
 
