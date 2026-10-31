@@ -10,7 +10,7 @@ routing:
     detour_factor: 1.3
   osm:
     enabled: true
-    modes: [walk, bike, drive]
+    modes: [drive]                 # the public OSRM demo only routes cars; walk/bike need self-hosted OSRM or ORS
     osrm_url: https://router.project-osrm.org
     max_requests_per_s: 1
   resrobot:

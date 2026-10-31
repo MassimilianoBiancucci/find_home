@@ -9,10 +9,14 @@ so the same origin, destination, mode and time slot is never requested twice wit
 Straight-line distance plus an assumed speed per mode. No network, no key. Used as the prefilter that decides
 which listings deserve real routing calls.
 
-## OSM: Nominatim (geocoding) and OSRM (walk / bike / drive)
+## OSM: Nominatim (geocoding) and OSRM (drive)
 Free, no key. The public endpoints have strict usage policies (Nominatim: max 1 request/second, a valid
 User-Agent, no bulk geocoding). The adapter enforces 1 req/s and caches results. **No public transport.**
-For heavy use, self-host OSRM or use OpenRouteService with a free key.
+The public OSRM demo server only routes cars, so `osm.modes` is `[drive]`; walk and bike fall back to the
+haversine estimate until you point `osrm_url` at a self-hosted OSRM (foot/bike profiles) or add OpenRouteService.
+
+When a provider fails 3 times in a row during one commute run, the rest of that run uses haversine estimates
+for it (marked `~` in digests) instead of retrying.
 
 ## Trafiklab ResRobot v2.1 (transit, default)
 Sweden-wide journey planner on official timetables (SL included).
