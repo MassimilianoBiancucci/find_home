@@ -5,7 +5,7 @@ Follow-up tasks after `init-project`. Order is a suggestion; each becomes `tasks
 | Slug | What | Notes |
 |---|---|---|
 | `fill-profile-values` | Fill `config/profile.yaml` TODO(user) values: max rent, min m², move-in window, areas; decide whether 1 rok + sovalkov counts | Pending user input |
-| `verify-sites` | For each stub (Qasa, Blocket Bostad, Samtrygg, Bostadsförmedlingen): probe, choose fetch method, fill filter_map, write NAVIGATION.md, dry-run scan, activate | Open per site: native pets filter? login needed? |
+| `verify-sites` | Qasa done (active, custom scanner; first dry run on the Mac pending). Remaining stubs: Samtrygg, Bostadsförmedlingen. Blocket Bostad listings already appear on Qasa (`platform: blocket`): check what a separate scan would add | Open per site: native pets filter? login needed? |
 | `routing-providers` | Live-test ResRobot (free status, arrive-by, coordinates) and OSM adapters with real keys; optional Google key | See `docs/providers.md` |
 | `reliability-collector` | Collect SL realtime delays (Trafiklab GTFS-RT) per line and hour to turn timetable times into real reliability | Needs `routing-providers` |
 | `scoring-v1` | Tune the weighted score with real listings and feedback; reliability penalty calibration | After a few weeks of data |

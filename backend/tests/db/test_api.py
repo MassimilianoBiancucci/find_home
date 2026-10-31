@@ -1,7 +1,10 @@
 import time
+from pathlib import Path
 
 from findhome.core.paths import repo_root
 from findhome.db.migrate import status
+
+REPO = Path(__file__).resolve().parents[3]
 
 
 def test_migrations_up_to_date(db_url):
@@ -82,13 +85,51 @@ def test_history_digest_sections(client, sample_listings):
 
 
 def test_sites_and_scan_guards(client):
-    sites = client.get("/api/sites").json()["items"]
-    assert {s["slug"] for s in sites} == {"qasa", "blocket-bostad", "samtrygg", "bostadsformedlingen"}
-    assert all(s["status"] == "unverified" for s in sites)
-    res = client.post("/api/scans", json={"site": "qasa"})
+    sites = {s["slug"]: s for s in client.get("/api/sites").json()["items"]}
+    assert set(sites) == {"qasa", "blocket-bostad", "samtrygg", "bostadsformedlingen"}
+    assert sites["qasa"]["status"] == "active"
+    assert all(s["status"] == "unverified" for k, s in sites.items() if k != "qasa")
+    res = client.post("/api/scans", json={"site": "samtrygg"})
     assert res.status_code == 422 and "unverified" in res.json()["detail"]
-    allres = client.post("/api/scans", json={"site": "all"}).json()
-    assert allres["results"] == []
+
+
+def test_scan_qasa_with_mocked_http(client, monkeypatch):
+    """Full scan path (fetch → parse → enrich new → ingest) with Qasa fixtures instead of the network."""
+    import importlib.util
+
+    import httpx
+
+    from findhome.scanning import runner
+
+    fix = REPO / "backend" / "tests" / "fixtures" / "qasa"
+    spec = importlib.util.spec_from_file_location("qasa_scanner_db", REPO / "sites" / "qasa" / "scanner.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    def handler(request):
+        if "/home/" in request.url.path:
+            return httpx.Response(200, text=(fix / "detail_page.html").read_text())
+        page = int(request.url.params.get("page", 1))
+        return httpx.Response(200, text=(fix / "search_page.html").read_text() if page == 1 else "<html></html>")
+
+    def fake_make(site):
+        return mod.QasaScanner(site, client=httpx.AsyncClient(transport=httpx.MockTransport(handler)), save_raw=False)
+
+    monkeypatch.setattr(runner, "make_scanner", fake_make)
+    monkeypatch.setattr(runner.asyncio, "sleep", _no_sleep)
+    dry = client.post("/api/scans", json={"site": "qasa", "dry_run": True}).json()["results"][0]
+    assert dry["parsed"] == 3 and dry["enriched"] == 2 and len(dry["preview"]) == 3
+    assert client.get("/api/listings").json()["items"] == []          # dry run stores nothing
+    real = client.post("/api/scans", json={"site": "all"}).json()["results"][0]
+    assert real["new"] == 3 and real["enriched"] == 3, real
+    again = client.post("/api/scans", json={"site": "qasa"}).json()["results"][0]
+    assert again["unchanged"] == 3 and again["enriched"] == 0         # known listings are not enriched again
+    rows = {r["external_id"] if "external_id" in r else r["short_id"]: r for r in client.get("/api/listings").json()["items"]}
+    assert any(r["floor"] == 3 and r["has_balcony"] for r in rows.values())
+
+
+async def _no_sleep(_s):
+    return None
 
 
 def test_evaluations_and_exists(client, sample_listings):

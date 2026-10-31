@@ -101,7 +101,10 @@ async def _find_duplicate(conn, item: ListingIn, key: str | None) -> dict | None
 async def ingest(conn, req: IngestRequest) -> IngestResult:
     result = IngestResult()
     for item in req.listings:
-        chash, key = content_hash(item), dedupe_key(item)
+        # enrichment (detail pages) only happens for new items; hashing the list-page view keeps
+        # the next scan's un-enriched copy of the same listing "unchanged"
+        chash = item.attributes.pop("_list_hash", None) or content_hash(item)
+        key = dedupe_key(item)
         src = await _fetchone(
             conn, """SELECT l.id, l.short_id, s.content_hash, l.pet_status, l.address_norm FROM listing_sources s
                      JOIN listings l ON l.id = s.listing_id WHERE s.site_slug = %s AND s.external_id = %s""",

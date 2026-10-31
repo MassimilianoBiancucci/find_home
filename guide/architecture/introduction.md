@@ -41,7 +41,10 @@ downgraded to `unknown`.
 robots.txt, filters resolved through the site's `filter_map` ([`scanning/filters.py`](../../backend/src/findhome/scanning/filters.py)),
 pages fetched with the site's delay, items parsed by
 [`scanning/generic.py`](../../backend/src/findhome/scanning/generic.py) (HTML selectors or a JSON API with a field
-map) or by an optional `sites/<slug>/scanner.py`, then ingested. Raw pages are saved under `data/raw/`. Only
+map) or by an optional `sites/<slug>/scanner.py` (for example [`sites/qasa/scanner.py`](../../sites/qasa/scanner.py),
+which reads the JSON embedded in Qasa's result pages). A scanner may also implement `enrich`: the runner calls it
+for listings not seen before, up to `fetch.details.max_per_run`, and hashes the list-page view so later scans of
+the same listing stay `unchanged`. Then the items are ingested. Raw pages are saved under `data/raw/`. Only
 `active` sites are scanned; a dry run works on any site and stores nothing.
 [`scanning/probe.py`](../../backend/src/findhome/scanning/probe.py) inspects a new site and recommends a fetch method.
 

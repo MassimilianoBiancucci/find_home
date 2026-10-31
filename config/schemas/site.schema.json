@@ -130,6 +130,32 @@
             }
           },
           "additionalProperties": false
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Optional detail-page enrichment for NEW listings (needs a site scanner.py with enrich())",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "max_per_run": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 200
+            }
+          }
+        },
+        "fixed_params": {
+          "type": "object",
+          "description": "Query parameters always sent (e.g. the search area)",
+          "additionalProperties": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
         }
       },
       "additionalProperties": false,

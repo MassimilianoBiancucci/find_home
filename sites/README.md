@@ -9,8 +9,8 @@ One folder per website: `sites/<slug>/`
 | `scanner.py` | Optional. `make_scanner(site)` for sites the generic scanner cannot handle (Playwright, embedded JSON). |
 | `probe/*.md` | Reports from `findhome site probe` (committed; raw dumps under `probe/raw/` are not). |
 
-[`_template/`](_template/) is the starting point. The four stubs (Qasa, Blocket Bostad, Samtrygg,
-Bostadsförmedlingen) are **unverified**: nothing in them has been checked on the live sites.
+[`_template/`](_template/) is the starting point. **Qasa** is active (custom [`scanner.py`](qasa/scanner.py) reading
+the JSON embedded in its result pages). Blocket Bostad, Samtrygg and Bostadsförmedlingen are **unverified** stubs.
 
 ## General filters → site filters
 

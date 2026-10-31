@@ -21,6 +21,7 @@ from findhome.config.models import SiteConfig
 from findhome.core.paths import sites_dir
 from findhome.db import repo
 from findhome.domain.models import IngestRequest, ListingIn
+from findhome.domain.normalize import content_hash
 from findhome.scanning.base import ScanStats
 from findhome.scanning.filters import resolve
 from findhome.scanning.generic import HttpListScanner
@@ -63,6 +64,29 @@ async def robots_allows(url: str, user_agent: str) -> bool:
         return rp.can_fetch(user_agent, url)
     except httpx.HTTPError:
         return True
+
+
+async def enrich_new(conn, site: SiteConfig, scanner, items: list[ListingIn], limit: int | None = None) -> int:
+    """Detail-page enrichment for listings not seen before (scanner.enrich), capped and polite."""
+    cfg = site.fetch.get("details") or {}
+    if not cfg.get("enabled") or not hasattr(scanner, "enrich"):
+        return 0
+    cap = int(cfg.get("max_per_run", 10)) if limit is None else limit
+    done = 0
+    for i, item in enumerate(items):
+        if done >= cap:
+            break
+        if await repo.source_exists(conn, site.slug, item.source.external_id):
+            continue
+        if done:
+            await asyncio.sleep(float(site.politeness.get("min_delay_s", 3)))
+        try:
+            item.attributes["_list_hash"] = content_hash(item)
+            items[i] = await scanner.enrich(item)
+            done += 1
+        except Exception as exc:  # noqa: BLE001 - enrichment is best effort
+            log.warning("%s: enrich %s failed: %s", site.slug, item.source.external_id, exc)
+    return done
 
 
 async def collect(site: SiteConfig, bundle: ConfigBundle, max_pages: int | None = None,
@@ -110,14 +134,17 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
     t0 = time.monotonic()
     run_id = None if dry_run else await repo.create_scan_run(conn, slug, site.fetch.get("method") or "?", trigger, False)
     try:
-        items, stats, filt = await collect(site, bundle, max_pages)
+        scanner = make_scanner(site)
+        items, stats, filt = await collect(site, bundle, max_pages, scanner=scanner)
+        enriched = await enrich_new(conn, site, scanner, items, limit=2 if dry_run else None)
     except Exception as exc:
         if run_id:
             await repo.finish_scan_run(conn, run_id, "error", {}, str(exc))
         raise
     summary: dict[str, Any] = {"site": slug, "method": site.fetch.get("method"), "dry_run": dry_run,
                                "pages": stats.pages, "seen": stats.items, "parsed": stats.parsed,
-                               "parse_errors": stats.parse_errors, "errors": stats.errors, "filters": filt}
+                               "parse_errors": stats.parse_errors, "errors": stats.errors, "filters": filt,
+                               "enriched": enriched}
     if dry_run:
         summary["preview"] = [i.model_dump(mode="json", exclude_defaults=True) for i in items[:3]]
     else:

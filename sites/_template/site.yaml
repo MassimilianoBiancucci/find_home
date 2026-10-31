@@ -14,6 +14,7 @@ fetch:
   order: [api, http, playwright, agent_browser]   # cheapest first
   method: null                 # chosen after probe/verification
   list_url_template: null      # e.g. "https://.../search?area=stockholm&page={page}" ({page} optional)
+  fixed_params: {}             # query params always sent, e.g. {searchAreas: Stockholms_län~~se}
   api: {endpoint: null, method: GET, items_path: null, body: null}
   selectors:                   # http method: CSS relative to the item; "css@attr" for attributes
     item: null
@@ -26,6 +27,7 @@ fetch:
     address_raw: null
     area: null
   pagination: {type: page_param, param: page, max_pages: 5}
+  details: {enabled: false, max_per_run: 10}   # detail-page enrichment of NEW listings (needs scanner.py enrich())
 filter_map:                     # canonical key (config/filters_catalog.yaml) → param | ui_step | local_only
   max_rent_sek: {param: null, local_only: true}
   min_size_m2: {param: null, local_only: true}

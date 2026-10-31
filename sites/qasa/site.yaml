@@ -1,42 +1,54 @@
 # yaml-language-server: $schema=../../config/schemas/site.schema.json
 # ─────────────────────────────────────────────────────────────
-#  Qasa — UNVERIFIED stub (init-project). Nothing here has been checked on the
-#  live site yet; see tasks/BACKLOG.md → verify-sites. Every site-specific value is a hypothesis.
+#  Qasa (qasa.com) — onboarded 2026-10-31 with the find-home skill (prompts/site_onboarding.md).
+#  Search pages are server-rendered and embed the full result as Apollo SSR JSON, read by
+#  sites/qasa/scanner.py. See NAVIGATION.md for the search flow and data anatomy.
+#  Qasa also carries Blocket Bostad listings (attributes.platform = "blocket").
 # ─────────────────────────────────────────────────────────────
 slug: qasa
 name: Qasa
-url: https://qasa.se                # UNVERIFIED
-kinds: [rent]                   # rent | buy
-status: unverified              # unverified | active | broken | disabled
-last_verified: null             # agent run id or date of the last verification
+url: https://qasa.com
+kinds: [rent]
+status: active
+last_verified: '2026-10-31 (browser exploration; HTTP dry run pending on the Mac)'
 fetch:
-  order: [api, http, playwright, agent_browser]   # cheapest first
-  method: null                 # chosen after probe/verification
-  list_url_template: null      # e.g. "https://.../search?area=stockholm&page={page}" ({page} optional)
+  order: [api, http, playwright, agent_browser]
+  method: http                  # server-rendered HTML with embedded JSON; parsed by scanner.py
+  list_url_template: https://qasa.com/se/sv/find-home
+  fixed_params:
+    searchAreas: Stockholms_län~~se     # whole county (Solna, Sundbyberg, Stockholm ...)
+    sharedHome: privateHome             # own home only, no room in a shared flat
   api: {endpoint: null, method: GET, items_path: null, body: null}
-  selectors:                   # http method: CSS relative to the item; "css@attr" for attributes
-    item: null
-    external_id: null
-    url: null
-    title: null
-    rent_sek: null
-    size_m2: null
-    rooms: null
-    address_raw: null
-    area: null
-  pagination: {type: page_param, param: page, max_pages: 5}
-filter_map:                     # canonical key (config/filters_catalog.yaml) → param | ui_step | local_only
-  max_rent_sek: {param: null, local_only: true}
-  min_size_m2: {param: null, local_only: true}
-  min_rooms_rok: {param: null, local_only: true}
-  pets_allowed: {param: null, local_only: true, note: verify whether the site exposes a pet filter}
-  areas_include: {param: null, local_only: true}
-  contract_types: {param: null, local_only: true}
-  move_in_from: {param: null, local_only: true}
-field_map: {}                   # api method: ListingIn field → JSON path, e.g. rent_sek: price.amount
-pets: {filter_available: unknown, typical_wording: []}
-auth: {mode: none}              # none | browser_session (agent uses your logged-in browser; never store credentials)
-politeness: {min_delay_s: 3, max_pages_per_run: 10, respect_robots: true, user_agent: findhome/0.1 (personal use)}
-schedule: {interval: null}      # read by an external scheduler (Claude/Codex); the app never schedules
+  selectors: {}                  # not used: scanner.py reads the embedded JSON instead of HTML
+  pagination: {type: page_param, param: page, max_pages: 5}   # ~59 listings per page, newest first
+  details: {enabled: true, max_per_run: 15}   # floor, build year, balcony/elevator traits for NEW listings
+filter_map:
+  max_rent_sek: {param: maxMonthlyCost, note: monthly cost incl. tenant fee (Qasa monthlyCost)}
+  min_size_m2: {param: minSquareMeters}
+  min_rooms_rok: {param: minRoomCount, note: Qasa rum count (kitchen not counted) ≈ rok}
+  pets_allowed: {param: rules, value_map: {'true': pets, 'false': null}, note: '"Husdjur tillåtet" = rules=pets'}
+  accept_sovalkov: {param: null, local_only: true}
+  areas_include: {param: null, local_only: true, note: search area is fixed_params.searchAreas; districts filtered locally}
+  areas_exclude: {param: null, local_only: true}
+  contract_types: {param: null, local_only: true, note: firstHand flag in the data; Qasa param contractTypes not verified}
+  move_in_from: {param: null, local_only: true, note: 'Qasa param earliestMoveIn exists; format not verified'}
+  move_in_to: {param: null, local_only: true}
+  pet_status_exclude: {param: null, local_only: true}
+  max_commute_min_by_category: {param: null, local_only: true}
+field_map: {}                    # mapping lives in scanner.py document_to_listing()
+pets:
+  filter_available: 'yes'
+  typical_wording: [Husdjur tillåtet, petsAllowed true/false in house rules, trait "pets" on the listing page]
+auth: {mode: none}               # search and listing pages are public; contacting a landlord needs a Qasa login (you, never the agent)
+politeness:
+  min_delay_s: 3
+  max_pages_per_run: 5
+  # robots.txt disallows find-home URLs with filter parameters (maxMonthlyCost, minRoomCount,
+  # sharedHome, rules ...). Ignored on the user's explicit instruction (2026-10-31): personal,
+  # low-volume use with a 3 s delay and at most 5 result pages + 15 detail pages per run.
+  respect_robots: false
+  user_agent: findhome/0.1 (personal home search)
+schedule: {interval: 6h}         # suggestion for your external scheduler
 notes: >-
-  Second-hand rental marketplace with landlord/tenant verification. Hypothesis: has a native pets filter; listing pages may need JS (check API calls).
+  Second-hand (andrahand) and some first-hand rentals, Sweden-wide; includes Blocket Bostad listings.
+  Strong pets support: filter "Husdjur tillåtet" (rules=pets) and petsAllowed per listing.

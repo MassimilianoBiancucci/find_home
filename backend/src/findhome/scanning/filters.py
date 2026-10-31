@@ -28,6 +28,7 @@ def canonical_values(bundle: ConfigBundle, kind: str) -> dict[str, Any]:
 
 def resolve(bundle: ConfigBundle, site: SiteConfig, kind: str = "rent") -> ResolvedFilters:
     out = ResolvedFilters()
+    out.params.update(site.fetch.get("fixed_params") or {})
     for key, value in canonical_values(bundle, kind).items():
         if value in (None, [], {}, "", False) and key != "pets_allowed":
             continue
@@ -43,5 +44,7 @@ def resolve(bundle: ConfigBundle, site: SiteConfig, kind: str = "rent") -> Resol
             value = ",".join(str(vmap.get(v, v)) for v in value)
         else:
             value = vmap.get(str(value).lower() if isinstance(value, bool) else value, value)
+        if value is None or value is False:
+            continue  # value_map can switch a filter off (e.g. pets_allowed false → no param)
         out.params[rule["param"]] = value
     return out
