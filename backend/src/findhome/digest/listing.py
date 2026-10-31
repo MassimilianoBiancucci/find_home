@@ -24,26 +24,27 @@ def _num(v: Any, unit: str = "") -> str:
 
 
 def commute_summary(commute: list[dict]) -> str:
-    """Per point: best median over its windows, with that window's p90; '!' marks spread > 10′."""
-    best: dict[str, dict] = {}
+    """Per point: the mode with the best median; that mode's best-window median, its p90, and its worst
+    sample over all windows when much worse ('!' style hint for unreliable trips). '~' = estimate only."""
+    by_pm: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for c in commute:
-        if c.get("median_min") is None:
-            continue
-        cur = best.get(c["point_id"])
-        if cur is None or float(c["median_min"]) < float(cur["median_min"]):
-            best[c["point_id"]] = c
-    worst_window = defaultdict(float)
-    for c in commute:
-        if c.get("worst_min") is not None:
-            worst_window[c["point_id"]] = max(worst_window[c["point_id"]], float(c["worst_min"]))
+        if c.get("median_min") is not None:
+            by_pm[(c["point_id"], c["mode"])].append(c)
+    best: dict[str, tuple[str, list[dict]]] = {}
+    for (pid, mode), rows in by_pm.items():
+        m = min(float(r["median_min"]) for r in rows)
+        if pid not in best or m < min(float(r["median_min"]) for r in best[pid][1]):
+            best[pid] = (mode, rows)
     parts = []
-    for pid, c in best.items():
-        txt = f"{pid} {_num(c['median_min'], '′')}"
-        if c.get("p90_min") is not None and float(c["p90_min"]) > float(c["median_min"]):
-            txt += f"/{_num(c['p90_min'], '′')}p90"
-        if worst_window[pid] and worst_window[pid] > float(c["median_min"]) + 15:
-            txt += f" (worst {_num(worst_window[pid], '′')})"
-        if c.get("provider") == "haversine":
+    for pid, (mode, rows) in best.items():
+        top = min(rows, key=lambda r: float(r["median_min"]))
+        worst = max(float(r["worst_min"]) for r in rows if r.get("worst_min") is not None)
+        txt = f"{pid} {mode} {round(float(top['median_min']))}′"
+        if top.get("p90_min") is not None and float(top["p90_min"]) > float(top["median_min"]):
+            txt += f"/{round(float(top['p90_min']))}′p90"
+        if worst > float(top["median_min"]) + 15:
+            txt += f" (worst {round(worst)}′)"
+        if top.get("provider") == "haversine":
             txt += "~"
         parts.append(txt)
     return " · ".join(parts) if parts else "not computed"
