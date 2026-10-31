@@ -41,7 +41,7 @@ you (agent) ──scripts/findhome──▶ local API :8200 ──▶ Postgres �
 | Add a website | [prompts/site_onboarding.md](prompts/site_onboarding.md) |
 | A site's scan broke | [prompts/site_repair.md](prompts/site_repair.md) |
 | Scan a site that needs a browser | [prompts/browser_scan.md](prompts/browser_scan.md) |
-| Qasa scan from the Claude desktop app (no shell to the API; fine on Haiku) | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
+| Qasa scan in a browser, writing to `inbox/` (Claude desktop app, or the app's "Claude in Chrome (Haiku)" run profile; fine on Haiku) | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
 | Ask a landlord about the two cats | [prompts/pet_inquiry.md](prompts/pet_inquiry.md) |
 | Turn feedback into search changes | [prompts/research_guidance.md](prompts/research_guidance.md) |
 

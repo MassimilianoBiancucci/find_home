@@ -22,6 +22,34 @@ profiles:
     prompt_file: .agents/skills/find-home/prompts/run_evaluate.md
     timeout_min: 30
     env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
+  claude_qasa_chrome:
+    # Qasa scan through YOUR Chrome (Claude in Chrome extension) with Haiku. Requirements:
+    #  - Chrome open, extension installed, signed in to the same claude.ai account/org as `claude`
+    #  - `claude` logged in with /login (a subscription). With an API key Claude Code turns Chrome off,
+    #    so ANTHROPIC_API_KEY is deliberately NOT passed through here.
+    #  - qasa.com allowed in the extension's site permissions; only one browser connected
+    # It may only use the listed browser tools and write files under inbox/ (reads are allowed by
+    # default); anything else is refused instead of prompting (dontAsk). See docs/agent-permissions.md.
+    label: Claude in Chrome (Haiku) - scan Qasa
+    command: claude
+    args:
+      - "-p"
+      - "{prompt}"
+      - "--model"
+      - "haiku"
+      - "--chrome"
+      - "--permission-mode"
+      - "dontAsk"
+      - "--allowedTools"
+      - "mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__tabs_close_mcp,Edit(./inbox/**)"
+      - "--max-turns"
+      - "40"
+      - "--output-format"
+      - "stream-json"
+      - "--verbose"
+    prompt_file: .agents/skills/find-home/prompts/qasa_browser_scan.md
+    timeout_min: 15
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   codex_scan:
     label: Codex - scan for new listings
     command: codex
