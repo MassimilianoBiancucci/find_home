@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Wrapper so agents and humans can call the CLI from the repo root without activating the venv:
+#   scripts/findhome digest history
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+BIN="$ROOT/backend/.venv/bin/findhome"
+if [[ ! -x "$BIN" ]]; then
+    echo "findhome is not installed: run scripts/install.sh" >&2
+    exit 127
+fi
+export FINDHOME_ROOT="${FINDHOME_ROOT:-$ROOT}"
+exec "$BIN" "$@"
