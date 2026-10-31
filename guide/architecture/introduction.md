@@ -68,11 +68,23 @@ it in `agent_runs`. One run per profile at a time; a timeout kills it.
 `run new` work locally. [`scripts/findhome`](../../scripts/findhome) runs it from the repo root.
 
 **Frontend.** Angular standalone components with signals in
-[`frontend/src/app/`](../../frontend/src/app/app.routes.ts). One file per page (candidates, detail, map, locations,
-sites, runs, settings). [`services/api.service.ts`](../../frontend/src/app/services/api.service.ts) wraps the API;
-[`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF). The map
-uses MapLibre GL with the style from `config/providers.yaml` and falls back to a blank background when the style
-cannot load. Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
+[`frontend/src/app/`](../../frontend/src/app/app.routes.ts). One file per page (candidates, detail, locations,
+sites, runs, settings) and a folder for the map. [`services/api.service.ts`](../../frontend/src/app/services/api.service.ts) wraps the API;
+[`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF).
+Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
+
+The shell ([`app.html`](../../frontend/src/app/app.html)) has three boxes, like the Telia debug UI: box 1 holds
+the navigation bubble (pages, with the map modes as child entries) and the bubbles of the active page; box 2 is
+the routed page; box 3 is an optional right panel. A page publishes its bubbles and panel as `TemplateRef`s
+through [`LayoutService`](../../frontend/src/app/services/layout.service.ts) `register`, which removes them when
+the page is destroyed. Box widths and collapsed bubbles persist in localStorage; drag handles resize the boxes.
+
+The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one MapLibre instance owned by
+`MapShell` and shared through [`MapStateService`](../../frontend/src/app/pages/map/map-state.service.ts) with
+the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`). Modes add named layer
+groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The base style is
+`map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
+the style and re-applies every group. A style that cannot load falls back to a blank background.
 
 ## Main flows
 

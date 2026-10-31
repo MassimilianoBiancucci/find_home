@@ -125,6 +125,9 @@
         "style_url": {
           "type": "string"
         },
+        "style_url_dark": {
+          "type": "string"
+        },
         "attribution": {
           "type": "string"
         },

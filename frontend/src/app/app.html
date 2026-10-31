@@ -1,26 +1,71 @@
-<div class="fh-shell">
-  <aside class="fh-sidebar">
-    <div class="fh-brand">find<span>_home</span></div>
-    <nav>
-      @for (item of nav; track item.path) {
-        <a [routerLink]="item.path" routerLinkActive="active" class="fh-nav">{{ item.label }}</a>
-      }
-    </nav>
-    <div class="fh-sidebar-foot">
-      @if (apiDown()) {
-        <div class="small text-danger">API not running on :8200. Start “FH: Full Stack” or <code>scripts/findhome serve</code>.</div>
-      } @else if (health(); as h) {
-        @if (h.db_error) { <div class="small text-danger mb-1" [title]="h.db_error">Database unreachable: <code>docker compose up -d --wait</code></div> }
-        <div class="small text-body-secondary" [title]="h.config_errors.join('\n')">
-          <span class="fh-dot" [class.ok]="h.status === 'ok'"></span>
-          {{ h.status }} · cfg {{ h.config_hash?.slice(0, 7) }}
-          @if (h.config_errors.length) { <span class="text-warning">· config errors</span> }
-        </div>
-      }
-      <button class="btn btn-sm btn-outline-secondary mt-2" (click)="theme.toggle()">
-        {{ theme.theme() === 'dark' ? 'Light' : 'Dark' }} mode
-      </button>
+<div class="fh-shell" [style.--fh-left.px]="layout.leftOpen() ? layout.left() : 44" [style.--fh-right.px]="layout.right()">
+  <aside class="fh-box fh-box1" [class.closed]="!layout.leftOpen()">
+    <div class="fh-box1-head">
+      @if (layout.leftOpen()) { <div class="fh-brand">find<span>_home</span></div> }
+      <button class="fh-icon-btn ms-auto" [title]="layout.leftOpen() ? 'Collapse panel' : 'Expand panel'" (click)="layout.toggleLeft()">
+        {{ layout.leftOpen() ? '«' : '»' }}</button>
     </div>
+    @if (layout.leftOpen()) {
+      <div class="fh-box1-scroll">
+        <fh-bubble id="nav" title="Pages">
+          <nav class="fh-navlist">
+            @for (item of nav; track item.path) {
+              <a [routerLink]="item.path" routerLinkActive="active" class="fh-nav">
+                {{ item.label }} <span class="fh-key">{{ item.key }}</span></a>
+              @if (item.children) {
+                <div class="fh-nav-children">
+                  @for (c of item.children; track c.path) {
+                    <a [routerLink]="c.path" routerLinkActive="active" class="fh-nav fh-nav-child">{{ c.label }}</a>
+                  }
+                </div>
+              }
+            }
+          </nav>
+          <div class="fh-nav-foot">
+            @if (apiDown()) {
+              <div class="small text-danger">API not running on :8200. Start “FH: Full Stack” or <code>scripts/findhome serve</code>.</div>
+            } @else if (health(); as h) {
+              @if (h.db_error) { <div class="small text-danger mb-1" [title]="h.db_error">Database unreachable: <code>docker compose up -d --wait</code></div> }
+              <div class="small text-body-secondary" [title]="h.config_errors.join('\n')">
+                <span class="fh-dot" [class.ok]="h.status === 'ok'"></span>
+                {{ h.status }} · cfg {{ h.config_hash?.slice(0, 7) }}
+                @if (h.config_errors.length) { <span class="text-warning">· config errors</span> }
+              </div>
+            }
+            <button class="btn btn-sm btn-outline-secondary mt-2" (click)="theme.toggle()">
+              {{ theme.theme() === 'dark' ? 'Light' : 'Dark' }} mode
+            </button>
+          </div>
+        </fh-bubble>
+        @for (b of layout.bubbles(); track b.id) {
+          <fh-bubble [id]="b.id" [title]="b.title" [badge]="b.badge"><ng-container [ngTemplateOutlet]="b.tpl" /></fh-bubble>
+        }
+      </div>
+    } @else {
+      <nav class="fh-rail">
+        @for (item of nav; track item.path) {
+          <a [routerLink]="item.path" routerLinkActive="active" class="fh-rail-item" [title]="item.label">{{ item.key }}</a>
+        }
+      </nav>
+    }
   </aside>
-  <main class="fh-main"><router-outlet /></main>
+
+  @if (layout.leftOpen()) { <div class="fh-handle" (pointerdown)="drag($event, 'left')" (dblclick)="layout.reset()" title="Drag to resize, double-click to reset"></div> }
+
+  <main class="fh-box fh-box2"><router-outlet /></main>
+
+  @if (layout.panel(); as panel) {
+    @if (layout.rightOpen()) {
+      <div class="fh-handle" (pointerdown)="drag($event, 'right')" (dblclick)="layout.reset()"></div>
+      <aside class="fh-box fh-box3">
+        <div class="fh-box3-head">
+          <span class="fh-box3-title">{{ panel.title }}</span>
+          <button class="fh-icon-btn ms-auto" title="Hide panel" (click)="layout.toggleRight(false)">»</button>
+        </div>
+        <div class="fh-box3-scroll"><ng-container [ngTemplateOutlet]="panel.tpl" /></div>
+      </aside>
+    } @else {
+      <button class="fh-box3-tab" title="Show panel" (click)="layout.toggleRight(true)">« {{ panel.title }}</button>
+    }
+  }
 </div>

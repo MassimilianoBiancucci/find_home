@@ -65,6 +65,7 @@ prefilter:
 map:
   provider: maplibre
   style_url: https://tiles.openfreemap.org/styles/liberty
+  style_url_dark: https://tiles.openfreemap.org/styles/fiord   # used when the UI is in dark mode
   attribution: "© OpenStreetMap contributors"
   center: [59.3293, 18.0686]
   zoom: 11

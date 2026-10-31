@@ -1,43 +1,44 @@
+// Three-box shell (Telia debug UI layout): box 1 nav + page bubbles, box 2 page, box 3 optional right panel.
 .fh-shell {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.fh-sidebar {
-  width: 190px;
-  flex: 0 0 190px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 16px 12px;
-  border-right: 1px solid var(--bs-border-color);
+.fh-box { min-width: 0; display: flex; flex-direction: column; }
+
+.fh-box1 {
+  flex: 0 0 var(--fh-left);
+  width: var(--fh-left);
   background: var(--fh-panel);
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  border-right: 1px solid var(--bs-border-color);
+  &.closed { align-items: center; }
 }
+.fh-box1-head { display: flex; align-items: center; padding: 12px 12px 6px; gap: 8px; }
+.fh-box1-scroll { overflow-y: auto; padding: 4px 10px 14px; flex: 1; }
 
 .fh-brand {
   font-weight: 700;
   font-size: 1.2rem;
-  margin: 0 0 14px 6px;
-
-  span {
-    color: var(--fh-accent);
-  }
+  margin-left: 4px;
+  span { color: var(--fh-accent); }
 }
 
+.fh-icon-btn {
+  border: 1px solid var(--bs-border-color); background: transparent; color: var(--bs-secondary-color);
+  border-radius: 6px; padding: 0 7px; line-height: 1.5; font-size: 0.85rem;
+  &:hover { color: var(--bs-emphasis-color); border-color: var(--fh-violet); }
+}
+
+.fh-navlist { display: flex; flex-direction: column; gap: 2px; }
 .fh-nav {
-  display: block;
-  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
   border-radius: 6px;
   color: var(--bs-body-color);
   text-decoration: none;
-
-  &:hover {
-    background: var(--fh-hover);
-  }
-
+  &:hover { background: var(--fh-hover); }
   &.active {
     background: var(--fh-accent-fill);
     color: var(--fh-on-accent);
@@ -45,52 +46,53 @@
     box-shadow: inset 3px 0 0 var(--fh-violet);
   }
 }
+.fh-key { margin-left: auto; font-size: 0.68rem; opacity: 0.5; font-family: ui-monospace, monospace; }
+.fh-nav-children { display: flex; flex-direction: column; gap: 2px; margin: 0 0 2px 14px; padding-left: 8px;
+  border-left: 1px solid var(--bs-border-color); }
+.fh-nav-child { padding: 3px 10px; font-size: 0.85rem;
+  &.active { background: var(--fh-violet-soft); color: var(--fh-violet); box-shadow: inset 3px 0 0 var(--fh-violet); } }
+.fh-nav-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--bs-border-color); }
 
-.fh-sidebar-foot {
-  margin-top: auto;
+.fh-rail { display: flex; flex-direction: column; gap: 4px; padding-top: 6px; }
+.fh-rail-item {
+  width: 30px; height: 30px; display: grid; place-items: center; border-radius: 6px; text-decoration: none;
+  font-weight: 600; font-size: 0.8rem; color: var(--bs-secondary-color); border: 1px solid transparent;
+  &:hover { border-color: var(--bs-border-color); }
+  &.active { background: var(--fh-accent-fill); color: var(--fh-on-accent); }
 }
 
 .fh-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--fh-bad);
-
-  &.ok {
-    background: var(--fh-good);
-  }
+  display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--fh-bad);
+  &.ok { background: var(--fh-good); }
 }
 
-.fh-main {
-  flex: 1;
-  min-width: 0;
-  padding: 18px 22px;
+.fh-box2 { flex: 1 1 auto; overflow-y: auto; padding: 16px 20px; }
+
+.fh-box3 {
+  flex: 0 0 var(--fh-right);
+  width: var(--fh-right);
+  background: var(--fh-panel);
+  border-left: 1px solid var(--bs-border-color);
+}
+.fh-box3-head { display: flex; align-items: center; padding: 12px 14px 8px; border-bottom: 1px solid var(--bs-border-color); }
+.fh-box3-title { font-weight: 600; color: var(--bs-emphasis-color); }
+.fh-box3-scroll { overflow-y: auto; padding: 12px 14px; flex: 1; }
+.fh-box3-tab {
+  position: fixed; right: 0; top: 40%; writing-mode: vertical-rl; padding: 10px 4px; z-index: 30;
+  border: 1px solid var(--bs-border-color); border-right: 0; border-radius: 6px 0 0 6px;
+  background: var(--fh-panel); color: var(--bs-secondary-color); font-size: 0.8rem;
+  &:hover { color: var(--fh-violet); }
 }
 
-@media (max-width: 720px) {
-  .fh-shell {
-    flex-direction: column;
-  }
+.fh-handle {
+  flex: 0 0 6px; cursor: col-resize; position: relative; z-index: 5;
+  &::after { content: ''; position: absolute; inset: 0 2px; border-radius: 2px; transition: background 0.15s; }
+  &:hover::after { background: var(--fh-violet); opacity: 0.5; }
+}
 
-  .fh-sidebar {
-    width: auto;
-    height: auto;
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-  }
-
-  .fh-brand {
-    margin: 0 8px 0 0;
-  }
-
-  .fh-sidebar-foot {
-    margin: 0 0 0 auto;
-  }
-
-  .fh-main {
-    padding: 12px 16px;
-  }
+@media (max-width: 900px) {
+  .fh-shell { flex-direction: column; height: auto; overflow: visible; }
+  .fh-box1, .fh-box3 { flex: none; width: auto; border: 0; border-bottom: 1px solid var(--bs-border-color); }
+  .fh-handle { display: none; }
+  .fh-box2 { overflow: visible; padding: 12px 14px; }
 }

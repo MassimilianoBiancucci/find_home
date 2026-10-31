@@ -279,3 +279,36 @@ pre.fh-pre {
   border-radius: 6px;
   margin: 0;
 }
+
+// Left-box bubbles (debug UI "settings card"); global because they render templates owned by pages.
+.fh-bubble {
+  background: var(--fh-sub);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  header {
+    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--bs-secondary-color);
+  }
+  .fh-bubble-badge { font-size: 0.7rem; padding: 0 6px; border-radius: 999px; background: var(--fh-violet-soft); color: var(--fh-violet);
+    text-transform: none; letter-spacing: 0; }
+  .fh-bubble-chev { margin-left: auto; transition: transform 0.2s; }
+  &.collapsed .fh-bubble-chev { transform: rotate(-90deg); }
+  .fh-bubble-body { margin-top: 8px; font-size: 0.86rem; }
+}
+[data-bs-theme='dark'] .fh-bubble {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 50%, rgba(0, 0, 0, 0.08) 100%),
+    linear-gradient(160deg, #2c2c33 0%, #24242a 100%);
+  border-color: #40404a;
+  border-top-color: #4c4c56;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 6px rgba(0, 0, 0, 0.25);
+  header { color: #a8a8bc; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.4); }
+}
+
+// Rows used inside bubbles and the right panel
+.fh-row { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.fh-row > .fh-grow { flex: 1; min-width: 0; }
+.fh-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.5); flex: none; }
+.fh-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 0.85rem;
+  dt { color: var(--bs-secondary-color); font-weight: 500; } dd { margin: 0; } }

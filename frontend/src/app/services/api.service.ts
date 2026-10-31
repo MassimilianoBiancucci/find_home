@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
+import type { MapSettings } from '../pages/map/map-state.service';
 import {
   AddressSuggestion, AgentProfile, AgentRun, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail, ScanRun, Site,
 } from '../models';
@@ -56,7 +57,7 @@ export class ApiService {
   }
   validate() { return this.http.post<{ valid: boolean; errors: string[] }>('/api/config/validate', {}); }
 
-  mapSettings() { return this.http.get<{ style_url: string; attribution: string; center: [number, number]; zoom: number }>('/api/map/settings'); }
+  mapSettings() { return this.http.get<MapSettings>('/api/map/settings'); }
   mapPoints() { return this.http.get<GeoCollection>('/api/map/points'); }
   mapListings() { return this.http.get<GeoCollection>('/api/map/listings'); }
 
