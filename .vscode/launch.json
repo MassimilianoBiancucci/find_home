@@ -3,8 +3,12 @@
 //
 //  Processes:
 //    • FastAPI backend :8200  — debugpy (breakpoints)        "FH: Backend (FastAPI)"
-//    • Angular dev    :4400   — task "FH: ng serve" (started by the preLaunchTask)
+//    • Angular dev    :4400   — node launch of ng serve       "FH: Frontend (ng serve)"
 //    • Postgres :5434 / pgAdmin :5052 — docker compose (task "FH: Infra Up")
+//
+//  The preLaunchTask "FH: Dev Prereqs" only contains tasks that END (free ports, ensure env,
+//  compose up --wait, migrate). Both servers are launch configurations started together by
+//  the compound, so the debugger never waits on a long-running task's output.
 //
 //  "FH: Full Stack"              stops docker compose when debugging ends.
 //  "FH: Full Stack (keep infra)" leaves Postgres/pgAdmin running.
@@ -16,7 +20,7 @@
         {
             "name": "FH: Full Stack",
             "preLaunchTask": "FH: Dev Prereqs",
-            "configurations": ["FH: Backend (FastAPI)"],
+            "configurations": ["FH: Backend (FastAPI)", "FH: Frontend (ng serve)"],
             "stopAll": true,
             "postDebugTask": "FH: Infra Down",
             "presentation": { "group": "find_home", "order": 1 }
@@ -24,7 +28,7 @@
         {
             "name": "FH: Full Stack (keep infra)",
             "preLaunchTask": "FH: Dev Prereqs",
-            "configurations": ["FH: Backend (FastAPI)"],
+            "configurations": ["FH: Backend (FastAPI)", "FH: Frontend (ng serve)"],
             "stopAll": true,
             "presentation": { "group": "find_home", "order": 2 }
         }
@@ -45,6 +49,17 @@
             "presentation": { "group": "find_home", "order": 10 }
         },
         {
+            "name": "FH: Frontend (ng serve)",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "npm",
+            "runtimeArgs": ["run", "start", "--", "--port", "4400", "--proxy-config", "proxy.conf.json"],
+            "cwd": "${workspaceFolder}/frontend",
+            "console": "integratedTerminal",
+            "autoAttachChildProcesses": false,
+            "presentation": { "group": "find_home", "order": 11 }
+        },
+        {
             "name": "FH: CLI (prompt for args)",
             "type": "debugpy",
             "request": "launch",
@@ -56,7 +71,7 @@
             "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
             "justMyCode": false,
             "console": "integratedTerminal",
-            "presentation": { "group": "find_home", "order": 11 }
+            "presentation": { "group": "find_home", "order": 12 }
         },
         {
             "name": "FH: Pytest",

@@ -11,8 +11,10 @@
 //      ├─ "FH: Free Ports"   → scripts/free-ports.sh (8200, 4400)
 //      ├─ "FH: Ensure Env"   → scripts/ensure-env.sh (venv, node_modules, env files if missing)
 //      ├─ "FH: Infra Up"     → docker compose up -d --wait (Postgres :5434, pgAdmin :5052)
-//      ├─ "FH: Migrate DB"   → findhome db migrate
-//      └─ "FH: ng serve"     → Angular :4400 (background, proxy → FastAPI :8200)
+//      └─ "FH: Migrate DB"   → findhome db migrate
+//    then the compound launches "FH: Backend (FastAPI)" and "FH: Frontend (ng serve)" together.
+//    Every prereq task terminates: no background task in the chain, so the launch never waits
+//    on matching a server's output. "FH: ng serve" below is kept for running the UI by hand.
 //    postDebugTask "FH: Infra Down" (only in "FH: Full Stack", not "keep infra")
 // ════════════════════════════════════════════════════════════════════════════
 {
@@ -91,7 +93,7 @@
         // ═══ Orchestrator ═══════════════════════════════════════════════════
         {
             "label": "FH: Dev Prereqs",
-            "dependsOn": ["FH: Free Ports", "FH: Ensure Env", "FH: Infra Up", "FH: Migrate DB", "FH: ng serve"],
+            "dependsOn": ["FH: Free Ports", "FH: Ensure Env", "FH: Infra Up", "FH: Migrate DB"],
             "dependsOrder": "sequence",
             "problemMatcher": []
         },

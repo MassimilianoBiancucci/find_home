@@ -8,9 +8,11 @@ directory map.
 **Infrastructure.** [`docker-compose.yml`](../../docker-compose.yml) runs Postgres 16 on host port 5434 and pgAdmin
 on 5052 with the server preloaded from [`infra/pgadmin/`](../../infra/pgadmin/servers.json). The API and the
 Angular dev server run on the host, started by [`.vscode/launch.json`](../../.vscode/launch.json) and
-[`.vscode/tasks.json`](../../.vscode/tasks.json): the compound `FH: Full Stack` runs `FH: Dev Prereqs` (free
-ports, [`scripts/ensure-env.sh`](../../scripts/ensure-env.sh) to create a missing `backend/.venv`,
-`frontend/node_modules` or `config/*.env`, compose up, migrate, `ng serve`) and then FastAPI under debugpy.
+[`.vscode/tasks.json`](../../.vscode/tasks.json): the compound `FH: Full Stack` first runs `FH: Dev Prereqs`, a
+sequence of tasks that all terminate (free ports, [`scripts/ensure-env.sh`](../../scripts/ensure-env.sh) to create
+a missing `backend/.venv`, `frontend/node_modules` or `config/*.env`, `docker compose up --wait`, migrate). It then
+launches `FH: Backend (FastAPI)` under debugpy and `FH: Frontend (ng serve)` as a Node launch, together. No
+long-running server is part of the pre-launch chain, so the launch never depends on matching a server's output.
 
 **API.** [`api/main.py`](../../backend/src/findhome/api/main.py) builds the FastAPI app, binds to 127.0.0.1:8200,
 opens an async psycopg pool ([`core/db.py`](../../backend/src/findhome/core/db.py)) without waiting for the
