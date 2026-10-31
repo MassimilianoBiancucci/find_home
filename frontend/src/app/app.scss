@@ -1,22 +1,96 @@
-.fh-shell { display: flex; min-height: 100vh; }
+.fh-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
 .fh-sidebar {
-  width: 190px; flex: 0 0 190px; display: flex; flex-direction: column; gap: 4px; padding: 16px 12px;
-  border-right: 1px solid var(--bs-border-color); background: var(--fh-panel);
-  position: sticky; top: 0; height: 100vh;
+  width: 190px;
+  flex: 0 0 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--bs-border-color);
+  background: var(--fh-panel);
+  position: sticky;
+  top: 0;
+  height: 100vh;
 }
-.fh-brand { font-weight: 700; font-size: 1.2rem; margin: 0 0 14px 6px; span { color: var(--fh-accent); } }
+
+.fh-brand {
+  font-weight: 700;
+  font-size: 1.2rem;
+  margin: 0 0 14px 6px;
+
+  span {
+    color: var(--fh-accent);
+  }
+}
+
 .fh-nav {
-  display: block; padding: 7px 10px; border-radius: 6px; color: var(--bs-body-color); text-decoration: none;
-  &:hover { background: var(--fh-hover); }
-  &.active { background: var(--fh-accent); color: #fff; }
+  display: block;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--bs-body-color);
+  text-decoration: none;
+
+  &:hover {
+    background: var(--fh-hover);
+  }
+
+  &.active {
+    background: var(--fh-accent-fill);
+    color: var(--fh-on-accent);
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 var(--fh-violet);
+  }
 }
-.fh-sidebar-foot { margin-top: auto; }
-.fh-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--fh-bad); &.ok { background: var(--fh-good); } }
-.fh-main { flex: 1; min-width: 0; padding: 18px 22px; }
+
+.fh-sidebar-foot {
+  margin-top: auto;
+}
+
+.fh-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fh-bad);
+
+  &.ok {
+    background: var(--fh-good);
+  }
+}
+
+.fh-main {
+  flex: 1;
+  min-width: 0;
+  padding: 18px 22px;
+}
+
 @media (max-width: 720px) {
-  .fh-shell { flex-direction: column; }
-  .fh-sidebar { width: auto; height: auto; position: static; flex-direction: row; flex-wrap: wrap; align-items: center; }
-  .fh-brand { margin: 0 8px 0 0; }
-  .fh-sidebar-foot { margin: 0 0 0 auto; }
-  .fh-main { padding: 12px 16px; }
+  .fh-shell {
+    flex-direction: column;
+  }
+
+  .fh-sidebar {
+    width: auto;
+    height: auto;
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .fh-brand {
+    margin: 0 8px 0 0;
+  }
+
+  .fh-sidebar-foot {
+    margin: 0 0 0 auto;
+  }
+
+  .fh-main {
+    padding: 12px 16px;
+  }
 }
