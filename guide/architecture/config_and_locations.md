@@ -49,6 +49,17 @@ A **point** has an id, a category (defined in the same file with label, default 
 `address` or `coords`, an optional weight, notes, modes and one or more **trips**. Any number of points can share a
 category: several workplaces, several partner homes, generic points.
 
+The Locations editor suggests addresses while typing through `GET /api/geocode/suggest`
+([`providers/suggest.py`](../../backend/src/findhome/providers/suggest.py): OpenRouteService autocomplete with
+`ORS_API_KEY`, else Photon; never Nominatim, whose policy forbids autocomplete). Picking a suggestion saves both
+`address` and `coords`, so the point does not depend on runtime geocoding.
+
+**Geocoding** ([`providers/geocode.py`](../../backend/src/findhome/providers/geocode.py)) resolves points
+without `coords` and listings without coordinates through `geocode_cache`. The query sent to Nominatim gets
+`, Sverige` only when the address names no country (`sverige` / `sweden`). Hits are cached for
+`cache.geocode_ttl_days`, misses for one day. `findhome geocode "<address>" [--refresh]` uses the same cached
+path through `GET /api/geocode`.
+
 A **trip** has a `direction` (`to_point` = home → point, `from_point` = point → home, `both`), `day_types`, and
 either `windows` or `use_default_grid: true`. A trip may override the point's modes.
 

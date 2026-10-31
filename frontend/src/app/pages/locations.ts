@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Category, LocationsConfig, Point, Trip, Window } from '../models';
+import { AddressInput, PinPreview } from '../components/address-input';
+import { AddressSuggestion, Category, LocationsConfig, Point, Trip, Window } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 
 const MODES = ['transit', 'walk', 'bike', 'drive'];
@@ -15,7 +16,7 @@ const DIRECTIONS: { value: Trip['direction']; label: string }[] = [
  */
 @Component({
   selector: 'fh-locations',
-  imports: [FormsModule],
+  imports: [FormsModule, AddressInput, PinPreview],
   styles: [`
     .fh-point { border-left: 4px solid var(--cat) !important; }
     .fh-point-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -64,9 +65,13 @@ const DIRECTIONS: { value: Trip['direction']; label: string }[] = [
             <div class="fh-section">Place</div>
             <div class="row g-2">
               <div class="col-12"><label class="form-label small mb-1">Label</label><input class="form-control form-control-sm" [(ngModel)]="p.label" /></div>
-              <div class="col-md-8"><label class="form-label small mb-1">Address</label><input class="form-control form-control-sm" [(ngModel)]="p.address" placeholder="street, city" /></div>
-              <div class="col-md-4"><label class="form-label small mb-1">Coords (lat, lon), optional</label>
+              <div class="col-md-8"><label class="form-label small mb-1">Address <span class="text-body-secondary">(type to get suggestions)</span></label>
+                <fh-address-input [(value)]="p.address" (picked)="pickAddress(p, $event)" /></div>
+              <div class="col-md-4"><label class="form-label small mb-1">Coords (lat, lon)
+                  @if (p.coords) { <a href="" class="ms-1" (click)="$event.preventDefault(); clearCoords(p)">clear</a> }</label>
                 <input class="form-control form-control-sm fh-mono" [ngModel]="coordsText(p)" (ngModelChange)="setCoords(p, $event)" placeholder="59.33, 18.06" /></div>
+              @if (p.coords) { <div class="col-12"><fh-pin-preview [coords]="p.coords" /></div> }
+              @else if (p.address) { <div class="col-12 small text-warning">No coordinates: pick a suggestion so the point does not depend on geocoding.</div> }
               <div class="col-12"><label class="form-label small mb-1">Notes</label><textarea class="form-control form-control-sm" rows="2" [(ngModel)]="p.notes"></textarea></div>
             </div>
           </div>
@@ -172,6 +177,11 @@ export class LocationsPage implements OnInit {
   }
 
   coordsText(p: Point): string { return p.coords ? p.coords.join(', ') : ''; }
+  pickAddress(p: Point, s: AddressSuggestion): void {
+    p.address = s.label;
+    p.coords = [Math.round(s.lat * 1e5) / 1e5, Math.round(s.lon * 1e5) / 1e5];
+  }
+  clearCoords(p: Point): void { delete p.coords; }
   setCoords(p: Point, text: string): void {
     const parts = text.split(',').map((x) => parseFloat(x.trim()));
     if (parts.length === 2 && parts.every((x) => !isNaN(x))) p.coords = [parts[0], parts[1]];

@@ -376,14 +376,14 @@ def run_close(run_dir: Optional[Path] = typer.Option(None, envvar="FINDHOME_RUN_
 
 
 @app.command()
-def geocode(address: str):
-    """Quick geocode check through the app's cached geocoder (prints lat, lon)."""
-    from findhome.config.loader import load_all
-    from findhome.providers.registry import ProviderRegistry
-
-    reg = ProviderRegistry(load_all().providers)
-    hit = asyncio.run(reg.geocoder.geocode(address))
-    _out({"query": address, "result": hit}, f"{hit[0]:.5f}, {hit[1]:.5f}  {hit[2]}" if hit else "not found")
+def geocode(address: str, refresh: bool = typer.Option(False, "--refresh", help="Drop the cached answer first.")):
+    """Geocode through the app's cached path (the same one the map and commute use)."""
+    r = _api().get("/api/geocode", q=address, refresh=str(refresh).lower())
+    hit = r["result"]
+    src = "cache" if r["cached"] else "provider"
+    text = (f"{hit['lat']:.5f}, {hit['lon']:.5f}  {hit.get('display') or ''} [{src}]" if hit
+            else f"not found [{src}] (sent: {r['sent']})")
+    _out(r, text)
 
 
 if __name__ == "__main__":

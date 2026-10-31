@@ -10,6 +10,7 @@ from findhome.providers.google import GoogleRoutesProvider
 from findhome.providers.haversine import HaversineProvider
 from findhome.providers.osm import NominatimGeocoder, OsrmProvider
 from findhome.providers.resrobot import ResRobotProvider
+from findhome.providers.suggest import AddressSuggester
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,7 @@ class ProviderRegistry:
                 self.unavailable[name] = str(exc)
         geo = cfg.geocoding or {}
         self.geocoder = NominatimGeocoder(geo.get("nominatim", {}), secret(geo.get("nominatim", {}).get("email_env")))
+        self.suggester = AddressSuggester(geo.get("suggest", {}))
 
     def for_mode(self, mode: str, forced: str | None = None) -> RoutingProvider:
         names = [forced] if forced else self.cfg.mode_priority.get(mode, ["haversine"])

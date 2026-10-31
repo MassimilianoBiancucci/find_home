@@ -18,6 +18,12 @@ haversine estimate until you point `osrm_url` at a self-hosted OSRM (foot/bike p
 When a provider fails 3 times in a row during one commute run, the rest of that run uses haversine estimates
 for it (marked `~` in digests) instead of retrying.
 
+## Address suggestions: OpenRouteService or Photon
+The Locations editor suggests addresses while you type. Nominatim's usage policy forbids autocomplete, so
+suggestions use OpenRouteService's geocode/autocomplete (free key at openrouteservice.org, `ORS_API_KEY`; the
+same key serves walking times) and fall back to Photon (photon.komoot.io, no key, fair use). Configured under
+`geocoding.suggest` in `config/providers.yaml`. Suggestions are cached in memory by the API.
+
 ## Trafiklab ResRobot v2.1 (transit, default)
 Sweden-wide journey planner on official timetables (SL included).
 - Get a key: create an account at trafiklab.se, create a project, add the "ResRobot v2.1" API to it, copy the key

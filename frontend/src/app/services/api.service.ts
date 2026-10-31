@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
-  AgentProfile, AgentRun, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail, ScanRun, Site,
+  AddressSuggestion, AgentProfile, AgentRun, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail, ScanRun, Site,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -59,6 +59,8 @@ export class ApiService {
   mapSettings() { return this.http.get<{ style_url: string; attribution: string; center: [number, number]; zoom: number }>('/api/map/settings'); }
   mapPoints() { return this.http.get<GeoCollection>('/api/map/points'); }
   mapListings() { return this.http.get<GeoCollection>('/api/map/listings'); }
+
+  suggestAddress(q: string) { return this.http.get<{ items: AddressSuggestion[] }>('/api/geocode/suggest', { params: { q } }); }
 }
 
 /** Pull a readable message out of an API error (422 config errors, FastAPI detail, network). */

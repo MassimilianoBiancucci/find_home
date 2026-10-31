@@ -22,7 +22,7 @@ output. Everything except `db`, `config validate|hash|show|schema` and `run new`
 | `config validate` | schemas + cross-file checks | `config valid` or the list of problems |
 | `config schema ingest --markdown` | the data contract | Markdown tables |
 | `run new [profile]` / `run close` | run folder with scratchpad + digest / store Handover | env lines / one line |
-| `geocode "<address>"` | check an address | `lat, lon  display name` |
+| `geocode "<address>" [--refresh]` | check an address through the app's geocode cache | `lat, lon  display [cache\|provider]` or `not found (sent: ...)` |
 | `db migrate [--check]` | migrations | applied / up to date |
 | `serve` | run the API without VS Code | uvicorn log |
 
