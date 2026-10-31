@@ -33,11 +33,15 @@ Listings are referred to by `short_id` (`L-` + 4 characters without ambiguous le
 
 | Write | Endpoint | CLI |
 |---|---|---|
-| Listings (`ListingIn` list) | `POST /api/ingest/listings` | `findhome ingest listings -f file.json [--source agent_browser]` |
+| Listings (`ListingIn` list) | `POST /api/ingest/listings` | `findhome ingest listings -f file.json [--source agent_browser] [--parser <slug>]` |
 | Evaluations (`EvaluationIn` list) | `POST /api/ingest/evaluations` | `findhome ingest evaluations -f file.json` |
 | Status | `POST /api/listings/{id}/status` (statuses from `tags.yaml`) | `findhome listings status` |
 | Feedback | `POST /api/listings/{id}/feedback` (tags must exist in `tags.yaml`) | `findhome listings feedback` |
 | Config | YAML files directly, then `findhome config validate`; the UI uses `PATCH`/`PUT /api/config/{name}` | — |
+
+`--parser <slug>` converts raw site items (for example the output of
+[`sites/qasa/extract.js`](../../sites/qasa/extract.js), run by the agent on a page loaded in the user's browser)
+with the `to_listing` function of `sites/<slug>/scanner.py` before posting them.
 
 The contract models are in [`domain/models.py`](../../backend/src/findhome/domain/models.py). `ListingIn` and
 `EvaluationIn` forbid unknown fields. An evaluation may set `pet_status` only together with `pet_evidence`.

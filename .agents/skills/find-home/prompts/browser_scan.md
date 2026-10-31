@@ -7,12 +7,16 @@ budget:  politeness.max_pages_per_run pages; never more than 5 listing detail pa
 outputs: $FINDHOME_RUN_DIR/<slug>_listings.json ingested with --source agent_browser
 ```
 
-Browser choice: in Claude (desktop/Cowork) use the built-in browser or Claude in Chrome, which may already be
-logged in; in Claude Code or Codex use Playwright through a short script, or ask the user.
+Browser choice: the user's own browser session (the Claude desktop browser or Claude in Chrome). Never try to get
+around a site's bot protection (spoofed user agents, headless browsers, private APIs); if a page is refused, stop
+and report it.
 
 1. Read `sites/<slug>/NAVIGATION.md` §2-§7 and `site.yaml` `filter_map` (`ui_step` entries tell you what to
    click). Use the profile's hard filters from the history digest.
-2. Open the result list with the filters applied. Read it with page text / find tools, not screenshots
+2. If the site folder has an `extract.js` (e.g. `sites/qasa/extract.js`), use it: open each result page, run the
+   file's code with the browser's JavaScript tool, save the returned JSON to the run folder and ingest it with
+   `scripts/findhome ingest listings -f <file> --parser <slug> --source agent_browser`. Then skip steps 3-6.
+   Otherwise open the result list with the filters applied. Read it with page text / find tools, not screenshots
    (screenshots only when the layout itself matters).
 3. For each card, check first: `scripts/findhome listings exists <slug> <external id or URL>`. Skip known ones.
 4. Collect the new ones into JSON (ListingIn, see references/data_contract.md): `source.site_slug`,

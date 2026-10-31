@@ -118,14 +118,12 @@ def test_scan_qasa_with_mocked_http(client, monkeypatch):
     monkeypatch.setattr(runner, "make_scanner", fake_make)
     monkeypatch.setattr(runner.asyncio, "sleep", _no_sleep)
     dry = client.post("/api/scans", json={"site": "qasa", "dry_run": True}).json()["results"][0]
-    assert dry["parsed"] == 3 and dry["enriched"] == 2 and len(dry["preview"]) == 3
+    assert dry["parsed"] == 3 and dry["enriched"] == 0 and len(dry["preview"]) == 3   # details disabled for qasa
     assert client.get("/api/listings").json()["items"] == []          # dry run stores nothing
     real = client.post("/api/scans", json={"site": "all"}).json()["results"][0]
-    assert real["new"] == 3 and real["enriched"] == 3, real
+    assert real["new"] == 3, real
     again = client.post("/api/scans", json={"site": "qasa"}).json()["results"][0]
-    assert again["unchanged"] == 3 and again["enriched"] == 0         # known listings are not enriched again
-    rows = {r["external_id"] if "external_id" in r else r["short_id"]: r for r in client.get("/api/listings").json()["items"]}
-    assert any(r["floor"] == 3 and r["has_balcony"] for r in rows.values())
+    assert again["unchanged"] == 3
 
 
 async def _no_sleep(_s):

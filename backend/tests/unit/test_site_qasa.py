@@ -79,3 +79,23 @@ def test_pets_filter_param_dropped_when_not_required(tmp_repo):
               tmp_repo / "config", tmp_repo / "sites")
     b = load_all(tmp_repo / "config", tmp_repo / "sites")
     assert "rules" not in resolve(b, b.sites["qasa"], "rent").params
+
+
+def test_cli_parser_converts_extract_output(tmp_path, monkeypatch):
+    """`findhome ingest listings --parser qasa` turns extract.js output into ListingIn payloads."""
+    from findhome.cli import main as cli
+
+    mod = qasa_module()
+    nodes, _ = mod.search_documents((FIX / "search_page.html").read_text())
+    convert = cli._site_parser("qasa")
+    items = [convert(n) for n in nodes]
+    assert [i.source.method for i in items] == ["agent_browser"] * 3
+    assert items[0].rent_sek == 19600 and items[0].pet_status == "yes"
+
+
+def test_summary_line_shows_fetch_errors():
+    from findhome.scanning.runner import summary_line
+
+    s = {"site": "qasa", "seen": 0, "parse_errors": 0, "method": "http", "seconds": 0.2,
+         "errors": ["page 1: HTTPStatusError 429 (the site refuses scripted requests: use fetch.method agent_browser)"]}
+    assert "429" in summary_line(s) and "agent_browser" in summary_line(s)

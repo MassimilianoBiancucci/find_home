@@ -42,7 +42,8 @@ robots.txt, filters resolved through the site's `filter_map` ([`scanning/filters
 pages fetched with the site's delay, items parsed by
 [`scanning/generic.py`](../../backend/src/findhome/scanning/generic.py) (HTML selectors or a JSON API with a field
 map) or by an optional `sites/<slug>/scanner.py` (for example [`sites/qasa/scanner.py`](../../sites/qasa/scanner.py),
-which reads the JSON embedded in Qasa's result pages). A scanner may also implement `enrich`: the runner calls it
+which reads the JSON embedded in Qasa's result pages; Qasa answers scripted requests with 429, so that site
+runs as `agent_browser`). A scanner may also implement `enrich`: the runner calls it
 for listings not seen before, up to `fetch.details.max_per_run`, and hashes the list-page view so later scans of
 the same listing stay `unchanged`. Then the items are ingested. Raw pages are saved under `data/raw/`. Only
 `active` sites are scanned; a dry run works on any site and stores nothing.

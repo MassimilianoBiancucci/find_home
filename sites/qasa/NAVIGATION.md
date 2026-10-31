@@ -1,7 +1,7 @@
 # Qasa — navigation guide
 
-Status: **active** (onboarded 2026-10-31 by browser exploration; the first scripted dry run must run on the
-Mac, see §10). Qasa (qasa.com, formerly qasa.se) is a rental marketplace for second-hand (andrahand) and some
+Status: **active, agent_browser** (onboarded 2026-10-31). Scripted HTTP requests get **429** from qasa.com,
+so scans happen in the user's browser with [`extract.js`](extract.js), see §3 and §7. Qasa (qasa.com, formerly qasa.se) is a rental marketplace for second-hand (andrahand) and some
 first-hand homes. It also publishes **Blocket Bostad** listings (`attributes.platform = "blocket"`), so a
 separate Blocket Bostad scan would mostly find the same flats.
 
@@ -11,7 +11,10 @@ Rentals only, Sweden-wide. Stockholms län had 5 162 listings on 2026-10-31; 2 3
 cottage (stuga), corridor rooms. Contract dates: `startDate`, `endDate` (null = "Tillsvidare", open-ended).
 
 ## 2. Access
-Search results and listing pages are public, no login, no cookie wall blocking content. A Qasa account
+Search results and listing pages are public in a normal browser, no login, no cookie wall blocking content.
+Scripted clients (the `findhome` HTTP scanner, the probe) receive **HTTP 429** with a challenge page: Qasa's bot
+protection. Do not try to get around it (no spoofed user agents, no private API calls, no headless browsers);
+use the user's own browser session. A Qasa account
 (BankID verification) is needed only to contact landlords or sign — that is the user's job, never the agent's.
 `.se` URLs redirect to `qasa.com` (an old `/find-home?...` link on qasa.se may 404: use the qasa.com URL below).
 
@@ -22,7 +25,13 @@ hyresperiod, Typ av boende, Möblering, Kategori, Tillgänglighet, Regler). Appl
 Default sort is **Nyast** (newest first), which is what incremental scans want. Moving the map adds
 `ne_lat/ne_lng/sw_lat/sw_lng` bounds to the URL: do not keep those in scan URLs.
 
-Scripted scan URL (built from `site.yaml`):
+**Browser scan (agent_browser):** open each URL below with `page=1..5` in the user's browser, wait for the
+results, run [`extract.js`](extract.js) with the JavaScript tool (it only reads the loaded page and returns
+`{page, totalCount, pagesCount, count, docs}`), save the result to `$FINDHOME_RUN_DIR/qasa_page<N>.json`, then
+`scripts/findhome ingest listings -f $FINDHOME_RUN_DIR/qasa_page<N>.json --parser qasa --source agent_browser`.
+Stop early when a page brings only known listings (the ingest line shows `unchanged`). About 5-6k tokens per page.
+
+Scan URL (built from `site.yaml`; add `maxMonthlyCost` / `minSquareMeters` once set in `profile.yaml`):
 `https://qasa.com/se/sv/find-home?searchAreas=Stockholms_l%C3%A4n~~se&sharedHome=privateHome&minRoomCount=2&rules=pets&page=1`
 
 ## 4. Filters
@@ -63,8 +72,8 @@ the landlord is asked). Free text in descriptions may still say "inga husdjur": 
 
 ## 7. Pagination and limits
 `page=N`, about 59 listings per page, `pagesCount` in the data. Newest first, so 5 pages (≈300 listings) cover
-several days of new ads. Politeness in `site.yaml`: 3 s between requests, max 5 result pages and 15 detail pages
-per run. robots.txt disallows `find-home` URLs with filter parameters; the user chose to ignore it
+several days of new ads. Max 5 result pages per run; open detail pages only for shortlisted listings (they add
+floor, build year and traits such as balcony, elevator, pets). robots.txt disallows `find-home` URLs with filter parameters; the user chose to ignore it
 (`respect_robots: false`) for this personal, low-volume use.
 
 ## 8. Known traps
@@ -76,10 +85,10 @@ per run. robots.txt disallows `find-home` URLs with filter parameters; the user 
 - Rooms in shared homes are excluded by `sharedHome=privateHome`; remove it to see them.
 
 ## 9. Probe history
-Onboarded by browser exploration (no `findhome site probe` report: the probe cannot reach qasa.com from the
-agent sandbox). Findings above, recorded 2026-10-31.
+- [probe/20261031T195307Z.md](probe/20261031T195307Z.md): `findhome site probe` from the Mac → HTTP 429.
+- Browser exploration 2026-10-31: findings above. A scripted `findhome scan qasa` from the Mac also got no data
+  (429), which moved the site to `agent_browser`.
 
 ## 10. Last verified
-2026-10-31, browser session (Claude desktop). **Pending:** first scripted dry run on the Mac:
-`scripts/findhome scan qasa --dry-run --max-pages 1`. If it returns 0 items or an HTTP error, Qasa may reject
-non-browser clients: set `status: broken` and follow `prompts/site_repair.md`.
+2026-10-31, browser session (Claude desktop): extract.js returned 59 listings from a loaded result page.
+`sites/qasa/scanner.py` keeps an HTTP scanner for the day scripted access is allowed; it is not used now.

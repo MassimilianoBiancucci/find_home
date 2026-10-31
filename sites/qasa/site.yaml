@@ -1,8 +1,10 @@
 # yaml-language-server: $schema=../../config/schemas/site.schema.json
 # ─────────────────────────────────────────────────────────────
 #  Qasa (qasa.com) — onboarded 2026-10-31 with the find-home skill (prompts/site_onboarding.md).
-#  Search pages are server-rendered and embed the full result as Apollo SSR JSON, read by
-#  sites/qasa/scanner.py. See NAVIGATION.md for the search flow and data anatomy.
+#  Search pages are server-rendered and embed the full result as Apollo SSR JSON.
+#  qasa.com answers scripted HTTP requests with 429 (bot protection), so scans run in the user's
+#  browser: the agent opens each result page, runs sites/qasa/extract.js on it and ingests the
+#  output with `findhome ingest listings --parser qasa`. See NAVIGATION.md.
 #  Qasa also carries Blocket Bostad listings (attributes.platform = "blocket").
 # ─────────────────────────────────────────────────────────────
 slug: qasa
@@ -10,18 +12,18 @@ name: Qasa
 url: https://qasa.com
 kinds: [rent]
 status: active
-last_verified: '2026-10-31 (browser exploration; HTTP dry run pending on the Mac)'
+last_verified: '2026-10-31 (browser exploration; scripted HTTP refused with 429 → agent_browser)'
 fetch:
   order: [api, http, playwright, agent_browser]
-  method: http                  # server-rendered HTML with embedded JSON; parsed by scanner.py
-  list_url_template: https://qasa.com/se/sv/find-home
+  method: agent_browser         # scripted HTTP gets 429; read the loaded page with extract.js
+  list_url_template: https://qasa.com/se/sv/find-home   # + fixed_params + filter params + page=N
   fixed_params:
     searchAreas: Stockholms_län~~se     # whole county (Solna, Sundbyberg, Stockholm ...)
     sharedHome: privateHome             # own home only, no room in a shared flat
   api: {endpoint: null, method: GET, items_path: null, body: null}
   selectors: {}                  # not used: scanner.py reads the embedded JSON instead of HTML
   pagination: {type: page_param, param: page, max_pages: 5}   # ~59 listings per page, newest first
-  details: {enabled: true, max_per_run: 15}   # floor, build year, balcony/elevator traits for NEW listings
+  details: {enabled: false, max_per_run: 5}    # detail pages only for shortlisted listings, opened in the browser
 filter_map:
   max_rent_sek: {param: maxMonthlyCost, note: monthly cost incl. tenant fee (Qasa monthlyCost)}
   min_size_m2: {param: minSquareMeters}
@@ -45,7 +47,7 @@ politeness:
   max_pages_per_run: 5
   # robots.txt disallows find-home URLs with filter parameters (maxMonthlyCost, minRoomCount,
   # sharedHome, rules ...). Ignored on the user's explicit instruction (2026-10-31): personal,
-  # low-volume use with a 3 s delay and at most 5 result pages + 15 detail pages per run.
+  # low-volume use, at most 5 result pages per run, browsed page by page in the user's browser.
   respect_robots: false
   user_agent: findhome/0.1 (personal home search)
 schedule: {interval: 6h}         # suggestion for your external scheduler

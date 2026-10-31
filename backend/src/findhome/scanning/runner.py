@@ -107,7 +107,9 @@ async def collect(site: SiteConfig, bundle: ConfigBundle, max_pages: int | None 
         try:
             raws = await scanner.fetch(q)
         except Exception as exc:  # noqa: BLE001
-            stats.errors.append(f"page {q.page}: {exc}")
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            hint = " (the site refuses scripted requests: use fetch.method agent_browser)" if status in (403, 429) else ""
+            stats.errors.append(f"page {q.page}: {exc.__class__.__name__} {status or ''}{hint}".strip())
             break
         stats.pages += 1
         stats.items += len(raws)
@@ -161,7 +163,8 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
 def summary_line(s: dict[str, Any]) -> str:
     if s.get("dry_run"):
         return (f"{s['site']}: DRY RUN {s['seen']} seen, {s['parsed']} parsed, {s['parse_errors']} parse errors "
-                f"(method={s['method']}, {s.get('seconds', 0)}s)")
-    return (f"{s['site']}: {s['seen']} seen, {s.get('new', 0)} new, {s.get('changed', 0)} changed, "
+                f"(method={s['method']}, {s.get('seconds', 0)}s)") + "".join(f"\n  ! {e}" for e in s.get("errors", []))
+    line = (f"{s['site']}: {s['seen']} seen, {s.get('new', 0)} new, {s.get('changed', 0)} changed, "
             f"{s.get('dup_cross_site', 0)} dup-cross-site, {s.get('unchanged', 0)} unchanged, "
-            f"{s['parse_errors']} errors (method={s['method']}, {s.get('seconds', 0)}s)")
+            f"{s['parse_errors']} parse errors (method={s['method']}, {s.get('seconds', 0)}s)")
+    return line + "".join(f"\n  ! {e}" for e in s.get("errors", []))

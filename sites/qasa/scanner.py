@@ -1,4 +1,10 @@
-"""Qasa scanner (sites/qasa). Loaded by findhome.scanning.runner.make_scanner.
+"""Qasa scanner (sites/qasa). Loaded by findhome.scanning.runner.make_scanner and by
+`findhome ingest listings --parser qasa` (to_listing).
+
+NOTE: qasa.com answers scripted HTTP clients with 429 (bot protection), so site.yaml uses
+fetch.method agent_browser: the agent opens result pages in the user's browser, runs
+extract.js on the loaded page and ingests the output through to_listing(). The HTTP scanner
+below is kept for the day scripted access works (or is permitted) again.
 
 Qasa (qasa.com, which also carries Blocket Bostad listings) renders its search pages on the
 server. Each result page embeds the search result as Apollo SSR data:
@@ -170,6 +176,13 @@ class QasaScanner(HttpListScanner):
         if "pets" in traits and item.pet_status != "yes":
             update["pet_status"], update["pet_evidence"] = "yes", "Qasa listing traits include 'pets'"
         return item.model_copy(update=update)
+
+
+def to_listing(raw: dict) -> ListingIn:
+    """Entry point for `findhome ingest listings --parser qasa` (raw docs from extract.js)."""
+    item = document_to_listing(raw)
+    item.source.method = "agent_browser"
+    return item
 
 
 def make_scanner(site: SiteConfig) -> QasaScanner:

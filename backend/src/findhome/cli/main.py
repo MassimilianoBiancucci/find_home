@@ -148,10 +148,16 @@ def _load_json(path: Path) -> object:
 
 @ingest_app.command("listings")
 def ingest_listings(file: Path = typer.Option(..., "--file", "-f", help="JSON list of ListingIn (or {listings:[...]}); - for stdin"),
-                    source: Optional[str] = typer.Option(None, "--source", help="Override source.method: agent_browser|manual")):
+                    source: Optional[str] = typer.Option(None, "--source", help="Override source.method: agent_browser|manual"),
+                    parser: Optional[str] = typer.Option(None, "--parser", help="Site slug whose scanner.py converts raw site items (e.g. qasa extract.js output)")):
     """Ingest listings (agent browser scans, manual adds). See `findhome config schema ingest --markdown`."""
     data = _load_json(file)
-    items = data["listings"] if isinstance(data, dict) else data
+    items = data["listings"] if isinstance(data, dict) and "listings" in data else data
+    if isinstance(items, dict) and "docs" in items:      # output of a site's extract.js
+        items = items["docs"]
+    if parser:
+        convert = _site_parser(parser)
+        items = [convert(raw).model_dump(mode="json", exclude_none=True) for raw in items]
     if source:
         for it in items:
             it.setdefault("source", {})["method"] = source
@@ -159,6 +165,25 @@ def ingest_listings(file: Path = typer.Option(..., "--file", "-f", help="JSON li
     lines = [f"created {res['created']} · updated {res['updated']} · unchanged {res['unchanged']} · duplicate {res['duplicate']}"]
     lines += [f"  {i['short_id']} {i['outcome']} ({i['external_id']})" for i in res["items"] if i["outcome"] != "unchanged"]
     _out(res, "\n".join(lines))
+
+
+def _site_parser(slug: str):
+    """The site's raw-item → ListingIn function from sites/<slug>/scanner.py (`to_listing`)."""
+    import importlib.util
+
+    from findhome.core.paths import sites_dir
+
+    path = sites_dir() / slug / "scanner.py"
+    if not path.exists():
+        typer.secho(f"no parser: {path} does not exist", fg="red")
+        raise typer.Exit(1)
+    spec = importlib.util.spec_from_file_location(f"findhome_site_{slug.replace('-', '_')}", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if not hasattr(mod, "to_listing"):
+        typer.secho(f"{path} has no to_listing(raw) function", fg="red")
+        raise typer.Exit(1)
+    return mod.to_listing
 
 
 @ingest_app.command("evaluations")
