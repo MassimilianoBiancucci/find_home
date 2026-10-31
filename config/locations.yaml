@@ -21,15 +21,15 @@ points:
   - id: work-rasta
     category: work
     label: Work 1 · Råsta strandväg 7–9
-    address: Råsta strandväg 7, 169 79 Solna, Sweden
-    weight: 1.0
+    address: Råsta strandväg 7, 169 79 Solna
+    weight: 1
     notes: Must arrive 08:00-09:00, flexible. Lower the weight if you go here less often than work 2.
     modes: [transit, bike]
     trips:
       - direction: to_point
         day_types: [weekday]
         windows:
-          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1.0, step_min: 15}
+          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1, step_min: 15}
       - direction: from_point
         day_types: [weekday]
         windows:
@@ -37,15 +37,15 @@ points:
   - id: work-rasunda
     category: work
     label: Work 2 · Råsundavägen 37
-    address: Råsundavägen 37, 169 67 Solna, Sweden
-    weight: 1.0
+    address: Råsundavägen 37, 169 67 Solna
+    weight: 1
     notes: Must arrive 08:00-09:00, flexible. Lower the weight if you go here less often than work 1.
     modes: [transit, bike]
     trips:
       - direction: to_point
         day_types: [weekday]
         windows:
-          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1.0, step_min: 15}
+          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1, step_min: 15}
       - direction: from_point
         day_types: [weekday]
         windows:
@@ -64,7 +64,7 @@ points:
 
   - id: partner-skanstull
     category: partner
-    label: Girlfriend · Skanstull
+    label: Bella · Skanstull
     address: Skanstull tunnelbanestation, Stockholm
     coords: [59.30778, 18.07583]
     weight: 0.8
@@ -74,4 +74,4 @@ points:
       - direction: both
         day_types: [weekday, saturday, sunday]
         windows:
-          - {type: depart_at, from: "18:00", to: "03:00", weight: 1.0, step_min: 60}
+          - {type: depart_at, from: "18:00", to: "03:00", weight: 1, step_min: 60}
