@@ -49,7 +49,7 @@ Do this pass when the code change is complete: before committing or opening the 
 2. For each changed file, find guide pages that mention it, its folder or its main names: `grep -rln "<path, module or class>" guide/`. Also check pages whose topic covers the change even without a direct link.
 3. Rewrite what the change made untrue: text, diagrams, directory map, links, names. Describe the result ("X does Y"), never the change ("X now does Y since #123").
 4. A new component, flow, agent or integration: extend the matching architecture page (or add one) and the overview index.
-5. A known issue fixed: delete its entry; the PR records the fix. A new known limit: add a short entry.
+5. Issues: a known issue fixed by the change, delete its entry (the PR records the fix). Something left imperfect on purpose, a pending fix, or a new known limit: add a short entry (see Logging an issue), so it is not forgotten.
 6. A principle affected: stop and follow **Changing a principle**.
 7. Run the checks locally:
    - `python3 <this skill's folder>/scripts/check_links.py --guide-dir <repo>/guide` (the skill's folder is where this file is, e.g. `.github/skills/guide/` or `.claude/skills/guide/`)
@@ -57,6 +57,15 @@ Do this pass when the code change is complete: before committing or opening the 
 8. Report in a few lines: pages updated, and anything left for the user to decide.
 
 If the change touches nothing the guide describes, say "guide checked, no update needed" and stop.
+
+## Logging an issue: any time
+
+When the user finds a problem that is not part of the current task ("log this in the guide"), or the Updating pass finds pending work:
+
+1. Add an entry to `guide/issues/` under the matching area, in the issue format ([references/skeleton.md](references/skeleton.md)): title, impact, what goes wrong and when, fix direction. Point to the code with relative links.
+2. If the entry is important (impact high or medium, or the user says so), ask: "Open a GitHub issue for this too?" Ask once per batch, listing the candidates. Never create one without a yes.
+3. On a yes, create it with the GitHub tool available (`gh issue create --title … --body …` or the GitHub connector), with the entry text as the body, and add the issue link to the entry's title line.
+4. Never put plans, progress or to-do lists in `issues/`: one entry per open problem, deleted when fixed.
 
 ## After a merge or rebase
 

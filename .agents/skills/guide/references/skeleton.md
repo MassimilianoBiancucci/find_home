@@ -97,9 +97,9 @@ Examples of areas worth a principle: one telemetry path for all agents (no per-a
 ## Issue entry
 
 ```markdown
-### <Short title> (<tracker id, if any>)
-**Impact: high | medium | low.** What goes wrong, and when.
+### <Short title> ([#<id>](<GitHub issue link>), if one exists)
+**Impact: high | medium | low.** What goes wrong, and when ([`file`](../../src/...)).
 **Fix direction:** one or two sentences.
 ```
 
-Only limits that change how code must be written belong here. Plans, to-dos and progress belong in the issue tracker. Delete an entry when it is fixed; no archive.
+Known limits and pending fixes belong here: things that are open now and that an agent should know before touching the area. Plans, progress and to-do lists do not. Delete an entry when it is fixed; no archive. Important entries can also have a GitHub issue, created only after the user agrees.
