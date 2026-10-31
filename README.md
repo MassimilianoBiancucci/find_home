@@ -26,12 +26,12 @@ Code-level documentation lives in [`guide/`](guide/overview.md). Planning histor
 
 ## Install and run
 
-```bash
-scripts/install.sh              # backend deps, frontend deps, personal env files, skill links
-```
-
 Open the `find_home` folder as the VS Code workspace and press F5 on **FH: Full Stack**. It frees the app ports,
-starts Postgres and pgAdmin, applies migrations, starts `ng serve` and launches FastAPI under the debugger.
+creates anything missing (`backend/.venv` with Poetry or uv, `frontend/node_modules`, `config/*.env`), starts
+Postgres and pgAdmin, applies migrations, starts `ng serve` and launches FastAPI under the debugger. The first run
+takes a few minutes because of the installs.
+
+`scripts/install.sh` does the same installs from a terminal and forces a clean reinstall.
 
 | URL | What |
 |---|---|

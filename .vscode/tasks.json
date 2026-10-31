@@ -9,6 +9,7 @@
 //  Orchestration used by launch.json "FH: Full Stack":
 //    preLaunchTask "FH: Dev Prereqs"  (dependsOrder: sequence)
 //      ├─ "FH: Free Ports"   → scripts/free-ports.sh (8200, 4400)
+//      ├─ "FH: Ensure Env"   → scripts/ensure-env.sh (venv, node_modules, env files if missing)
 //      ├─ "FH: Infra Up"     → docker compose up -d --wait (Postgres :5434, pgAdmin :5052)
 //      ├─ "FH: Migrate DB"   → findhome db migrate
 //      └─ "FH: ng serve"     → Angular :4400 (background, proxy → FastAPI :8200)
@@ -23,6 +24,15 @@
             "type": "shell",
             "command": "${workspaceFolder}/scripts/free-ports.sh",
             "presentation": { "reveal": "silent", "panel": "shared", "close": true },
+            "problemMatcher": []
+        },
+        // Creates whatever is missing (backend/.venv, frontend/node_modules, config/*.env,
+        // skill links). Fast no-op when everything exists, so F5 works on a fresh checkout.
+        {
+            "label": "FH: Ensure Env",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/ensure-env.sh",
+            "presentation": { "reveal": "always", "panel": "shared" },
             "problemMatcher": []
         },
         {
@@ -44,7 +54,7 @@
         {
             "label": "FH: Migrate DB",
             "type": "shell",
-            "command": "${workspaceFolder}/backend/.venv/bin/findhome db migrate",
+            "command": "${workspaceFolder}/scripts/findhome db migrate",
             "options": { "cwd": "${workspaceFolder}/backend" },
             "presentation": { "reveal": "always", "panel": "shared" },
             "problemMatcher": []
@@ -81,7 +91,7 @@
         // ═══ Orchestrator ═══════════════════════════════════════════════════
         {
             "label": "FH: Dev Prereqs",
-            "dependsOn": ["FH: Free Ports", "FH: Infra Up", "FH: Migrate DB", "FH: ng serve"],
+            "dependsOn": ["FH: Free Ports", "FH: Ensure Env", "FH: Infra Up", "FH: Migrate DB", "FH: ng serve"],
             "dependsOrder": "sequence",
             "problemMatcher": []
         },
@@ -90,28 +100,28 @@
         {
             "label": "FH: Config Validate",
             "type": "shell",
-            "command": "${workspaceFolder}/backend/.venv/bin/findhome config validate",
+            "command": "${workspaceFolder}/scripts/findhome config validate",
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
             "label": "FH: Scan site",
             "type": "shell",
-            "command": "${workspaceFolder}/backend/.venv/bin/findhome scan ${input:siteSlug}",
+            "command": "${workspaceFolder}/scripts/findhome scan ${input:siteSlug}",
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
             "label": "FH: Scan site (dry run)",
             "type": "shell",
-            "command": "${workspaceFolder}/backend/.venv/bin/findhome scan ${input:siteSlug} --dry-run --max-pages 1",
+            "command": "${workspaceFolder}/scripts/findhome scan ${input:siteSlug} --dry-run --max-pages 1",
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
         {
             "label": "FH: History Digest",
             "type": "shell",
-            "command": "${workspaceFolder}/backend/.venv/bin/findhome digest history",
+            "command": "${workspaceFolder}/scripts/findhome digest history",
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },

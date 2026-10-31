@@ -2,11 +2,10 @@
 # ─────────────────────────────────────────────────────────────
 #  install.sh — one-time setup of find_home on this machine
 #
-#  1. checks prerequisites (Docker, Python 3.11, Poetry, Node 20+)
-#  2. backend: poetry install (in-project .venv, see backend/poetry.toml)
-#  3. frontend: npm ci
-#  4. config: copy config/*.env.example -> *.env (skips existing)
-#  5. skills: link .agents/skills/* into .claude/skills/
+#  Checks Docker, then runs scripts/ensure-env.sh forcing a fresh install:
+#    backend/.venv (Poetry, or uv; Python 3.11-3.14), frontend npm ci,
+#    config/*.env from the examples (never overwritten), skill links.
+#  F5 on "FH: Full Stack" also runs ensure-env.sh, so this is optional.
 #
 #  Usage: scripts/install.sh [--skip-frontend] [--skip-backend]
 # ─────────────────────────────────────────────────────────────
@@ -17,36 +16,12 @@ for a in "$@"; do
     case "$a" in --skip-frontend) SKIP_FE=true ;; --skip-backend) SKIP_BE=true ;; esac
 done
 
-check() { command -v "$1" >/dev/null 2>&1 || { echo "❌ $1 not found. $2"; exit 1; }; }
-check docker "Install Docker Desktop (or colima) first."
-if ! $SKIP_BE; then
-    check poetry "Install with: pipx install poetry"
-    PY="$(command -v python3.11 || true)"
-    [[ -n "$PY" ]] || { echo "❌ python3.11 not found (brew install python@3.11 or pyenv)"; exit 1; }
-fi
-if ! $SKIP_FE; then
-    check node "Install Node 20+ (nvm install 20)."
-    NODE_MAJOR="$(node -v | sed 's/v//' | cut -d. -f1)"
-    [[ "$NODE_MAJOR" -ge 20 ]] || { echo "❌ Node $(node -v) found, need ≥20"; exit 1; }
-fi
+command -v docker >/dev/null 2>&1 || { echo "❌ docker not found. Install Docker Desktop (or colima) first."; exit 1; }
 
-if ! $SKIP_BE; then
-    echo "📦 backend: poetry install"
-    (cd "$ROOT/backend" && poetry env use "$PY" && poetry install)
-fi
-if ! $SKIP_FE; then
-    echo "📦 frontend: npm ci"
-    (cd "$ROOT/frontend" && (npm ci || npm install))
-fi
-
-echo "⚙️  config: personal env files"
-for ex in "$ROOT"/config/*.env.example; do
-    real="${ex%.example}"
-    if [[ -f "$real" ]]; then echo "   = $(basename "$real") exists, kept"; else cp "$ex" "$real"; echo "   + $(basename "$real")"; fi
-done
-
-echo "🔗 skills"
-"$ROOT/scripts/sync-skills.sh"
+ARGS=(--force-backend)
+$SKIP_BE && ARGS=()
+$SKIP_FE && ARGS+=(--skip-frontend) || ARGS+=(--force-frontend)
+"$ROOT/scripts/ensure-env.sh" "${ARGS[@]}"
 
 cat <<MSG
 
