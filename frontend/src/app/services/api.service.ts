@@ -67,6 +67,7 @@ export function apiError(err: any): string {
   if (body?.errors?.length) return `${body.detail ?? 'invalid'}:\n- ${body.errors.join('\n- ')}`;
   if (typeof body?.detail === 'string') return body.detail;
   if (Array.isArray(body?.detail)) return body.detail.map((d: any) => `${d.loc?.join('.')}: ${d.msg}`).join('\n');
-  if (err?.status === 0) return 'API not reachable: is "FH: Full Stack" running?';
+  if (err?.status === 0 || err?.status === 502 || err?.status === 504)
+    return 'API not running on :8200. Start "FH: Full Stack" (its terminal shows why it stopped) or run: scripts/findhome serve';
   return err?.message ?? String(err);
 }

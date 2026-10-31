@@ -9,6 +9,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from psycopg import OperationalError
+from psycopg_pool import PoolTimeout
 
 from findhome import __version__
 from findhome.api.routers import config as config_router
@@ -30,15 +32,29 @@ async def _sync_sites() -> None:
         await repo.sync_sites(conn, store.bundle.sites, store.bundle.site_hashes)
 
 
+async def _sync_sites_safe() -> None:
+    try:
+        await _sync_sites()
+    except Exception as exc:  # noqa: BLE001 - DB may be down at startup; /api/sites re-reads config anyway
+        log.warning("site registry not synced to the database yet: %s", exc.__class__.__name__)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=get_settings().log_level)
     store = get_store()
     store.reload()
+    settings = get_settings()
     await db.open_pool()
+    db_error = await db.probe()
+    log.info("find_home API · http://%s:%s · db %s %s · config %s", settings.api_host, settings.api_port,
+             db.redacted(settings.database_url), "OK" if not db_error else f"UNREACHABLE ({db_error})",
+             store.bundle.config_hash if store.bundle else f"INVALID ({len(store.last_errors)} errors)")
+    if db_error:
+        log.warning("database unreachable: start it with 'docker compose up -d --wait' (the API keeps retrying)")
     loop = asyncio.get_running_loop()
-    store.listeners.append(lambda _b: loop.create_task(_sync_sites()))
-    await _sync_sites()
+    store.listeners.append(lambda _b: loop.create_task(_sync_sites_safe()))
+    await _sync_sites_safe()
     watcher = asyncio.create_task(store.watch())
     try:
         yield
@@ -60,6 +76,14 @@ async def config_error_handler(_req: Request, exc: ConfigError):
     return JSONResponse(status_code=422, content={"detail": "config invalid", "errors": exc.errors})
 
 
+@app.exception_handler(PoolTimeout)
+@app.exception_handler(OperationalError)
+async def db_down_handler(_req: Request, exc: Exception):
+    detail = await db.probe() or exc.__class__.__name__
+    return JSONResponse(status_code=503, content={
+        "detail": f"database unreachable ({detail}). Start it: docker compose up -d --wait"})
+
+
 @app.exception_handler(repo.NotFound)
 async def not_found_handler(_req: Request, exc: repo.NotFound):
     return JSONResponse(status_code=404, content={"detail": f"not found: {exc}"})
@@ -68,14 +92,16 @@ async def not_found_handler(_req: Request, exc: repo.NotFound):
 @app.get("/health", tags=["health"])
 async def health():
     store = get_store()
-    db_ok = True
+    db_error = None
     try:
-        async with db.pool().connection() as conn:
+        async with db.pool().connection(timeout=3) as conn:
             await conn.execute("SELECT 1")
     except Exception:  # noqa: BLE001
-        db_ok = False
+        db_error = await db.probe() or "connection pool timeout"
+    db_ok = db_error is None
     body = {"status": "ok" if db_ok and store.bundle else "degraded", "version": __version__, "db": db_ok,
-            "config_hash": store.bundle.config_hash if store.bundle else None, "config_errors": store.last_errors}
+            "db_error": db_error, "config_hash": store.bundle.config_hash if store.bundle else None,
+            "config_errors": store.last_errors}
     return JSONResponse(status_code=200 if db_ok and store.bundle else 503, content=body)
 
 

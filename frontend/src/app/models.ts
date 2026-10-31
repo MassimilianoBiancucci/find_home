@@ -96,7 +96,7 @@ export interface Point { id: string; category: string; label: string; address?: 
 export interface Category { label: string; default_weight: number; color?: string; icon?: string; }
 export interface LocationsConfig { categories: Record<string, Category>; points: Point[]; }
 
-export interface Health { status: string; db: boolean; config_hash: string | null; config_errors: string[]; version: string; }
+export interface Health { status: string; db: boolean; db_error?: string | null; config_hash: string | null; config_errors: string[]; version: string; }
 
 export interface GeoFeature { type: 'Feature'; geometry: { type: 'Point'; coordinates: [number, number] } | null; properties: Record<string, any>; }
 export interface GeoCollection { type: 'FeatureCollection'; features: GeoFeature[]; }

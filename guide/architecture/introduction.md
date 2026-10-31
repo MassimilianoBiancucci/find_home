@@ -13,8 +13,10 @@ ports, [`scripts/ensure-env.sh`](../../scripts/ensure-env.sh) to create a missin
 `frontend/node_modules` or `config/*.env`, compose up, migrate, `ng serve`) and then FastAPI under debugpy.
 
 **API.** [`api/main.py`](../../backend/src/findhome/api/main.py) builds the FastAPI app, binds to 127.0.0.1:8200,
-opens an async psycopg pool ([`core/db.py`](../../backend/src/findhome/core/db.py)), loads the config bundle and
-starts a file watcher that reloads it. Routers live in [`api/routers/`](../../backend/src/findhome/api/routers/listings.py).
+opens an async psycopg pool ([`core/db.py`](../../backend/src/findhome/core/db.py)) without waiting for the
+database, loads the config bundle and starts a file watcher that reloads it. The API starts even when Postgres is
+down: it logs the database URL (password hidden) and whether it is reachable, `/health` reports `db_error`, and
+any request needing the database returns 503 with the cause while the pool keeps retrying. Routers live in [`api/routers/`](../../backend/src/findhome/api/routers/listings.py).
 Each request gets one connection, committed when the request succeeds.
 
 **Data model.** [`migrations/001_init.sql`](../../backend/migrations/001_init.sql) defines `listings` (one row per

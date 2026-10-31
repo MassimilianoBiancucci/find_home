@@ -125,6 +125,21 @@
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
+        // Same API as "FH: Backend (FastAPI)" but without the debugger, with auto-reload.
+        // Useful when the debug session does not start: errors print in this terminal.
+        {
+            "label": "FH: API (no debugger)",
+            "type": "shell",
+            "command": "${workspaceFolder}/scripts/findhome serve --reload",
+            "options": { "cwd": "${workspaceFolder}/backend" },
+            "isBackground": true,
+            "presentation": { "reveal": "always", "panel": "dedicated" },
+            "problemMatcher": {
+                "owner": "fh-api",
+                "pattern": { "regexp": "^$" },
+                "background": { "activeOnStart": true, "beginsPattern": "Will watch|Started server process", "endsPattern": "Application startup complete|Application startup failed" }
+            }
+        },
         {
             "label": "FH: Pytest",
             "type": "shell",
