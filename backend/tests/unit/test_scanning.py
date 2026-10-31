@@ -32,15 +32,15 @@ def site(**over):
     return SiteConfig.model_validate(data)
 
 
-def test_filters_resolve(repo_root):
-    b = load_all(repo_root / "config", repo_root / "sites")
+def test_filters_resolve(tmp_repo):
+    b = load_all(tmp_repo / "config", tmp_repo / "sites")
     r = resolve(b, site(), "rent")
     assert r.params == {"pets": 1}                 # max_rent is null (TODO user), pets_allowed derived True
     assert "min_rooms_rok" in r.local_only
 
 
 @pytest.mark.asyncio
-async def test_generic_http_scanner_parses_items(repo_root, tmp_path, monkeypatch):
+async def test_generic_http_scanner_parses_items(tmp_repo, tmp_path, monkeypatch):
     monkeypatch.setattr("findhome.scanning.generic.data_dir", lambda: tmp_path / "data")
     pages = []
 
@@ -51,7 +51,7 @@ async def test_generic_http_scanner_parses_items(repo_root, tmp_path, monkeypatc
 
     s = site()
     scanner = HttpListScanner(s, client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
-    b = load_all(repo_root / "config", repo_root / "sites")
+    b = load_all(tmp_repo / "config", tmp_repo / "sites")
     items, stats, filt = await collect(s, b, scanner=scanner)
     assert stats.parsed == 2 and stats.pages == 2       # second page empty → stop
     first = items[0]

@@ -17,7 +17,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import copy
+import re
+
 from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap, CommentedSeq
+from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 from findhome.config.loader import CONFIG_FILES, ConfigError, validate_all
 from findhome.core.paths import config_dir as default_config_dir
@@ -33,6 +38,33 @@ def _rt_yaml() -> YAML:
     y.representer.add_representer(
         type(None), lambda rep, _data: rep.represent_scalar("tag:yaml.org,2002:null", "null"))
     return y
+
+
+_HHMM = re.compile(r"^\d{1,2}:\d{2}$")
+
+
+def _is_scalar(v: Any) -> bool:
+    return not isinstance(v, (dict, list))
+
+
+def styled(value: Any) -> Any:
+    """Convert inserted plain values to ruamel nodes that look like the hand-written files:
+    small scalar-only lists and maps in flow style ([a, b], {k: v}), HH:MM times quoted (a YAML 1.1
+    reader would parse 08:00 as a number), and a deep copy so YAML never emits anchors/aliases."""
+    value = copy.deepcopy(value)
+    if isinstance(value, str) and _HHMM.match(value):
+        return DoubleQuotedScalarString(value)
+    if isinstance(value, dict):
+        node = CommentedMap((k, styled(v)) for k, v in value.items())
+        if value and all(_is_scalar(v) for v in value.values()) and len(value) <= 6:
+            node.fa.set_flow_style()
+        return node
+    if isinstance(value, list):
+        node = CommentedSeq(styled(v) for v in value)
+        if all(_is_scalar(v) for v in value):
+            node.fa.set_flow_style()
+        return node
+    return value
 
 
 def _split(path: str) -> list[str]:
@@ -52,6 +84,8 @@ def _resolve(doc: Any, parts: list[str]) -> tuple[Any, str | int]:
 def apply_ops_to_doc(doc: Any, ops: list[dict[str, Any]]) -> Any:
     for op in ops:
         kind, parts = op["op"], _split(op["path"])
+        if "value" in op:
+            op = {**op, "value": styled(op["value"])}
         parent, key = _resolve(doc, parts)
         if kind == "replace":
             if isinstance(parent, list):

@@ -17,8 +17,10 @@ def repo_root() -> Path:
 
 @pytest.fixture
 def tmp_repo(tmp_path: Path) -> Path:
-    """A disposable copy of config/ and sites/ for tests that write files."""
+    """A disposable copy of config/ and sites/. locations.yaml is replaced by the frozen test fixture so
+    tests never depend on (or geocode) the user's real points."""
     shutil.copytree(REPO / "config", tmp_path / "config", ignore=shutil.ignore_patterns("*.env"))
+    shutil.copy(REPO / "backend" / "tests" / "fixtures" / "locations.yaml", tmp_path / "config" / "locations.yaml")
     if (REPO / "sites").exists():
         shutil.copytree(REPO / "sites", tmp_path / "sites")
     else:

@@ -40,6 +40,7 @@ def db_url():
 def test_repo(tmp_path: Path) -> Path:
     shutil.copytree(REPO / "config", tmp_path / "config", ignore=shutil.ignore_patterns("*.env"))
     shutil.copytree(REPO / "sites", tmp_path / "sites")
+    shutil.copy(REPO / "backend" / "tests" / "fixtures" / "locations.yaml", tmp_path / "config" / "locations.yaml")
     from findhome.config.writer import apply_ops
 
     apply_ops("providers", [{"op": "replace", "path": "/routing/osm/enabled", "value": False}],

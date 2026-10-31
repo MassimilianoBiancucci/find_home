@@ -40,8 +40,9 @@ Not verified on the Mac itself: `docker compose up`, `scripts/install.sh` (Poetr
 
 ## Open items
 
-- User input: `config/profile.yaml` TODO(user) values (max rent, min m², move-in window, areas, sovalkov rule)
-  and real addresses for `work-main` and `partner-1` in `config/locations.yaml`.
+- User input: `config/profile.yaml` TODO(user) values (max rent, min m², move-in window, areas, sovalkov rule).
+  Locations are set: `work-rasta`, `work-rasunda` (addresses, geocoded by the app on first use) and
+  `partner-skanstull` (Skanstull metro station coordinates).
 - Guide: principles and issues proposed to the user, written after confirmation.
 - Follow-ups: [tasks/BACKLOG.md](../BACKLOG.md), starting with `fill-profile-values`, `verify-sites` and
   `routing-providers`.

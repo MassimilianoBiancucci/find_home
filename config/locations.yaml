@@ -18,12 +18,12 @@ categories:
   generic: {label: Point, default_weight: 0.3, color: "#607d8b", icon: pin}
 
 points:
-  - id: work-main
+  - id: work-rasta
     category: work
-    label: Office
-    address: "TODO(user): office street address, Stockholm"
+    label: Work 1 · Råsta strandväg 7–9
+    address: Råsta strandväg 7, 169 79 Solna, Sweden
     weight: 1.0
-    notes: Must arrive 08:00-09:00, flexible; a farther home means leaving earlier.
+    notes: Must arrive 08:00-09:00, flexible. Lower the weight if you go here less often than work 2.
     modes: [transit, bike]
     trips:
       - direction: to_point
@@ -34,7 +34,22 @@ points:
         day_types: [weekday]
         windows:
           - {type: depart_at, from: "16:30", to: "18:30", weight: 0.6, step_min: 30}
-
+  - id: work-rasunda
+    category: work
+    label: Work 2 · Råsundavägen 37
+    address: Råsundavägen 37, 169 67 Solna, Sweden
+    weight: 1.0
+    notes: Must arrive 08:00-09:00, flexible. Lower the weight if you go here less often than work 1.
+    modes: [transit, bike]
+    trips:
+      - direction: to_point
+        day_types: [weekday]
+        windows:
+          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1.0, step_min: 15}
+      - direction: from_point
+        day_types: [weekday]
+        windows:
+          - {type: depart_at, from: "16:30", to: "18:30", weight: 0.6, step_min: 30}
   - id: stockholm-central
     category: transit_hub
     label: Stockholm C
@@ -47,12 +62,13 @@ points:
         day_types: [weekday, saturday, sunday]
         use_default_grid: true
 
-  - id: partner-1
+  - id: partner-skanstull
     category: partner
-    label: Partner home
-    address: "TODO(user): partner address"
+    label: Girlfriend · Skanstull
+    address: Skanstull tunnelbanestation, Stockholm
+    coords: [59.30778, 18.07583]
     weight: 0.8
-    notes: Evenings and weekends, sometimes late.
+    notes: 'Evenings and weekends, sometimes late. Coordinates: Skanstull metro station.'
     modes: [transit]
     trips:
       - direction: both

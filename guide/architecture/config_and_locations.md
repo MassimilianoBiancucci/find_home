@@ -31,7 +31,8 @@ reloads it when files change. An invalid edit leaves the last valid bundle activ
 `/health` and `/api/config`.
 
 [`config/writer.py`](../../backend/src/findhome/config/writer.py) is the only code that writes config files. It
-round-trips YAML with ruamel.yaml (comments and order kept, `null` written explicitly), validates the whole
+round-trips YAML with ruamel.yaml (comments and order kept, `null` written explicitly; inserted values are
+styled like the hand-written files: small scalar lists and maps in flow style, `HH:MM` quoted, no anchors), validates the whole
 config set on a temporary copy, and replaces the file atomically. `apply_ops` takes add / replace / remove
 operations on a JSON pointer path; `write_text` replaces a whole file.
 

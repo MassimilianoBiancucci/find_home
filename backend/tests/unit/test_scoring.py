@@ -2,18 +2,18 @@ from findhome.config.loader import load_all
 from findhome.domain.scoring import hard_filter_failures, score_listing
 
 
-def bundle(repo_root):
-    return load_all(repo_root / "config", repo_root / "sites")
+def bundle(tmp_repo):
+    return load_all(tmp_repo / "config", tmp_repo / "sites")
 
 
-def test_pet_no_is_hard_excluded(repo_root):
-    b = bundle(repo_root)
+def test_pet_no_is_hard_excluded(tmp_repo):
+    b = bundle(tmp_repo)
     res = score_listing(b, {"listing_kind": "rent", "pet_status": "no", "rent_sek": 10000}, [])
     assert res["total"] is None and "pet_status_exclude" in res["rejected_by"]
 
 
-def test_score_is_weighted_mean_of_available_groups(repo_root):
-    b = bundle(repo_root)
+def test_score_is_weighted_mean_of_available_groups(tmp_repo):
+    b = bundle(tmp_repo)
     L = {"listing_kind": "rent", "pet_status": "yes", "has_balcony": True, "floor": 2, "has_elevator": True,
          "size_m2": 60, "rooms_rok": 2, "contract_type": "first_hand", "rent_sek": 15000}
     res = score_listing(b, L, [])
@@ -23,8 +23,8 @@ def test_score_is_weighted_mean_of_available_groups(repo_root):
     assert "neighbourhood" not in res["breakdown"]            # disabled group
 
 
-def test_commute_and_reliability_penalty(repo_root):
-    b = bundle(repo_root)
+def test_commute_and_reliability_penalty(tmp_repo):
+    b = bundle(tmp_repo)
     base = {"listing_kind": "rent", "pet_status": "yes"}
     steady = [{"point_id": "work-main", "median_min": 25, "p90_min": 27, "spread_min": 2, "window_weight": 1}]
     shaky = [{"point_id": "work-main", "median_min": 25, "p90_min": 50, "spread_min": 25, "window_weight": 1}]

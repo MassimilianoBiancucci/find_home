@@ -90,3 +90,17 @@ def test_unknown_day_type_and_filter_are_reported(tmp_repo):
     with pytest.raises(ConfigError) as exc:
         write_text("locations", loc, cfg, tmp_repo / "sites")
     assert "holiday" in str(exc.value)
+
+
+def test_writer_styles_inserted_values(tmp_repo):
+    """Inserted values look hand-written: flow lists/maps, quoted HH:MM, no YAML anchors when reused."""
+    trips = [{"direction": "both", "day_types": ["weekday"],
+              "windows": [{"type": "arrive_by", "from": "08:00", "to": "09:00"}]}]
+    p1 = {"id": "a", "category": "generic", "label": "A", "coords": [59.3, 18.0], "modes": ["walk"], "trips": trips}
+    p2 = {**p1, "id": "b", "label": "B"}
+    apply_ops("locations", [{"op": "add", "path": "/points/-", "value": p1}, {"op": "add", "path": "/points/-", "value": p2}],
+              tmp_repo / "config", tmp_repo / "sites")
+    text = (tmp_repo / "config" / "locations.yaml").read_text()
+    assert "&id" not in text and "*id" not in text
+    assert '{type: arrive_by, from: "08:00", to: "09:00"}' in text
+    assert "modes: [walk]" in text

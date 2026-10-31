@@ -36,8 +36,8 @@ class Failing:
 
 
 @pytest.fixture
-def setup(repo_root):
-    b = load_all(repo_root / "config", repo_root / "sites")
+def setup(tmp_repo):
+    b = load_all(tmp_repo / "config", tmp_repo / "sites")
     reg = ProviderRegistry(b.providers)
     flaky = Failing()
     reg.routing["flaky"] = flaky

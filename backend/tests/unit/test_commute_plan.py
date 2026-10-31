@@ -12,8 +12,8 @@ def test_reference_date_prefers_tuesday():
     assert reference_date(["sat"], None, {"2026-11-07"}, date(2026, 10, 31)) == date(2026, 11, 14)
 
 
-def test_plan_expands_points_trips_windows(repo_root):
-    b = load_all(repo_root / "config", repo_root / "sites")
+def test_plan_expands_points_trips_windows(tmp_repo):
+    b = load_all(tmp_repo / "config", tmp_repo / "sites")
     home = LatLon(59.3176, 18.0586)
     coords = {"work-main": LatLon(59.33, 18.06), "stockholm-central": LatLon(59.3303, 18.0586)}
     plan = plan_requests(home, b, coords)
@@ -29,8 +29,8 @@ def test_plan_expands_points_trips_windows(repo_root):
     assert len(central) == 2 * 3 * 27 * 2
 
 
-def test_prefilter_skips_far_points(repo_root):
-    b = load_all(repo_root / "config", repo_root / "sites")
+def test_prefilter_skips_far_points(tmp_repo):
+    b = load_all(tmp_repo / "config", tmp_repo / "sites")
     plan = plan_requests(LatLon(57.7, 11.97), b, {"work-main": LatLon(59.33, 18.06)})  # Gothenburg
     assert plan.prefiltered == ["work-main"] and not plan.requests
 
