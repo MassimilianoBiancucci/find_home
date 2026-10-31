@@ -26,6 +26,7 @@ Each request gets one connection, committed when the request succeeds.
 real flat, rent and buy columns), `listing_sources` (one row per site item, with its own content hash),
 `listing_status_events`, `feedback`, `evaluations`, `scores` and `commute_results` (both keyed by `config_hash`),
 the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`, `scan_runs`, `agent_runs`.
+[`002_probes.sql`](../../backend/migrations/002_probes.sql) adds `probes` (alpha: saved test points).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/profile.yaml) and [`sites/`](../../sites/README.md), described in
@@ -86,6 +87,16 @@ groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `
 `map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
 the style and re-applies every group. A style that cannot load falls back to a blank background.
 
+Every marker is a round **blip** (category colour, white glyph, dark outline, glow) drawn on a canvas by
+[`components/map-icons.ts`](../../frontend/src/app/components/map-icons.ts) and added on demand through
+MapLibre's `styleimagemissing` (`blip:<glyph>:<rrggbb>`), so blips survive style reloads.
+[`PoiLayersService`](../../frontend/src/app/pages/map/poi-layers.service.ts) adds one layer per POI category, loaded
+the first time it is switched on. The **test point** (right-click, or the Test point button) lives in
+[`ProbeService`](../../frontend/src/app/pages/map/probe.service.ts): it survives mode switches, calls
+`/api/probe`, and draws the pin, straight lines to the nearest places and the legs of the selected itinerary;
+[`probe-panel.ts`](../../frontend/src/app/pages/map/probe-panel.ts) shows it in the inspector of every mode, plus
+the alpha saved test points and their side-by-side compare.
+
 ## Main flows
 
 ```mermaid
@@ -127,4 +138,6 @@ flowchart LR
 | Sites and scans | [`api/routers/sites.py`](../../backend/src/findhome/api/routers/sites.py) |
 | Runs and agent launch | [`api/routers/runs.py`](../../backend/src/findhome/api/routers/runs.py) |
 | Map GeoJSON | [`api/routers/map.py`](../../backend/src/findhome/api/routers/map.py) |
+| Zones, search area, brush | [`api/routers/geo.py`](../../backend/src/findhome/api/routers/geo.py) |
+| POIs, test point, saved test points | [`api/routers/probe.py`](../../backend/src/findhome/api/routers/probe.py) |
 | SQL | [`db/repo.py`](../../backend/src/findhome/db/repo.py) |

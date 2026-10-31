@@ -8,6 +8,7 @@ from findhome.core.settings import secret
 from findhome.providers.base import ProviderUnavailable, RoutingProvider
 from findhome.providers.google import GoogleRoutesProvider
 from findhome.providers.haversine import HaversineProvider
+from findhome.providers.ors import OrsProvider
 from findhome.providers.osm import NominatimGeocoder, OsrmProvider
 from findhome.providers.resrobot import ResRobotProvider
 from findhome.providers.suggest import AddressSuggester
@@ -26,6 +27,7 @@ class ProviderRegistry:
             "osm": lambda c: OsrmProvider(c),
             "resrobot": lambda c: ResRobotProvider(c, secret(c.get("key_env"))),
             "google": lambda c: GoogleRoutesProvider(c, secret(c.get("key_env"))),
+            "ors": lambda c: OrsProvider(c, secret(c.get("key_env", "ORS_API_KEY"))),
         }
         for name, factory in factories.items():
             c = r.get(name) or {}
@@ -47,6 +49,16 @@ class ProviderRegistry:
             if prov is not None and mode in prov.modes:
                 return prov
         return self.haversine
+
+    @property
+    def ors(self) -> OrsProvider | None:
+        prov = self.routing.get("ors")
+        return prov if isinstance(prov, OrsProvider) else None
+
+    @property
+    def resrobot(self) -> ResRobotProvider | None:
+        prov = self.routing.get("resrobot")
+        return prov if isinstance(prov, ResRobotProvider) else None
 
     def status(self) -> dict[str, str]:
         out = {name: "ready" for name in self.routing}

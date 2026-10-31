@@ -117,10 +117,13 @@ class PoiCategory(_Base):
     weight: float
     provider: Literal["overpass", "google_places"]
     max_walk_min: float | None = None
+    icon: str | None = None
+    color: str | None = None
 
 
 class Poi(_Base):
     categories: dict[str, PoiCategory]
+    fetch: dict[str, Any] = Field(default_factory=dict)
 
 
 class Tags(_Base):

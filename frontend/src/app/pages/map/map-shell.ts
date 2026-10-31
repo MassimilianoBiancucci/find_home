@@ -4,7 +4,10 @@ import { forkJoin } from 'rxjs';
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
+import { blipExpr, installBlip } from '../../components/map-icons';
 import { MapLib, MapStateService } from './map-state.service';
+import { ProbeService } from './probe.service';
+import { PoiLayersService } from './poi-layers.service';
 
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
 
@@ -25,10 +28,14 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
         <a routerLink="connectivity" routerLinkActive="on">Connectivity</a>
       </div>
       <button class="btn btn-sm btn-outline-secondary" (click)="toggle3d()">{{ tilted() ? '2D' : '3D tilt' }}</button>
+      <button class="btn btn-sm" [class.btn-primary]="probe.picking()" [class.btn-outline-primary]="!probe.picking()"
+        title="Click the map to drop a test point (or right-click anywhere)" (click)="probe.picking.set(!probe.picking())">
+        {{ probe.picking() ? 'Click the map…' : 'Test point' }}</button>
+      @if (state.testPoint()) { <button class="btn btn-sm btn-link p-0" (click)="probe.clear()">clear test point</button> }
       @if (missing().length) { <span class="small text-warning" title="Set an address or coords in Locations">no coords: {{ missing().join(', ') }}</span> }
       @if (error()) { <span class="small text-danger">{{ error() }}</span> }
     </div>
-    <div #mapEl class="fh-map"></div>
+    <div #mapEl class="fh-map" [class.picking]="probe.picking()"></div>
     <router-outlet />
   </div>`,
   styles: [`
@@ -38,12 +45,15 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
       a { padding: 3px 14px; border-radius: 999px; text-decoration: none; color: var(--bs-secondary-color); font-size: .85rem; font-weight: 500;
         &.on { background: var(--fh-accent-fill); color: var(--fh-on-accent); box-shadow: 0 0 0 1px var(--fh-violet); } } }
     .fh-map { flex: 1; min-height: 320px; border-radius: 8px; border: 1px solid var(--bs-border-color); overflow: hidden; }
+    .fh-map.picking { cursor: crosshair; }
   `],
 })
 export class MapShell {
   private api = inject(ApiService);
   private theme = inject(ThemeService);
   protected state = inject(MapStateService);
+  protected probe = inject(ProbeService);
+  private poiLayers = inject(PoiLayersService);
   private el = viewChild.required<ElementRef<HTMLDivElement>>('mapEl');
   protected tilted = signal(false);
   protected error = signal('');
@@ -96,7 +106,16 @@ export class MapShell {
           map.setStyle(BLANK);
         });
         map.on('style.load', () => this.state.reapply());
+        map.on('styleimagemissing', (e) => installBlip(map, e.id));
+        map.on('click', (e) => {
+          if (!this.probe.picking()) return;
+          this.probe.picking.set(false);
+          this.probe.set(e.lngLat.lat, e.lngLat.lng);
+        });
+        map.on('contextmenu', (e) => { e.preventDefault(); this.probe.set(e.lngLat.lat, e.lngLat.lng); });
         this.addBaseLayers(map, pts, lst);
+        this.probe.install();
+        this.poiLayers.install();
       },
       error: (e) => this.error.set(apiError(e)),
     });
@@ -120,10 +139,11 @@ export class MapShell {
       id: 'listings',
       sources: { listings: { type: 'geojson', data: lst } },
       layers: [{
-        id: 'listings', type: 'circle', source: 'listings', filter: scored as any,
-        paint: { 'circle-radius': 7, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#fff',
-          'circle-color': ['case', ['==', ['get', 'score'], null], '#888', ['step', ['to-number', ['get', 'score'], 0], '#e53e3e', 0.5, '#d69e2e', 0.75, '#1f9d55']] },
-      }],
+        id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
+        layout: { 'icon-allow-overlap': true, 'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.7, 15, 1.05],
+          'icon-image': ['case', ['==', ['get', 'score'], null], 'blip:home:888888',
+            ['step', ['to-number', ['get', 'score'], 0], 'blip:home:e53e3e', 0.5, 'blip:home:d69e2e', 0.75, 'blip:home:1f9d55']] },
+      } as any],
     });
     this.state.addGroup({
       id: 'listings-rejected',
@@ -135,8 +155,8 @@ export class MapShell {
       id: 'points',
       sources: { points: { type: 'geojson', data: { ...pts, features: pts.features.filter((f: any) => f.geometry) } } },
       layers: (style) => [
-        { id: 'points-mark', type: 'circle', source: 'points',
-          paint: { 'circle-radius': 8, 'circle-color': ['coalesce', ['get', 'color'], '#607d8b'], 'circle-stroke-width': 3, 'circle-stroke-color': '#000' } },
+        { id: 'points-mark', type: 'symbol', source: 'points',
+          layout: { 'icon-image': blipExpr('pin', '#607d8b'), 'icon-size': 1.35, 'icon-allow-overlap': true, 'icon-ignore-placement': true } } as any,
         ...(style.glyphs ? [{ id: 'points-label', type: 'symbol', source: 'points',
           layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-offset': [0, 1.4], 'text-size': 12, 'text-anchor': 'top' },
           paint: { 'text-color': '#fff', 'text-halo-color': '#101014', 'text-halo-width': 1.4 } } as any] : []),

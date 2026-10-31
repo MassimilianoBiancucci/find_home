@@ -12,15 +12,28 @@ from findhome.config.models import PoiCategory
 from findhome.providers.base import LatLon, haversine_km
 
 
+def tag_filters(tag: str) -> str:
+    """'shop=a|b' → ["shop"~"^(a|b)$"]; 'name~^SATS' → ["name"~"^SATS"]; 'subway!=yes' → ["subway"!="yes"];
+    'a=b&c=d' → both on one element."""
+    out = ""
+    for clause in tag.split("&"):
+        if "!=" in clause:
+            k, v = clause.split("!=", 1)
+            out += f'["{k}"!="{v}"]'
+        elif "~" in clause and ("=" not in clause or clause.index("~") < clause.index("=")):
+            k, v = clause.split("~", 1)
+            out += f'["{k}"~"{v}"]'
+        else:
+            k, v = clause.split("=", 1)
+            out += f'["{k}"~"^({v})$"]' if "|" in v else f'["{k}"="{v}"]'
+    return out
+
+
 def overpass_query(cat: PoiCategory, at: LatLon) -> str:
-    """'shop=supermarket|convenience' → node/way[shop~"^(supermarket|convenience)$"](around:R,lat,lon);
-    'a=b&c=d' → both filters on the same element."""
+    """Elements of one category around a point (see tag_filters for the tag grammar)."""
     parts = []
     for tag in cat.osm_tags:
-        filters = ""
-        for clause in tag.split("&"):
-            k, v = clause.split("=", 1)
-            filters += f'["{k}"~"^({v})$"]' if "|" in v else f'["{k}"="{v}"]'
+        filters = tag_filters(tag)
         for kind in ("node", "way"):
             parts.append(f"{kind}{filters}(around:{cat.radius_m},{at.lat},{at.lon});")
     return f"[out:json][timeout:25];({''.join(parts)});out center 50;"

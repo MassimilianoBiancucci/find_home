@@ -3,7 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
-  AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail, ScanRun, Site,
+  AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, GeoCollection, Health, Listing, ListingDetail,
+  PoiCategory, ProbeResult, SavedProbe, ScanRun, Site,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -71,6 +72,14 @@ export class ApiService {
   areaBrush(body: { stroke: [number, number][]; radius_m: number; base?: unknown; mode?: 'add' | 'erase' }) {
     return this.http.post<{ geometry: any | null; area_km2: number }>('/api/area/brush', body);
   }
+
+  poiCategories() { return this.http.get<PoiCategory[]>('/api/geo/poi/categories'); }
+  poi(categories: string[]) { return this.http.get<GeoCollection>('/api/geo/poi', { params: { categories: categories.join(',') } }); }
+  probe(lat: number, lon: number, trips = true) { return this.http.post<ProbeResult>('/api/probe', { lat, lon, trips }); }
+  savedProbes() { return this.http.get<SavedProbe[]>('/api/probes'); }
+  saveProbe(body: { name: string; lat: number; lon: number; note?: string }) { return this.http.post<SavedProbe>('/api/probes', body); }
+  renameProbe(id: string, name: string) { return this.http.patch<SavedProbe>(`/api/probes/${id}`, { name }); }
+  deleteProbe(id: string) { return this.http.delete<void>(`/api/probes/${id}`); }
 }
 
 /** Pull a readable message out of an API error (422 config errors, FastAPI detail, network). */

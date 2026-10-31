@@ -26,6 +26,7 @@ output. Everything except `db`, `config validate|hash|show|schema` and `run new`
 | `area show` | the search area: zones per piece with weight, kommuner, aliases, bbox, centre | ~5 lines |
 | `area check <lat> <lon>` | area score of a coordinate | `inside \| N m outside · score · best piece · zone` |
 | `geo fetch zones` | build `data/geo/zones.geojson` (SCB RegSO + OSM), works without the API | one line |
+| `geo fetch poi [-c category]` | fetch POIs of `poi.yaml` for the region into `data/geo/poi/` (weekly), works without the API | counts per category |
 | `db migrate [--check]` | migrations | applied / up to date |
 | `serve` | run the API without VS Code | uvicorn log |
 

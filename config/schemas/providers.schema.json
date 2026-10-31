@@ -54,6 +54,18 @@
             "enabled"
           ],
           "additionalProperties": true
+        },
+        "ors": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "enabled"
+          ],
+          "additionalProperties": true
         }
       },
       "additionalProperties": false,

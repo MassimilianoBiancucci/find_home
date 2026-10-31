@@ -115,3 +115,27 @@ export interface AreaResult {
 
 export interface GeoFeature { type: 'Feature'; geometry: { type: 'Point'; coordinates: [number, number] } | null; properties: Record<string, any>; }
 export interface GeoCollection { type: 'FeatureCollection'; features: GeoFeature[]; }
+
+export interface PoiCategory { key: string; label: string; icon: string | null; color: string | null; max_walk_min: number | null; fetched: boolean; }
+export interface PoiHit {
+  id: string; name: string; brand?: string | null; lat: number; lon: number; straight_m: number;
+  minutes: number; distance_m: number | null; est: boolean;
+}
+export interface ProbeLeg {
+  mode: string; line?: string | null; name?: string | null; direction?: string | null; minutes: number | null; distance_m?: number | null;
+  from: { name: string; lat: number; lon: number; time: string | null }; to: { name: string; lat: number; lon: number; time: string | null };
+  path: [number, number][];
+}
+export interface ProbeTrip {
+  point_id: string; label: string; category: string; direction: 'to_point' | 'from_point'; day_type: string; slot: string; kind: string;
+  minutes: number | null; depart?: string | null; arrive?: string | null; transfers?: number | null; legs: ProbeLeg[];
+  est: boolean; cached?: boolean; error?: string;
+}
+export interface ProbeResult {
+  lat: number; lon: number;
+  area: Partial<AreaResult> & { defined: boolean };
+  pois: { categories: { category: string; label: string; icon: string | null; color: string | null; max_walk_min: number | null;
+    within: boolean; items: PoiHit[] }[]; not_fetched: string[]; walk_error: string | null };
+  trips: ProbeTrip[];
+}
+export interface SavedProbe { id: string; name: string; lat: number; lon: number; note: string | null; created_at: string; }

@@ -34,6 +34,8 @@ Sweden-wide journey planner on official timetables (SL included).
   coordinate origins (`searchForArrival`, `originCoordLat/Long`). See `guide/issues/issues.md`.
 - Timetable-based: gives scheduled times, not historical delays. Reliability by hour comes from sampling slots;
   a realtime delay collector (SL GTFS-RT via Trafiklab) is in `tasks/BACKLOG.md`.
+- The map's test point also asks ResRobot for one itinerary per point (`passlist=1`: legs with stops and
+  coordinates), cached per ~100 m origin cell.
 
 ## Google Maps Platform (optional, off)
 Routes API (transit and traffic-aware driving), Geocoding, Places, Maps JS / 3D tiles. Needs a billing account.
@@ -41,9 +43,18 @@ Costs, free caps and key setup: [google-apis.md](google-apis.md). The adapter pi
 so calls stay in the cheapest SKU.
 
 ## OSM Overpass (points of interest)
-Free, no key. Used for groceries, stops, parks, vets and the other categories in
-[`config/poi.yaml`](../config/poi.yaml). Public instances throttle heavy use: the adapter caches per rounded
-coordinate and radius.
+Free, no key. Used for SATS, groceries, stations, parks, vets and the other categories in
+[`config/poi.yaml`](../config/poi.yaml). `findhome geo fetch poi` fetches every category for the whole region in
+one request per category (Overpass usage policy: scheduled region-wide fetches, never one query per listing) into
+`data/geo/poi/`. Run it again every `fetch.refresh_days` (7); busy instances (429/502/503/504) are retried with
+back-off.
+
+## OpenRouteService (walking minutes)
+The map's test point asks for real walking minutes to the nearest places with one ORS **matrix** request per click
+(`routing.ors`, `ORS_API_KEY`; free key at openrouteservice.org: matrix 500/day, directions 2,000/day, 40/min).
+Every origin/destination pair is cached in `routing_cache` for `cache.routing_ttl_days`. Without a key, or when
+ORS fails, minutes are straight-line estimates (×1.3 detour) marked `~` in the inspector. ORS is also first in
+`mode_priority.walk` for commute runs. No public transport: transit stays on ResRobot.
 
 ## Map style (frontend)
 MapLibre GL with an OSM-based vector style configured in `config/providers.yaml` (`map.style_url`). The default is

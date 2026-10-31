@@ -12,7 +12,7 @@ validated, the locations model (points, trips, windows), the config hash, the co
 | [`filters_catalog.yaml`](../../config/filters_catalog.yaml) | canonical filter keys, used by `hard_filters` and every site's `filter_map` |
 | [`locations.yaml`](../../config/locations.yaml) | categories and points with trips and time windows |
 | [`time_model.yaml`](../../config/time_model.yaml) | day types, default sampling grid, reliability statistics |
-| [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, weight) |
+| [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, walking threshold, map icon and colour) |
 | [`tags.yaml`](../../config/tags.yaml) | lifecycle statuses (per kind) and feedback reason tags |
 | [`providers.yaml`](../../config/providers.yaml) | routing, geocoding, POI providers, mode priority, budget, cache, prefilter, map style |
 | [`agent.yaml`](../../config/agent.yaml) | headless agent commands for the Run agent button |
@@ -99,9 +99,26 @@ Sampled times use a reference date per day type: the next date on the preferred 
 Providers: [`haversine.py`](../../backend/src/findhome/providers/haversine.py) (straight line × detour ÷ speed, +5
 min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (OSRM drive, Nominatim geocoding,
 1 req/s), [`resrobot.py`](../../backend/src/findhome/providers/resrobot.py) (transit),
-[`google.py`](../../backend/src/findhome/providers/google.py) (Routes API, minimal field mask).
-[`providers/poi.py`](../../backend/src/findhome/providers/poi.py) builds Overpass queries and caches results; no
-endpoint uses it yet.
+[`google.py`](../../backend/src/findhome/providers/google.py) (Routes API, minimal field mask),
+[`ors.py`](../../backend/src/findhome/providers/ors.py) (OpenRouteService walking: directions and matrix).
+
+## Points of interest and the test point
+
+[`poi.yaml`](../../config/poi.yaml) lists categories with OSM tags (`key=value`, `a|b` alternatives, `key~regex`,
+`key!=value`, `&` for conditions on one element; grammar in
+[`providers/poi.py`](../../backend/src/findhome/providers/poi.py) `tag_filters`), a walking threshold
+(`max_walk_min`), and the map blip (`icon`, `color`). `findhome geo fetch poi`
+([`geo/build_poi.py`](../../backend/src/findhome/geo/build_poi.py)) fetches each category for the whole region
+(one Overpass request per category) into `data/geo/poi/<category>.geojson`;
+[`geo/store.py`](../../backend/src/findhome/geo/store.py) `load_poi` keeps an STRtree per category in
+EPSG:3006. POIs are shown and inspected only; no score group uses them (`neighbourhood` stays disabled).
+
+The **test point** ([`domain/probe.py`](../../backend/src/findhome/domain/probe.py), `POST /api/probe`) answers
+for any spot: the area result, the 3 nearest places per category by walking minutes (5 straight-line candidates
+per category, one ORS matrix call for all of them, each pair cached in `routing_cache`, haversine × detour as
+fallback) and one ResRobot itinerary per enabled point (first trip, its first day type, the middle slot of its
+first window), cached by ~100 m origin cell. Saved, named test points (`probes` table, `/api/probes`) are an
+**alpha** feature; nothing else depends on them.
 
 ## Zones and the search area
 

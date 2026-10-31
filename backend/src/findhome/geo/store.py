@@ -71,3 +71,44 @@ def load_zones(path: Path | None = None) -> ZoneSet | None:
 
 def read_geojson(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+@dataclass
+class PoiIndex:
+    category: str
+    features: list[dict[str, Any]]
+    points: list[Any]               # shapely Points in EPSG:3006
+    tree: STRtree
+    mtime: float
+
+    def nearest(self, pt, k: int = 5, within_m: float = 3000) -> list[tuple[float, dict[str, Any]]]:
+        idx = self.tree.query(pt.buffer(within_m))
+        if len(idx) == 0:
+            idx = self.tree.query_nearest(pt)
+        found = sorted((self.points[int(i)].distance(pt), self.features[int(i)]) for i in idx)
+        return found[:k]
+
+
+_poi_cache: dict[str, PoiIndex] = {}
+
+
+def load_poi(category: str) -> PoiIndex | None:
+    """None when the category has not been fetched yet (`findhome geo fetch poi`)."""
+    from shapely.geometry import Point
+
+    p = data_dir() / "geo" / "poi" / f"{category}.geojson"
+    if not p.exists():
+        return None
+    mtime = p.stat().st_mtime
+    hit = _poi_cache.get(category)
+    if hit and hit.mtime == mtime:
+        return hit
+    feats = read_geojson(p)["features"]
+    if not feats:
+        return None
+    from findhome.geo.crs import point_metric
+
+    pts = [Point(point_metric(*f["geometry"]["coordinates"])) for f in feats]
+    idx = PoiIndex(category, feats, pts, STRtree(pts), mtime)
+    _poi_cache[category] = idx
+    return idx

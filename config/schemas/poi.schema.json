@@ -4,6 +4,13 @@
   "title": "Nearby-service categories",
   "type": "object",
   "properties": {
+    "fetch": {
+      "type": "object",
+      "properties": {
+        "refresh_days": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
     "categories": {
       "type": "object",
       "additionalProperties": {
@@ -37,6 +44,14 @@
               "overpass",
               "google_places"
             ]
+          },
+          "icon": {
+            "type": "string",
+            "description": "Glyph name of the map blip (frontend map-icons.ts)"
+          },
+          "color": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
           }
         },
         "additionalProperties": false,

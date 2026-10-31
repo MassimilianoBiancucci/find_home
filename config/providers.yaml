@@ -27,9 +27,15 @@ routing:
     key_env: GOOGLE_MAPS_SERVER_KEY
     max_elements_per_month: 5000
     price_per_1000_usd: 10.0        # assume Pro tier until transit tier is verified
+  ors:                              # OpenRouteService: real walking routes (free key: matrix 500/day, 40/min)
+    enabled: true
+    modes: [walk]
+    base_url: https://api.openrouteservice.org
+    key_env: ORS_API_KEY
+    max_calls_per_minute: 40
 mode_priority:
   transit: [resrobot, google, haversine]
-  walk: [osm, haversine]
+  walk: [ors, osm, haversine]
   bike: [osm, haversine]
   drive: [osm, google, haversine]
 geocoding:
