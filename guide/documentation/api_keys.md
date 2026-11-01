@@ -45,22 +45,62 @@ ResRobot is Sweden's journey planner on official timetables, SL included. It is 
 (`routing.resrobot` in [`config/providers.yaml`](../../config/providers.yaml)). Trafiklab states that its data is
 free and that upgrading a key is free.
 
+### Which key do I need?
+
+**One key: ResRobot v2.1.** The app calls only its route planner (`/v2.1/trip`, used for commute times and the
+test point's itineraries). Trafiklab states that one ResRobot v2.1 key covers all four of its endpoints (route
+planner, stop lookup, nearby stops, timetables), so you never need more than one ResRobot key.
+
+Trafiklab asks for three different things when you set up a project. Only the second one is a choice about the key.
+
+| Trafiklab asks for | What to choose | Why |
+|---|---|---|
+| **Project type** (when you create the project) | The option closest to a personal, hobby or non-commercial project. Trafiklab does not list the options in its docs, so read them on screen. | It describes the project to Trafiklab. It does not change the key or the limits. |
+| **Which API to add a key for** (the "add key" dropdown inside the project) | **ResRobot v2.1** (it may show as "ResRobot Routeplanner" or "Reseplanerare"). | This is the key `TRAFIKLAB_RESROBOT_KEY` holds. |
+| **Key level** (default, Bronze, Silver, Gold) | Nothing at first: a new key starts on the **default** level, made for testing and home use. | You request a higher level only if you hit the limit (see Limits). |
+
+Do **not** choose these for `TRAFIKLAB_RESROBOT_KEY`, even though the names look similar:
+
+| Entry | What it is | Needed here? |
+|---|---|---|
+| ResRobot Timetables (Stolptidtabeller) | departure boards at a stop; Trafiklab marks it deprecated | no |
+| ResRobot Stop lookup, Nearby stops | covered by the same ResRobot v2.1 key | no, no second key |
+| Trafiklab Realtime APIs | live departures, stop lookup | no |
+| SL Journey planner, SL Transport | SL's own APIs, a different request format the app does not call | no |
+| GTFS Regional Static data | SL's lines and stations for the map | only for the optional `TRAFIKLAB_GTFS_KEY`, a separate key (see [providers](../../docs/providers.md)) |
+
+### Steps
+
 1. [Register at Trafiklab](https://developer.trafiklab.se/register): email, username and password (or sign in with
    GitHub), accept the terms, then confirm the email. Already registered: [log in](https://developer.trafiklab.se).
-2. On your [projects page](https://developer.trafiklab.se/project/list) choose **New project**. Name it (for example `find_home`), pick a project type and write
-   one line of description.
-3. In the project, pick **ResRobot v2.1** (route planner) in the API dropdown and click **Add API key to
-   project**. Each API can be added to a project once. Do not pick the older ResRobot v2.0.
-4. Copy the key shown for that API into `TRAFIKLAB_RESROBOT_KEY`.
+2. On your [projects page](https://developer.trafiklab.se/project/list) choose **New project**. Fill in a name (for
+   example `find_home`), a project type (see the table above) and one line of description. Website and repository
+   are optional; leave them empty.
+3. Open the project. In the "add key" dropdown choose **ResRobot v2.1** and click **Add API key to project**. Each
+   API can be added to a project once.
+4. Copy the key shown for that API into `TRAFIKLAB_RESROBOT_KEY`. Leave the level on default.
 5. Restart the API.
 
 The key is sent as the `accessId` query parameter ([`resrobot.py`](../../backend/src/findhome/providers/resrobot.py)).
 
-**Limits.** A new key starts on a default level meant for home use. A higher level is requested with the **Upgrade
-quota** button on the project page and is usually approved within one or two workdays. The app throttles itself to the values in
-`providers.yaml` (`max_calls_per_minute: 45`, `max_calls_per_month: 30000`, the Bronze level as Trafiklab
-publishes it). If your key shows other numbers, change them there. The Map's connectivity refresh makes about
-2,100 calls in one run; the budget `max_connectivity_calls_per_run` caps it.
+### Limits and when to upgrade
+
+Trafiklab publishes these ResRobot v2.1 levels:
+
+| Level | Calls per minute | Calls per month |
+|---|---|---|
+| Bronze | 45 | 30,000 |
+| Silver | 60 | 200,000 |
+| Gold | 200 | 1,000,000 |
+
+Trafiklab does not publish the numbers of the **default** level. It may be lower than Bronze. Start on default.
+If calls fail with a rate-limit error, or the Map's connectivity refresh (about 2,100 calls in one run) is
+cut short, press **Upgrade quota** on the project page and ask for **Bronze**: it is free and usually approved in
+one or two workdays. Bronze is enough for this app; Silver and Gold are not needed.
+
+The app throttles itself to the Bronze numbers in `providers.yaml` (`max_calls_per_minute: 45`,
+`max_calls_per_month: 30000`). While your key is still on default, lower them to what your key allows. The budget
+`max_connectivity_calls_per_run` caps one connectivity refresh.
 
 **Check it.** Replace the key and run (public coordinates: Stockholm Central to Slussen):
 
