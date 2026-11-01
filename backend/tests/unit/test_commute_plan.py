@@ -1,9 +1,12 @@
-from datetime import date
+import asyncio
+from datetime import date, datetime
+
+import httpx
 
 from findhome.config.loader import load_all
 from findhome.domain.commute import percentile, plan_requests, reference_date, stats
 from findhome.providers.base import LatLon
-from findhome.providers.resrobot import iso_minutes, parse_trip_response
+from findhome.providers.resrobot import ResRobotProvider, iso_minutes, parse_trip_response
 
 
 def test_reference_date_prefers_tuesday():
@@ -52,3 +55,35 @@ def test_resrobot_parsing_synthetic_fixture():
     res = parse_trip_response(data, "arrive_by")
     assert res.minutes == 41 and res.depart == "07:12" and res.arrive == "07:53" and res.transfers == 1
     assert iso_minutes("PT1H5M") == 65 and iso_minutes("P1DT2H") == 1560
+
+
+def _resrobot(cfg, handler):
+    return ResRobotProvider(cfg, "k", client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+
+
+def test_resrobot_arrive_by_never_sends_zero_counts():
+    seen = []
+
+    def handler(req):
+        seen.append(dict(req.url.params))
+        return httpx.Response(200, json={"Trip": []})
+
+    p = _resrobot({"max_calls_per_minute": 6000}, handler)
+    a, b, t = LatLon(59.4, 18.0), LatLon(59.3, 18.0), datetime(2026, 11, 3, 8, 30)
+    asyncio.run(p.travel(a, b, "transit", t, "arrive_by"))
+    asyncio.run(p.travel(a, b, "transit", t, "depart_at"))
+    assert "numF" not in seen[0] and "numB" not in seen[0]
+    assert seen[1]["numF"] == "1" and "numB" not in seen[1]
+
+
+def test_resrobot_plan_sets_rate_and_429_is_retried():
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(429 if len(calls) == 1 else 200, json={"Trip": []}, headers={"Retry-After": "0"})
+
+    p = _resrobot({"plan": "bronze", "max_calls_per_minute": 6000}, handler)
+    assert abs(_resrobot({"plan": "bronze"}, handler).limiter.interval - 60 / 45) < 1e-9
+    asyncio.run(p.travel(LatLon(59.4, 18.0), LatLon(59.3, 18.0), "transit", datetime(2026, 11, 3, 8, 30), "depart_at"))
+    assert len(calls) == 2

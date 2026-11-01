@@ -18,8 +18,14 @@ routing:
     modes: [transit]
     base_url: https://api.resrobot.se/v2.1
     key_env: TRAFIKLAB_RESROBOT_KEY
-    max_calls_per_minute: 45
-    max_calls_per_month: 30000
+    # Trafiklab key level, sets the calls per minute: bronze 45 (free, 25,000/month), silver 60, gold 200.
+    # A new key starts on a "default" level that may allow fewer than bronze: if calls fail with 429 or
+    # connectivity refreshes stop early, set max_calls_per_minute below (it overrides the plan) or request Bronze
+    # on the Trafiklab project page (guide/documentation/api_keys.md).
+    plan: bronze
+    # max_calls_per_minute: 30       # optional override of the plan; spacing between calls is 60 / this value
+    retry_delay_s: 5                 # wait after a 429 when the answer has no Retry-After (grows 5 s, 10 s, 15 s)
+    max_calls_per_month: 25000       # bronze; informational, not enforced
   google:
     enabled: false
     modes: [transit, drive]

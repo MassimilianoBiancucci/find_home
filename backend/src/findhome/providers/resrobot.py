@@ -7,12 +7,18 @@ LegList.Leg[] with Origin/Destination times). Tests use a synthetic fixture of t
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from datetime import datetime
 
 import httpx
 
 from findhome.providers.base import LatLon, Mode, ProviderUnavailable, RateLimiter, TravelResult, WhenIs
+
+# Trafiklab key levels: calls per minute (docs/providers.md). A new key starts on a "default" level that may be
+# lower than bronze; set `plan` or `max_calls_per_minute` in providers.yaml to what your key allows.
+PLAN_CALLS_PER_MINUTE = {"bronze": 45, "silver": 60, "gold": 200}
+MAX_RETRIES = 3
 
 _ISO_DURATION = re.compile(r"P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?")
 
@@ -39,29 +45,44 @@ class ResRobotProvider:
             raise ProviderUnavailable("resrobot: TRAFIKLAB_RESROBOT_KEY not set")
         self.base = cfg.get("base_url", "https://api.resrobot.se/v2.1").rstrip("/")
         self.key = key
-        self.limiter = RateLimiter(per_minute=cfg.get("max_calls_per_minute", 45))
+        plan = str(cfg.get("plan", "bronze")).lower()
+        if plan not in PLAN_CALLS_PER_MINUTE:
+            raise ProviderUnavailable(f"resrobot: unknown plan {plan!r} (use {', '.join(PLAN_CALLS_PER_MINUTE)})")
+        per_minute = cfg.get("max_calls_per_minute") or PLAN_CALLS_PER_MINUTE[plan]
+        self.limiter = RateLimiter(per_minute=per_minute)
+        self.retry_delay_s = float(cfg.get("retry_delay_s", 5))
         self.client = client or httpx.AsyncClient(timeout=30)
 
     async def travel(self, origin: LatLon, dest: LatLon, mode: Mode, when: datetime,
                      when_is: WhenIs) -> TravelResult | None:
         if mode != "transit":
             raise ProviderUnavailable("resrobot only routes transit")
-        await self.limiter.wait()
         params = {
             "format": "json", "accessId": self.key,
             "originCoordLat": origin.lat, "originCoordLong": origin.lon,
             "destCoordLat": dest.lat, "destCoordLong": dest.lon,
             "date": when.strftime("%Y-%m-%d"), "time": when.strftime("%H:%M"),
             "searchForArrival": 1 if when_is == "arrive_by" else 0,
-            "numF": 1 if when_is == "depart_at" else 0, "numB": 1 if when_is == "arrive_by" else 0,
         }
-        resp = await self.client.get(f"{self.base}/trip", params=params)
-        resp.raise_for_status()
+        if when_is == "depart_at":
+            params["numF"] = 1      # ResRobot rejects numF=0 (400); arrive_by uses the default window
+        resp = await self._get(params)
         return parse_trip_response(resp.json(), when_is)
+
+    async def _get(self, params: dict) -> httpx.Response:
+        """GET /trip under the rate limit; on 429 wait (Retry-After or retry_delay_s, growing) and retry."""
+        for attempt in range(MAX_RETRIES + 1):
+            await self.limiter.wait()
+            resp = await self.client.get(f"{self.base}/trip", params=params)
+            if resp.status_code != 429 or attempt == MAX_RETRIES:
+                break
+            retry_after = resp.headers.get("Retry-After", "")
+            await asyncio.sleep(float(retry_after) if retry_after.isdigit() else self.retry_delay_s * (attempt + 1))
+        resp.raise_for_status()
+        return resp
 
     async def itinerary(self, origin: LatLon, dest: LatLon, when: datetime, when_is: WhenIs) -> dict | None:
         """One trip with its legs (walk / transit, stops with coordinates) for drawing and the inspector."""
-        await self.limiter.wait()
         params = {
             "format": "json", "accessId": self.key, "passlist": 1,
             "originCoordLat": origin.lat, "originCoordLong": origin.lon,
@@ -69,8 +90,7 @@ class ResRobotProvider:
             "date": when.strftime("%Y-%m-%d"), "time": when.strftime("%H:%M"),
             "searchForArrival": 1 if when_is == "arrive_by" else 0,
         }
-        resp = await self.client.get(f"{self.base}/trip", params=params)
-        resp.raise_for_status()
+        resp = await self._get(params)
         return parse_itinerary(resp.json(), when_is)
 
 

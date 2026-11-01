@@ -89,7 +89,7 @@ Trafiklab publishes these ResRobot v2.1 levels:
 
 | Level | Calls per minute | Calls per month |
 |---|---|---|
-| Bronze | 45 | 30,000 |
+| Bronze | 45 | 25,000 |
 | Silver | 60 | 200,000 |
 | Gold | 200 | 1,000,000 |
 
@@ -98,9 +98,10 @@ If calls fail with a rate-limit error, or the Map's connectivity refresh (about 
 cut short, press **Upgrade quota** on the project page and ask for **Bronze**: it is free and usually approved in
 one or two workdays. Bronze is enough for this app; Silver and Gold are not needed.
 
-The app throttles itself to the Bronze numbers in `providers.yaml` (`max_calls_per_minute: 45`,
-`max_calls_per_month: 30000`). While your key is still on default, lower them to what your key allows. The budget
-`max_connectivity_calls_per_run` caps one connectivity refresh.
+The app throttles itself to the level named by `plan` under `routing.resrobot` in `providers.yaml` (default
+`bronze`: 45 calls per minute; `silver`, `gold` also accepted). `max_calls_per_minute` overrides the plan. While your
+key is still on default, set it to what your key allows. A 429 answer is retried after `Retry-After` or
+`retry_delay_s`, up to three times. The budget `max_connectivity_calls_per_run` caps one connectivity refresh.
 
 **Check it.** Replace the key and run (public coordinates: Stockholm Central to Slussen):
 

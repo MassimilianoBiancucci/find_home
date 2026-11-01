@@ -28,7 +28,7 @@ same key serves walking times) and fall back to Photon (photon.komoot.io, no key
 Sweden-wide journey planner on official timetables (SL included).
 - Get a key: create an account at trafiklab.se, create a project, add the "ResRobot v2.1" API to it, copy the key
   into `TRAFIKLAB_RESROBOT_KEY`.
-- Limits listed by Trafiklab per key level: Bronze 45 calls/min and 30,000/month, Silver 60/min and 200,000/month,
+- Limits listed by Trafiklab per key level: Bronze 45 calls/min and 25,000/month, Silver 60/min and 200,000/month,
   Gold 200/min and 1,000,000/month.
 - **To verify:** that the key levels are free of charge, and that the route planner supports arrive-by search with
   coordinate origins (`searchForArrival`, `originCoordLat/Long`). See `guide/issues/issues.md`.
@@ -37,7 +37,7 @@ Sweden-wide journey planner on official timetables (SL included).
 - The map's test point also asks ResRobot for one itinerary per point (`passlist=1`: legs with stops and
   coordinates), cached per ~100 m origin cell.
 - The Connectivity map mode asks ResRobot for every zone × point × window (~2,100 requests for the 263 zones,
-  about 7% of the Bronze monthly quota, ~47 minutes at 45/min), capped by `budget.max_connectivity_calls_per_run`,
+  about 8% of the Bronze monthly quota, ~47 minutes at 45/min), capped by `budget.max_connectivity_calls_per_run`,
   cached and resumable. Without a key the matrix holds straight-line estimates, replaced on the next refresh with a key.
 
 ## Transit network for the map: SL GTFS or OSM routes
