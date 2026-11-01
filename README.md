@@ -45,6 +45,16 @@ Without VS Code: `docker compose up -d --wait`, then `backend/.venv/bin/findhome
 
 Check everything: `scripts/smoke-check.sh`.
 
+## Your personal files
+
+The repo is meant to be public, so what is personal stays on your machine. Where you work, your budget and your
+keys live in `config/locations.yaml`, `config/profile.yaml`, `config/search_area.yaml`, `config/providers.env` and
+`config/backend.env`. All five are **gitignored**; the repo holds a dummy `*.example.*` file for each.
+`scripts/ensure-env.sh` (run by `scripts/install.sh` and by F5) creates a missing real file from its example and
+never overwrites it. After the first run, edit the copies, then `scripts/findhome config validate`. Which file holds
+what, and how to add one: [config/README.md](config/README.md). The rule behind it:
+[guide/principles/personal_data.md](guide/principles/personal_data.md).
+
 ## Everyday commands
 
 ```bash

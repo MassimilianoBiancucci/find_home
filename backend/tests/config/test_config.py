@@ -8,12 +8,13 @@ from findhome.config.timegrid import expand, grid_slots, window_slots
 from findhome.config.writer import apply_ops, write_text
 
 
-def test_repo_configs_are_valid(repo_root):
-    assert validate_all(repo_root / "config", repo_root / "sites") == []
+def test_example_configs_are_valid(tmp_repo):
+    """Validates what a fresh clone gets: the committed examples plus the shared files (personal files are not read)."""
+    assert validate_all(tmp_repo / "config", tmp_repo / "sites") == []
 
 
-def test_every_config_parses_into_its_model(repo_root):
-    bundle = load_all(repo_root / "config", repo_root / "sites")
+def test_every_config_parses_into_its_model(tmp_repo):
+    bundle = load_all(tmp_repo / "config", tmp_repo / "sites")
     for name in CONFIG_FILES:
         assert getattr(bundle, name) is not None
     assert len(bundle.config_hash) == 16

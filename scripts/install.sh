@@ -4,7 +4,8 @@
 #
 #  Checks Docker, then runs scripts/ensure-env.sh forcing a fresh install:
 #    backend/.venv (Poetry, or uv; Python 3.11-3.14), frontend npm ci,
-#    config/*.env from the examples (never overwritten), skill links.
+#    config/*.env and the personal config/*.yaml (locations, profile, search area) created from
+#    their committed examples (never overwritten; the real files are gitignored), skill links.
 #  F5 on "FH: Full Stack" also runs ensure-env.sh, so this is optional.
 #
 #  Usage: scripts/install.sh [--skip-frontend] [--skip-backend]
@@ -28,6 +29,8 @@ cat <<MSG
 ✅ find_home installed.
    Next:
      1. Fill config/providers.env with keys if you have them (all optional).
+        Edit config/locations.yaml (your workplace, partner, ...) and config/profile.yaml (budget, dates):
+        they start as copies of the examples and are gitignored. Details: config/README.md
      2. In VS Code: F5 → "FH: Full Stack"  (starts Postgres, migrates, ng serve, FastAPI)
      3. Open http://localhost:4400   ·  API docs http://localhost:8200/docs  ·  pgAdmin http://localhost:5052
      4. Optional check: scripts/smoke-check.sh

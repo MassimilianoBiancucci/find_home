@@ -7,7 +7,9 @@ the same commit as the code it describes; the [guide skill](../.agents/skills/gu
 Read [architecture/introduction.md](architecture/introduction.md) before any code change. Read
 [architecture/config_and_locations.md](architecture/config_and_locations.md) before changing a config file's
 shape, the commute matrix or scoring. Read [architecture/agent_contract.md](architecture/agent_contract.md) before
-changing the CLI, the ingest/digest endpoints or the `find-home` skill.
+changing the CLI, the ingest/digest endpoints or the `find-home` skill. Read
+[principles/personal_data.md](principles/personal_data.md) before adding or renaming a config or env file, and
+before writing test data, docs or notes: personal data is never committed.
 
 ## What the application is
 
@@ -42,7 +44,7 @@ an OSM-based vector map style.
 | [`backend/migrations/`](../backend/migrations/001_init.sql) | plain SQL migrations |
 | [`backend/tests/`](../backend/tests/conftest.py) | unit, config and Postgres-backed API tests |
 | [`frontend/src/app/`](../frontend/src/app/app.routes.ts) | Angular pages, services and the YAML editor |
-| [`config/`](../config/profile.yaml) | YAML configuration and [`schemas/`](../config/schemas/locations.schema.json) |
+| [`config/`](../config/README.md) | YAML configuration and [`schemas/`](../config/schemas/locations.schema.json); personal files are gitignored, each with a committed `*.example.*` |
 | [`sites/`](../sites/README.md) | one folder per listing website: `site.yaml`, `NAVIGATION.md`, probes |
 | [`.agents/skills/`](../.agents/skills/find-home/SKILL.md) | skills (`find-home`, `guide`); linked into `.claude/skills/` |
 | [`scripts/`](../scripts/install.sh) | install, smoke check, free ports, skill sync, `findhome` wrapper |
@@ -57,5 +59,5 @@ an OSM-based vector map style.
 - [architecture/introduction.md](architecture/introduction.md): components and the main flows.
 - [architecture/config_and_locations.md](architecture/config_and_locations.md): config files, points, trips and windows, config hash, commute matrix, zones and the search area, scoring.
 - [architecture/agent_contract.md](architecture/agent_contract.md): how the agent reads and writes through the CLI and API.
-- [principles/](principles/): the rules every change follows (none confirmed yet).
+- [principles/personal_data.md](principles/personal_data.md): personal files are gitignored, dummy examples are committed, tests and docs use fictional data.
 - [issues/issues.md](issues/issues.md): known limits.

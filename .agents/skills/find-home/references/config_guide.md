@@ -17,3 +17,7 @@ Changing a scoring file changes the **config hash**: old scores become stale unt
 
 `TODO(user)` values in profile.yaml and locations.yaml are for the user to fill; mention them in the Handover,
 do not invent them.
+
+`locations.yaml`, `profile.yaml` and `search_area.yaml` are the user's personal files: gitignored, created from
+`*.example.yaml`. Never copy their real values (addresses, budget, partner) into committed files, prompts, test data or
+commit messages; use made-up data there. Rule: `guide/principles/personal_data.md`.

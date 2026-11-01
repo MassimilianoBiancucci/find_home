@@ -1,7 +1,14 @@
-# Secrets: real env files are personal; *.env.example templates are committed
-config/*.env
-!config/*.env.example
+# Personal data and secrets stay local; only dummy *.example.* / *.env.example templates are committed.
+# Rule and checklist: guide/principles/personal_data.md. scripts/ensure-env.sh creates the real files from the examples.
+.env
+.env.*
+!.env.example
+*.env
+!*.env.example
 *.env.local
+config/locations.yaml
+config/profile.yaml
+config/search_area.yaml
 
 # Python
 backend/.venv/

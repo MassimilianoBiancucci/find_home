@@ -23,7 +23,7 @@ sequenceDiagram
   participant UI as Locations editor
   participant API as /api/geocode/suggest
   participant P as ORS geocode/autocomplete (or Photon)
-  UI->>API: q="Råsta strand" (debounced 350 ms, min 4 chars)
+  UI->>API: q="Example Str" (debounced 350 ms, min 4 chars)
   API->>P: text, boundary.country=SE, focus = map center
   P-->>API: features (label, lat, lon)
   API-->>UI: top 5 suggestions

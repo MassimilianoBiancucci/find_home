@@ -4,23 +4,29 @@ Everything the user may want to change lives in YAML, not in code. This page cov
 validated, the locations model (points, trips, windows), the config hash, the commute matrix and scoring. See the
 [introduction](introduction.md) for the other components.
 
+**Personal files.** `locations.yaml`, `profile.yaml`, `search_area.yaml`, `providers.env` and `backend.env` hold the
+user's own data. They are gitignored; each has a committed dummy sibling (`*.example.yaml`, `*.env.example`) that is
+complete and valid, and `scripts/ensure-env.sh` creates a missing real file from it without overwriting. A missing
+personal file makes `load_all` report which example to copy. Tests build their config from the examples. Rule and
+checklist: [personal_data.md](../principles/personal_data.md); setup: [`config/README.md`](../../config/README.md).
+
 ## Files and validation
 
 | File | Role |
 |---|---|
-| [`profile.yaml`](../../config/profile.yaml) | per listing kind: `hard_filters` (gate) and `preferences` (weighted groups) |
+| `profile.yaml` (personal; [example](../../config/profile.example.yaml)) | per listing kind: `hard_filters` (gate) and `preferences` (weighted groups) |
 | [`filters_catalog.yaml`](../../config/filters_catalog.yaml) | canonical filter keys, used by `hard_filters` and every site's `filter_map` |
-| [`locations.yaml`](../../config/locations.yaml) | categories and points with trips and time windows |
+| `locations.yaml` (personal; [example](../../config/locations.example.yaml)) | categories and points with trips and time windows |
 | [`time_model.yaml`](../../config/time_model.yaml) | day types, default sampling grid, reliability statistics |
 | [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, walking threshold, map icon and colour) |
 | [`tags.yaml`](../../config/tags.yaml) | lifecycle statuses (per kind) and feedback reason tags |
 | [`providers.yaml`](../../config/providers.yaml) | routing, geocoding, POI providers, mode priority, budget, cache, prefilter, map style |
 | [`agent.yaml`](../../config/agent.yaml) | headless agent commands for the Run agent button |
 | [`geo.yaml`](../../config/geo.yaml) | geodata region (municipalities) and dataset sources for `data/geo/` |
-| [`search_area.yaml`](../../config/search_area.yaml) | the search area: weighted pieces, erasers, buffer (edited in Map → Area) |
+| `search_area.yaml` (personal; [example](../../config/search_area.example.yaml)) | the search area: weighted pieces, erasers, buffer (edited in Map → Area) |
 | [`area_aliases.yaml`](../../config/area_aliases.yaml) | popular area names → zone ids (seeded from OSM place names) |
 | [`transit_colours.yaml`](../../config/transit_colours.yaml) | line colours and labels per transit mode (GTFS has no colours) |
-| `backend.env`, `providers.env` | process settings and provider keys (gitignored; `*.env.example` committed) |
+| `backend.env`, `providers.env` | process settings and provider keys (personal, gitignored; [`backend.env.example`](../../config/backend.env.example) and [`providers.env.example`](../../config/providers.env.example) committed) |
 
 [`config/loader.py`](../../backend/src/findhome/config/loader.py) `load_all` parses every file, validates it against
 [`config/schemas/<name>.schema.json`](../../config/schemas/profile.schema.json), validates every

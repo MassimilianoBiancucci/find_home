@@ -1,5 +1,9 @@
 # yaml-language-server: $schema=./schemas/search_area.schema.json
-# ─────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
+#  EXAMPLE, committed (an empty area). The area you draw in Map → Area is saved to config/search_area.yaml,
+#  which is gitignored (personal data: guide/principles/personal_data.md). scripts/ensure-env.sh copies
+#  this file there when it is missing, and never overwrites it.
+#
 #  Where you want to live. Edited in the UI (Map → Area); part of the config hash.
 #  pieces: zone sets (RegSO zone ids, see Map → Area) or drawn shapes (GeoJSON, lon/lat),
 #          each with a weight 0..1; kind: eraser cuts every other piece.

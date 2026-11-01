@@ -21,7 +21,7 @@ The map will:
 3. show **points of interest** (supermarkets, gyms, vets, pharmacies, parks, and later custom categories) with
    walking minutes from any clicked point;
 4. colour districts by **commute time** (public transport, with walking legs) to a few fixed points (two
-   workplaces in Solna: Råsta strandväg 7 and Råsundavägen 37; a partner near Skanstull; Stockholm C), at given
+   workplaces in Solna; a partner's place in southern Stockholm; Stockholm C), at given
    times of day.
 
 Region of interest (municipalities): Stockholm, Solna, Sundbyberg, Lidingö, Danderyd, Sollentuna, Järfälla,

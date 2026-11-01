@@ -51,21 +51,21 @@ class FakeRegistry:
 
 
 @pytest.mark.parametrize(("address", "sent"), [
-    ("Råsta strandväg 7, 169 79 Solna, Sweden", "Råsta strandväg 7, 169 79 Solna, Sweden"),
-    ("Råsundavägen 37, Solna, Sverige", "Råsundavägen 37, Solna, Sverige"),
-    ("Skanstull, Stockholm", "Skanstull, Stockholm, Sverige"),
-    ("Råsundavägen 37, 169 67 Solna", "Råsundavägen 37, 169 67 Solna, Sverige"),
+    ("Example Street 7, 123 45 Solna, Sweden", "Example Street 7, 123 45 Solna, Sweden"),
+    ("Sample Road 37, Solna, Sverige", "Sample Road 37, Solna, Sverige"),
+    ("Demo Square, Stockholm", "Demo Square, Stockholm, Sverige"),
+    ("Sample Road 37, 123 67 Solna", "Sample Road 37, 123 67 Solna, Sverige"),
 ])
 def test_country_suffix_only_when_missing(address, sent):
     assert gc.provider_query(address) == sent
 
 
 async def test_hit_is_cached_for_ttl_and_not_requested_again():
-    conn, reg = FakeConn(), FakeRegistry((59.37, 18.0, "Råsta"))
-    assert (await gc.geocode(conn, reg, "Råsta strandväg 7, Solna", ttl_days=365)).lat == 59.37
-    assert (await gc.geocode(conn, reg, "råsta  strandväg 7, solna")).lat == 59.37
+    conn, reg = FakeConn(), FakeRegistry((59.37, 18.0, "Example"))
+    assert (await gc.geocode(conn, reg, "Example Street 7, Solna", ttl_days=365)).lat == 59.37
+    assert (await gc.geocode(conn, reg, "example  street 7, solna")).lat == 59.37
     assert len(reg.geocoder.queries) == 1
-    row = conn.rows["råsta strandväg 7, solna"]
+    row = conn.rows["example street 7, solna"]
     assert row["expires_at"] > datetime.now(UTC) + timedelta(days=300)
 
 
@@ -95,15 +95,15 @@ async def test_suggester_uses_photon_without_ors_key(monkeypatch):
     def handler(req: httpx.Request):
         assert req.url.host == "photon.komoot.io"
         return httpx.Response(200, json={"features": [
-            {"geometry": {"coordinates": [18.0058, 59.3701]},
-             "properties": {"street": "Råsta strandväg", "housenumber": "7", "postcode": "169 79", "city": "Solna",
+            {"geometry": {"coordinates": [18.0, 59.36]},
+             "properties": {"street": "Example Street", "housenumber": "7", "postcode": "123 45", "city": "Solna",
                             "countrycode": "SE"}},
             {"geometry": {"coordinates": [10.0, 60.0]}, "properties": {"name": "Oslo", "countrycode": "NO"}},
         ]})
 
     sug = AddressSuggester({"order": ["ors", "photon"], "photon": {}}, client=_client(handler))
-    items = await sug.suggest("Råsta strand", (59.33, 18.07))
-    assert [(i.label, i.source) for i in items] == [("Råsta strandväg 7, 169 79 Solna", "photon")]
+    items = await sug.suggest("Example Str", (59.33, 18.07))
+    assert [(i.label, i.source) for i in items] == [("Example Street 7, 123 45 Solna", "photon")]
 
 
 async def test_suggester_falls_back_when_ors_fails(monkeypatch):
@@ -116,4 +116,4 @@ async def test_suggester_falls_back_when_ors_fails(monkeypatch):
 
     sug = AddressSuggester({"order": ["ors", "photon"]}, client=_client(handler))
     assert [p.name for p in sug.providers] == ["ors", "photon"]
-    assert await sug.suggest("Råsta strand", (59.33, 18.07)) == []
+    assert await sug.suggest("Example Str", (59.33, 18.07)) == []

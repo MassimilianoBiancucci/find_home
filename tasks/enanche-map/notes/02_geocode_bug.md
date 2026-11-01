@@ -1,13 +1,13 @@
 # Bug: work points missing from the map (geocoding)
 
-Observed 2026-10-31: `/api/map/points` returns `geocoded: false` for `work-rasta` and `work-rasunda` (address only,
-no `coords`); the two points with `coords` show.
+Observed 2026-10-31: `/api/map/points` returns `geocoded: false` for the two workplace points (address only,
+no `coords`); the points with `coords` show.
 
 ## Root cause
 1. [providers/geocode.py](../../../backend/src/findhome/providers/geocode.py) `geocode()` appends `", Sverige"`
    unless the normalised query contains `stockholm` or `sverige`. Both addresses end in `Sweden`, so Nominatim gets
-   `"Råsta strandväg 7, 169 79 Solna, Sweden, Sverige"` → no result. Verified: the plain address resolves
-   (59.37010, 18.00578 and 59.36405, 18.01201), the suffixed one returns "not found".
+   `"Example Street 7, 123 45 Solna, Sweden, Sverige"` → no result. Verified: the plain address resolves
+   to coordinates, the suffixed one returns "not found".
 2. The miss is stored in `geocode_cache` with `lat = NULL` and `expires_at = now() + 365 days`, and a cached NULL
    is returned as "not found" without retrying. Fixing the address alone does not help until the row expires.
 3. `findhome geocode` calls the geocoder directly (no suffix, no cache), so the CLI check looks fine while the

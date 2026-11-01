@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 from pathlib import Path
 
 import psycopg
@@ -38,9 +37,9 @@ def db_url():
 
 @pytest.fixture
 def test_repo(tmp_path: Path) -> Path:
-    shutil.copytree(REPO / "config", tmp_path / "config", ignore=shutil.ignore_patterns("*.env"))
-    shutil.copytree(REPO / "sites", tmp_path / "sites")
-    shutil.copy(REPO / "backend" / "tests" / "fixtures" / "locations.yaml", tmp_path / "config" / "locations.yaml")
+    from repo_copy import build_test_repo
+
+    build_test_repo(tmp_path)
     from findhome.config.writer import apply_ops
 
     apply_ops("providers", [{"op": "replace", "path": "/routing/osm/enabled", "value": False}],

@@ -1,5 +1,9 @@
 # yaml-language-server: $schema=./schemas/locations.schema.json
 # ─────────────────────────────────────────────────────────────
+#  EXAMPLE, committed. Your real points live in config/locations.yaml, which is gitignored
+#  (personal data: guide/principles/personal_data.md). scripts/ensure-env.sh copies this file
+#  to config/locations.yaml when that file is missing, and never overwrites it. Edit the copy.
+#
 #  Points you care about, and the trips between each point and a candidate home.
 #  Add as many points as you like per category (several workplaces, several partner
 #  places, generic points). Each trip says:
@@ -9,7 +13,8 @@
 #               (leave between from..to); each window has a weight and a sampling step.
 #               Windows may cross midnight (e.g. 18:00 → 03:00).
 #    use_default_grid: true  → sample time_model.yaml default_grid instead of windows
-#  Give either `address` or `coords: [lat, lon]`.
+#  Give either `address` or `coords: [lat, lon]`. Coordinates are best: they need no geocoding.
+#  Everything below is made up; the coordinates are public transit stations.
 # ─────────────────────────────────────────────────────────────
 categories:
   work: {label: Work, default_weight: 1.0, color: "#990ae3", icon: briefcase}
@@ -18,34 +23,19 @@ categories:
   generic: {label: Point, default_weight: 0.3, color: "#607d8b", icon: pin}
 
 points:
-  - id: work-rasta
+  - id: work-example
     category: work
-    label: Work 1 · Råsta strandväg 7–9
-    address: Råsta strandväg 7, 169 79 Solna
-    weight: 1
-    notes: Must arrive 08:00-09:00, flexible. Lower the weight if you go here less often than work 2.
+    label: Office (example)
+    address: Example Street 1, 123 45 Solna
+    coords: [59.3598, 18.0009]            # Solna centrum metro station
+    weight: 1.0
+    notes: Must arrive 08:00-09:00, flexible. Replace with your workplace.
     modes: [transit, bike]
     trips:
       - direction: to_point
         day_types: [weekday]
         windows:
-          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1, step_min: 15}
-      - direction: from_point
-        day_types: [weekday]
-        windows:
-          - {type: depart_at, from: "16:30", to: "18:30", weight: 0.6, step_min: 30}
-  - id: work-rasunda
-    category: work
-    label: Work 2 · Råsundavägen 37
-    address: Råsundavägen 37, 169 67 Solna
-    weight: 1
-    notes: Must arrive 08:00-09:00, flexible. Lower the weight if you go here less often than work 1.
-    modes: [transit, bike]
-    trips:
-      - direction: to_point
-        day_types: [weekday]
-        windows:
-          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1, step_min: 15}
+          - {type: arrive_by, from: "08:00", to: "09:00", weight: 1.0, step_min: 15}
       - direction: from_point
         day_types: [weekday]
         windows:
@@ -61,17 +51,15 @@ points:
       - direction: both
         day_types: [weekday, saturday, sunday]
         use_default_grid: true
-
-  - id: partner-skanstull
+  - id: partner-example
     category: partner
-    label: Bella · Skanstull
-    address: Skanstull tunnelbanestation, Stockholm
-    coords: [59.30778, 18.07583]
+    label: Partner (example)
+    coords: [59.3144, 18.0737]            # Medborgarplatsen metro station
     weight: 0.8
-    notes: 'Evenings and weekends, sometimes late. Coordinates: Skanstull metro station.'
+    notes: Evenings and weekends, sometimes late. Replace with the place you visit often.
     modes: [transit]
     trips:
       - direction: both
         day_types: [weekday, saturday, sunday]
         windows:
-          - {type: depart_at, from: "18:00", to: "03:00", weight: 1, step_min: 60}
+          - {type: depart_at, from: "18:00", to: "03:00", weight: 1.0, step_min: 60}

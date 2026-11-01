@@ -12,8 +12,16 @@ def test_help_lists_commands():
         assert cmd in res.output
 
 
-def test_config_validate_ok():
-    res = runner.invoke(app, ["config", "validate"])
+def test_config_validate_ok(shared_repo, monkeypatch):
+    """Runs against the committed examples, not the owner's personal config files."""
+    from findhome.core import paths
+
+    monkeypatch.setenv("FINDHOME_ROOT", str(shared_repo))
+    paths.repo_root.cache_clear()
+    try:
+        res = runner.invoke(app, ["config", "validate"])
+    finally:
+        paths.repo_root.cache_clear()
     assert res.exit_code == 0, res.output
     assert "config valid" in res.output
 

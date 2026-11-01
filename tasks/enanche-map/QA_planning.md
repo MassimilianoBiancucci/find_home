@@ -77,7 +77,7 @@ Proposed modes, switched from a bar at the top of the map:
 1. **Explore**: listings, transit lines and stations, POIs; click anything to inspect it in the right panel.
 2. **Area**: draw / erase (brush, circle, freehand lasso) and toggle districts on and off; the right panel shows
    area size, the district list and how many listings fall inside, near or outside.
-3. **Connectivity**: each district coloured by commute time to your points (work, girlfriend), using the existing
+3. **Connectivity**: each district coloured by commute time to your points (work, partner), using the existing
    commute engine from each district's centre (one sample per time window, cached).
 Is this the right set? Anything missing (for example a Listings mode, or comparing two districts side by side)?
 What must the inspector show when you click a district or an arbitrary spot: commute times to your points,

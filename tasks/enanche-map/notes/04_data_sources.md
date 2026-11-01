@@ -249,7 +249,7 @@ pendeltåg 40/41/43/48, Tvärbanan 30/31, Saltsjöbanan 25/26, Roslagsbanan 27/2
 Nockebybanan 12, Spårväg City 7 ([Transport in Stockholm](https://en.wikipedia.org/wiki/Transport_in_Stockholm)).
 Colour assignments and hex values: **UNVERIFIED**. Action: sample hex from SL's official network map
 (sl.se) into `config/transit_colours.yaml` keyed by `route_short_name`.
-Note: the **yellow line** (Odenplan-Hagastaden-Arenastaden, near Råsta strandväg) is under construction; opening
+Note: the **yellow line** (Odenplan-Hagastaden-Arenastaden) is under construction; opening
 date **UNVERIFIED**, plan a slot for it.
 
 #### C5. Station entrances

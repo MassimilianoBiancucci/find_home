@@ -14,7 +14,7 @@ the JSON embedded in its result pages). Blocket Bostad, Samtrygg and Bostadsför
 
 ## General filters → site filters
 
-Your hard limits live in [`config/profile.yaml`](../config/profile.yaml) using the canonical keys of
+Your hard limits live in `config/profile.yaml` (personal, gitignored; see [`config/README.md`](../config/README.md)) using the canonical keys of
 [`config/filters_catalog.yaml`](../config/filters_catalog.yaml). Each site's `filter_map` says what to do with
 every key:
 

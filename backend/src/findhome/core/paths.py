@@ -5,7 +5,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-_MARKERS = ("config/profile.yaml", "docker-compose.yml")
+_MARKERS = ("config/providers.yaml", "docker-compose.yml")
 
 
 def _is_root(p: Path) -> bool:

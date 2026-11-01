@@ -6,7 +6,7 @@
 #  Fast no-op when everything exists.
 #    1. backend/.venv with the findhome CLI   (Poetry, or uv as a fallback)
 #    2. frontend/node_modules                   (npm ci)
-#    3. config/*.env from *.env.example          (never overwrites)
+#    3. config/*.env and the personal config/*.yaml from their examples   (never overwrites)
 #    4. .claude/skills links to .agents/skills
 #
 #  Usage: scripts/ensure-env.sh [--force-backend] [--force-frontend] [--skip-frontend]
@@ -72,10 +72,16 @@ if ! $SKIP_FE; then
     fi
 fi
 
-# ── 3. personal env files ───────────────────────────────────
-for ex in "$ROOT"/config/*.env.example; do
-    real="${ex%.example}"
-    [[ -f "$real" ]] || { cp "$ex" "$real"; echo "⚙️  created config/$(basename "$real") from the example"; }
+# ── 3. personal files: real ones are gitignored, created from the committed examples ──
+# config/<name>.env.example -> config/<name>.env     config/<name>.example.yaml -> config/<name>.yaml
+# Never overwrites. Rule: guide/principles/personal_data.md
+for ex in "$ROOT"/config/*.env.example "$ROOT"/config/*.example.yaml; do
+    [[ -f "$ex" ]] || continue
+    case "$ex" in
+        *.env.example)  real="${ex%.example}" ;;
+        *.example.yaml) real="${ex%.example.yaml}.yaml" ;;
+    esac
+    [[ -f "$real" ]] || { cp "$ex" "$real"; echo "⚙️  created config/$(basename "$real") from the example (personal: edit it, it is gitignored)"; }
 done
 
 # ── 4. skills ───────────────────────────────────────────────

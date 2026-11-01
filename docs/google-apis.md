@@ -29,7 +29,7 @@ Notes:
 
 ## Estimate for this project (assumptions, my arithmetic)
 Grid: 07:00-09:00 every 15 min (8 slots) + hourly 09:00-02:00 (18 slots) = 26 weekday slots; reduced weekend grid
-of 12 slots; 3 locations (workplace, Stockholm Central, girlfriend); 1 mode (transit).
+of 12 slots; 3 locations (workplace, Stockholm Central, partner); 1 mode (transit).
 
 | Scenario | Elements | Cost if Essentials | Cost if Pro |
 |---|---|---|---|

@@ -1,5 +1,9 @@
 # yaml-language-server: $schema=./schemas/profile.schema.json
-# ─────────────────────────────────────────────────────────────
+# ───────────────────────────────────────────────────────────────
+#  EXAMPLE, committed. Your real profile (budget, move-in dates, areas) lives in config/profile.yaml,
+#  which is gitignored (personal data: guide/principles/personal_data.md). scripts/ensure-env.sh copies
+#  this file there when it is missing, and never overwrites it. Edit the copy.
+#
 #  Search profile, per listing kind.
 #    hard_filters  gate a listing in or out (keys from filters_catalog.yaml)
 #    preferences   weighted score groups (0..1 each); disable a group to ignore it
@@ -19,7 +23,7 @@ kinds:
       areas_include: []             # TODO(user): e.g. [Södermalm, Kungsholmen]; empty = anywhere
       areas_exclude: []
       contract_types: [first_hand, second_hand, sublet]
-      pet_status_exclude: ["no"]    # two cats: an explicit "no" is a hard exclude
+      pet_status_exclude: ["no"]    # an explicit "pets not allowed" is a hard exclude; remove if you have no pets
       max_commute_min_by_category:  # median minutes, any trip of that category
         work: 60
     preferences:

@@ -16,6 +16,6 @@ rule:    propose only; the user applies changes in the app (Settings) or asks yo
 3. Write them as JSON-patch-style ops per file, e.g.
    ```yaml
    profile:
-     - {op: replace, path: /kinds/rent/preferences/commute/weight, value: 5, why: "too_far×6, all for work-rasta"}
+     - {op: replace, path: /kinds/rent/preferences/commute/weight, value: 5, why: "too_far×6, all for work-1"}
    ```
 4. Summarise in Decisions (one line per change, with the evidence). Do not edit the YAML files yourself.

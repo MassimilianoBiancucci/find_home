@@ -30,7 +30,7 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 [`003_zone_commute.sql`](../../backend/migrations/003_zone_commute.sql) adds `zone_commute` (the Connectivity matrix).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
-**Config.** YAML under [`config/`](../../config/profile.yaml) and [`sites/`](../../sites/README.md), described in
+**Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
 [config_and_locations.md](config_and_locations.md).
 
 **Ingest and dedupe.** [`db/repo.py`](../../backend/src/findhome/db/repo.py) `ingest` matches an item first by

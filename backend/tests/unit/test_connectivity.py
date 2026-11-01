@@ -26,8 +26,8 @@ def _zones() -> ZoneSet:
 
 
 @pytest.fixture(scope="module")
-def bundle():
-    return load_all()
+def bundle(shared_repo):
+    return load_all(shared_repo / "config", shared_repo / "sites")
 
 
 def _coords(bundle):

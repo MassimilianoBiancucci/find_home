@@ -204,7 +204,9 @@ def load_all(config_dir: Path | None = None, sites_dir: Path | None = None) -> C
     for name in CONFIG_FILES:
         path = cdir / f"{name}.yaml"
         if not path.exists():
-            errors.append(f"{name}.yaml: missing")
+            example = cdir / f"{name}.example.yaml"
+            hint = f" (personal file: copy {example.name} to {path.name}, or run scripts/ensure-env.sh)" if example.exists() else ""
+            errors.append(f"{name}.yaml: missing{hint}")
             continue
         try:
             raw[name] = read_yaml(path)
