@@ -11,6 +11,14 @@ falls back to a free or estimated answer (see [what each provider does](../../do
 | `GOOGLE_MAPS_BROWSER_KEY` | Google Maps JavaScript API in the browser | paid beyond a monthly free cap | no code reads it today |
 | `NOMINATIM_EMAIL` | OpenStreetMap Nominatim: address to coordinates | free, no key | geocoding still works, the request just carries no contact email |
 
+## Quick links
+
+| Service | Sign up / log in | Get the key | Docs |
+|---|---|---|---|
+| Trafiklab ResRobot | [Register](https://developer.trafiklab.se/register) · [Log in](https://developer.trafiklab.se) | [Your projects and keys](https://developer.trafiklab.se/project/list) | [Using Trafiklab](https://www.trafiklab.se/docs/getting-started/using-trafiklab/) · [ResRobot route planner](https://www.trafiklab.se/api/our-apis/resrobot-v21/route-planner/) · [Error codes](https://www.trafiklab.se/api/our-apis/resrobot-v21/error-codes/) |
+| Google Maps Platform | [Google Cloud console](https://console.cloud.google.com) (sign in with a Google account) · [Create a project](https://console.cloud.google.com/projectcreate) | [Enable billing](https://console.cloud.google.com/projectselector/billing) · [Enable Routes API](https://console.cloud.google.com/apis/library/routes.googleapis.com) · [API keys](https://console.cloud.google.com/projectselector/google/maps-apis/credentials) | [Routes API setup](https://developers.google.com/maps/documentation/routes/cloud-setup) · [Get an API key](https://developers.google.com/maps/documentation/javascript/get-api-key) · [Budgets and alerts](https://console.cloud.google.com/billing/budgets) |
+| Nominatim | none: no account and no key | none: only your contact email in `NOMINATIM_EMAIL` | [Usage policy](https://operations.osmfoundation.org/policies/nominatim/) |
+
 ## Where the keys live
 
 Keys go in `config/providers.env`, which is gitignored ([personal data](../principles/personal_data.md)). The
@@ -37,9 +45,9 @@ ResRobot is Sweden's journey planner on official timetables, SL included. It is 
 (`routing.resrobot` in [`config/providers.yaml`](../../config/providers.yaml)). Trafiklab states that its data is
 free and that upgrading a key is free.
 
-1. Register at [trafiklab.se](https://www.trafiklab.se): email, username and password (or sign in with GitHub),
-   accept the terms, then confirm the email.
-2. On your projects page choose **New project**. Name it (for example `find_home`), pick a project type and write
+1. [Register at Trafiklab](https://developer.trafiklab.se/register): email, username and password (or sign in with
+   GitHub), accept the terms, then confirm the email. Already registered: [log in](https://developer.trafiklab.se).
+2. On your [projects page](https://developer.trafiklab.se/project/list) choose **New project**. Name it (for example `find_home`), pick a project type and write
    one line of description.
 3. In the project, pick **ResRobot v2.1** (route planner) in the API dropdown and click **Add API key to
    project**. Each API can be added to a project once. Do not pick the older ResRobot v2.0.
@@ -48,8 +56,8 @@ free and that upgrading a key is free.
 
 The key is sent as the `accessId` query parameter ([`resrobot.py`](../../backend/src/findhome/providers/resrobot.py)).
 
-**Limits.** A new key starts on a default level meant for home use. A higher level is requested with Trafiklab's
-upgrade form and is usually approved within one or two workdays. The app throttles itself to the values in
+**Limits.** A new key starts on a default level meant for home use. A higher level is requested with the **Upgrade
+quota** button on the project page and is usually approved within one or two workdays. The app throttles itself to the values in
 `providers.yaml` (`max_calls_per_minute: 45`, `max_calls_per_month: 30000`, the Bronze level as Trafiklab
 publishes it). If your key shows other numbers, change them there. The Map's connectivity refresh makes about
 2,100 calls in one run; the budget `max_connectivity_calls_per_run` caps it.
@@ -70,7 +78,7 @@ to identify itself, so the app sends a descriptive `User-Agent` and, when set, `
 request ([`osm.py`](../../backend/src/findhome/providers/osm.py)). The operators can then contact you before
 blocking you.
 
-1. Put an address you read in `NOMINATIM_EMAIL`. It goes only to Nominatim, from your machine.
+1. Read the [usage policy](https://operations.osmfoundation.org/policies/nominatim/) once, then put an address you read in `NOMINATIM_EMAIL`. It goes only to Nominatim, from your machine.
 2. Restart the API.
 
 What the policy requires, and how the app complies:
@@ -103,11 +111,13 @@ What the code uses today:
 
 Steps for the server key:
 
-1. In the [Google Cloud console](https://console.cloud.google.com) create a project (or pick one) and, on the
-   Billing page, link a billing account. Without billing the Routes API refuses requests.
-2. Enable **Routes API** (`routes.googleapis.com`) for the project, from its product page or with
+1. Sign in to the [Google Cloud console](https://console.cloud.google.com), [create a project](https://console.cloud.google.com/projectcreate)
+   (or pick one) and [link a billing account](https://console.cloud.google.com/projectselector/billing) to it.
+   Without billing the Routes API refuses requests.
+2. [Enable the Routes API](https://console.cloud.google.com/apis/library/routes.googleapis.com) (`routes.googleapis.com`) for the project, or with
    `gcloud services enable routes.googleapis.com --project PROJECT_ID`. Allow a few minutes before it answers.
-3. Open **Google Maps Platform → Keys & Credentials → Create credentials → API key**. Under API restrictions keep
+3. Open [Google Maps Platform → Keys & Credentials](https://console.cloud.google.com/projectselector/google/maps-apis/credentials)
+   and choose **Create credentials → API key**. Under API restrictions keep
    only **Routes API**. Or from the command line:
    `gcloud services api-keys create --project=PROJECT_ID --display-name=find_home-server --api-target=service=routes.googleapis.com`.
 4. Restrict the key further. An unrestricted key can call every Maps service and you pay for the calls. For a
@@ -115,7 +125,8 @@ Steps for the server key:
    if you skip it, rely on the API restriction plus step 6.
 5. Copy the key (**Show key**, or `gcloud services api-keys get-key-string KEY_ID --project=PROJECT_ID`) into
    `GOOGLE_MAPS_SERVER_KEY`.
-6. Set a budget alert on the billing account and a daily quota cap on the Routes API, so a mistake cannot run up
+6. Set a [budget alert](https://console.cloud.google.com/billing/budgets) on the billing account and a daily quota cap on the Routes API
+   (Cloud console → APIs & Services → Routes API → Quotas), so a mistake cannot run up
    a bill.
 7. In [`config/providers.yaml`](../../config/providers.yaml) set `routing.google.enabled: true` and
    `max_elements_per_month` to what you accept to pay for, then restart the API. Google sits after ResRobot in
