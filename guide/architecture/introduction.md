@@ -86,7 +86,9 @@ The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one M
 the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`). Modes add named layer
 groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The base style is
 `map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
-the style and re-applies every group. A style that cannot load falls back to a blank background.
+the style and re-applies every group. A style that cannot load falls back to a blank background. In dark mode
+[`dark-style.ts`](../../frontend/src/app/pages/map/dark-style.ts) recolours the style's water layers after each style
+load, because the dark base style paints water barely darker than land.
 
 Every marker is a round **blip** (category colour, white glyph, dark outline, glow) drawn on a canvas by
 [`components/map-icons.ts`](../../frontend/src/app/components/map-icons.ts) and added on demand through

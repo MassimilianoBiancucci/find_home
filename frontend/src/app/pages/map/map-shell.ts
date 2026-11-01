@@ -5,6 +5,7 @@ import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
 import { blipExpr, installBlip } from '../../components/map-icons';
+import { applyDarkWater } from './dark-style';
 import { MapLib, MapStateService } from './map-state.service';
 import { ProbeService } from './probe.service';
 import { PoiLayersService } from './poi-layers.service';
@@ -123,7 +124,10 @@ export class MapShell {
           this.error.set('Map style could not be loaded (offline or blocked): blank background. Check map.style_url in config/providers.yaml.');
           map.setStyle(BLANK);
         });
-        map.on('style.load', () => this.state.reapply());
+        map.on('style.load', () => {
+          if (this.theme.theme() === 'dark') applyDarkWater(map);
+          this.state.reapply();
+        });
         map.on('styleimagemissing', (e) => installBlip(map, e.id));
         map.on('click', (e) => {
           if (!this.probe.picking()) return;
