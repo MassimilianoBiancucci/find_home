@@ -105,8 +105,8 @@ Sampled times use a reference date per day type: the next date on the preferred 
 
 Providers: [`haversine.py`](../../backend/src/findhome/providers/haversine.py) (straight line × detour ÷ speed, +5
 min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (OSRM drive, Nominatim geocoding,
-1 req/s), [`resrobot.py`](../../backend/src/findhome/providers/resrobot.py) (transit; spaced by `routing.resrobot.plan` or
-`max_calls_per_minute`, a 429 is retried after its `Retry-After`),
+1 req/s), [`resrobot.py`](../../backend/src/findhome/providers/resrobot.py) (transit; spaced at 90 % of `routing.resrobot.plan` or
+`max_calls_per_minute`; a 429 or a per-minute `API_QUOTA` answer waits and is retried),
 [`google.py`](../../backend/src/findhome/providers/google.py) (Routes API, minimal field mask),
 [`ors.py`](../../backend/src/findhome/providers/ors.py) (OpenRouteService walking: directions and matrix).
 
@@ -179,22 +179,24 @@ flowchart LR
 | Step | Code |
 |---|---|
 | origin choice, plan, refresh job then derive | [`origin_kind()`](../../backend/src/findhome/api/routers/connectivity.py#L61), [`derive_zones()`](../../backend/src/findhome/api/routers/connectivity.py#L81) |
-| the comparison pass (pure) | [`derive()`](../../backend/src/findhome/domain/connectivity_derive.py#L35) |
+| the comparison pass (pure) | [`derive()`](../../backend/src/findhome/domain/connectivity_derive.py#L36) |
 | rerun the pass on stored answers | `POST /api/connectivity/derive` |
 
 The **comparison pass** runs after every station refresh, also one cut short. For each zone and route, every home
 takes its best start: walk to the station + transit from it. The zone value is the home-weighted mean of those bests.
 The route is `failed` when no home reaches a station with an answer, and `estimated` when most bests use estimates.
-The pattern records the share of homes whose best trip starts at a rail or a bus station, the winning stations, and
-the walk and transit medians. `GET /api/zone/{id}/centroids` returns them for the zone view.
+The pattern records where the best trips start (rail or bus station, the winning stations) and what they ride near
+the zone (`modes`: the first ride outbound, the last ride on the way back, from the trip's legs, stored as
+`zone_mode`). A trip from a bus stop may walk on to the metro, so only `modes` says whether a bus beats a nearby
+metro. It also records the walk and transit medians. `GET /api/zone/{id}/centroids` returns them for the zone view.
 
 [`run()`](../../backend/src/findhome/domain/connectivity.py#L201) is a background job in the API (`POST /api/connectivity/refresh`,
 `findhome connectivity refresh`; one at a time, cancellable). It uses the transit provider, `routing_cache` and the
 reference dates of the commute matrix, stops at `connectivity.max_calls_per_run`, and writes every route as soon as
 it is known (to `centroid_commute` or `zone_commute`) under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so
 search-area or weight edits keep the matrix). Storage goes through the
-[`ConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L46) protocol
-([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L85) in the API, an in-memory store in tests).
+[`ConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L49) protocol
+([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L89) in the API, an in-memory store in tests).
 
 A refresh has a **scope** ([`parse_scope()`](../../backend/src/findhome/domain/connectivity.py#L94)): `missing`, `estimates`, `failed`,
 `stale` or `all`; the default is missing + estimates. [`decide()`](../../backend/src/findhome/domain/connectivity.py#L114) chooses per
@@ -223,7 +225,7 @@ flowchart TD
 | per-route decision | [`decide()`](../../backend/src/findhome/domain/connectivity.py#L114) |
 | zone end of a request (where `SVC_LOC` applies) | [`zone_side()`](../../backend/src/findhome/domain/connectivity.py#L109) |
 | unroutable point: stored once, its other routes fail without a call | [`except LocationNotFound`](../../backend/src/findhome/domain/connectivity.py#L248), table `provider_failure` |
-| ResRobot error body → typed error | [`_error()`](../../backend/src/findhome/providers/resrobot.py#L109) |
+| ResRobot error body → typed error | [`_error()`](../../backend/src/findhome/providers/resrobot.py#L124) |
 
 The job **never falls back to estimates on its own**. An unroutable zone point is the zone's problem, not the
 provider's, so it never pauses the job. Three other provider errors in a row
@@ -254,7 +256,7 @@ Every planned route has a **status**, derived in one place
 stores ok / estimated / failed and `fetched_at` the provider's answer time; `GET /api/connectivity` returns the
 counts, `GET /api/connectivity/routes` the filtered, paged list.
 
-[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L302) gives per zone the window-weighted minutes per point and the
+[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L304) gives per zone the window-weighted minutes per point and the
 point-weighted mix (point weights as in the commute score); the matrix endpoint returns it with and without
 estimates (`zones`, `zones_real`) and lists the zones with only failed routes.
 
