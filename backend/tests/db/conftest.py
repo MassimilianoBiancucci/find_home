@@ -16,7 +16,8 @@ import pytest
 TEST_URL = os.environ.get("FINDHOME_TEST_DATABASE_URL", "postgresql://postgres:postgres@localhost:5434/findhome_test")
 REPO = Path(__file__).resolve().parents[3]
 TABLES = ("listings", "listing_sources", "listing_status_events", "feedback", "evaluations", "scores",
-          "commute_results", "routing_cache", "geocode_cache", "poi_cache", "scan_runs", "agent_runs", "sites")
+          "commute_results", "routing_cache", "geocode_cache", "poi_cache", "scan_runs", "agent_runs", "sites",
+          "zone_commute", "provider_failure")
 
 
 @pytest.fixture(scope="session")

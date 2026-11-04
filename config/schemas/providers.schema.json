@@ -102,6 +102,25 @@
       },
       "additionalProperties": false
     },
+    "connectivity": {
+      "type": "object",
+      "description": "Map → Connectivity refresh: what to do when the transit provider keeps failing, and the call cap per run.",
+      "properties": {
+        "on_provider_failure": {
+          "enum": [
+            "ask",
+            "continue",
+            "estimate"
+          ],
+          "description": "ask: pause and ask in the UI; continue: keep calling; estimate: straight-line estimates for the rest of the run"
+        },
+        "max_calls_per_run": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
     "cache": {
       "type": "object",
       "properties": {

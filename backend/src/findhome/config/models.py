@@ -144,6 +144,7 @@ class Providers(_Base):
     geocoding: dict[str, Any] = Field(default_factory=dict)
     poi: dict[str, Any] = Field(default_factory=dict)
     budget: dict[str, Any]
+    connectivity: dict[str, Any] = Field(default_factory=dict)
     cache: dict[str, Any]
     prefilter: dict[str, Any] = Field(default_factory=dict)
     map: dict[str, Any]

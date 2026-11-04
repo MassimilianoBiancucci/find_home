@@ -3,26 +3,27 @@
 One request per zone × enabled point × trip direction × window (its middle slot, the trip's first day type), from a
 point inside the zone, through the commute providers (ResRobot for transit; haversine estimate without a key).
 Answers go through routing_cache like listing commutes and land in zone_commute under `inputs_hash`
-(locations + time_model), so a refresh resumes where it stopped and survives unrelated config edits.
+(locations + time_model) with a status (ok, estimated, failed), so a refresh resumes where it stopped, survives
+unrelated config edits and only recomputes the routes its scope names (`decide`).
 """
 from __future__ import annotations
 
 import asyncio
+import functools
 import logging
 import time as clock
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, time, timedelta
-from typing import Any
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
-
-from psycopg.types.json import Jsonb
 
 from findhome.config.loader import ConfigBundle, canonical_hash
 from findhome.config.timegrid import Slot, grid_slots, window_slots
+from findhome.db.connectivity_repo import CacheHit, ConnectivityStore, RowWrite, StoredRow
 from findhome.domain.commute import MAX_CONSECUTIVE_ERRORS, Request, cache_key, reference_date
 from findhome.geo.crs import to_wgs84
 from findhome.geo.store import ZoneSet
-from findhome.providers.base import LatLon
+from findhome.providers.base import LatLon, LocationNotFound
 
 log = logging.getLogger(__name__)
 MODE = "transit"
@@ -69,23 +70,76 @@ def plan(bundle: ConfigBundle, zones: ZoneSet, point_coords: dict[str, LatLon],
     return out
 
 
+SCOPES = ("missing", "estimates", "failed", "stale")
+DEFAULT_SCOPE = ("missing", "estimates")
+POLICIES = ("ask", "continue", "estimate")
+Action = Literal["skip", "fail", "cache", "call", "estimate"]
+
+
+def parse_scope(scope: list[str] | str | None) -> tuple[str, ...]:
+    """Which stored routes a refresh recomputes: missing (no row), estimates, failed, stale (older than the TTL)."""
+    items = [scope] if isinstance(scope, str) else list(scope or DEFAULT_SCOPE)
+    if "all" in items:
+        return SCOPES
+    bad = [s for s in items if s not in SCOPES]
+    if bad:
+        raise ValueError(f"unknown scope {bad} (use {', '.join(SCOPES)} or all)")
+    return tuple(s for s in SCOPES if s in items)
+
+
+def is_stale(when: datetime | None, ttl_days: int, now: datetime) -> bool:
+    return when is not None and now - when > timedelta(days=ttl_days)
+
+
+def zone_side(r: Request) -> LatLon:
+    """The zone's end of a request: ResRobot's SVC_LOC is about this coordinate (points answer for other zones)."""
+    return r.origin if r.direction == "to_point" else r.dest
+
+
+def decide(row: StoredRow | None, failed_coord: bool, cache: CacheHit | None, scope: tuple[str, ...],
+           real: bool, ttl_days: int, now: datetime) -> Action:
+    """What the job does with one planned route. Shared by the job and the cost estimate of a refresh."""
+    if not real:                                    # no real provider: estimate what is missing, keep the rest
+        return "skip" if row else "estimate"
+    if row is None:
+        if "missing" not in scope:
+            return "skip"
+    elif row.status == "ok":
+        return "call" if "stale" in scope and is_stale(row.fetched_at, ttl_days, now) else "skip"
+    elif (row.status == "estimated" and "estimates" not in scope) or (row.status == "failed" and "failed" not in scope):
+        return "skip"
+    if failed_coord:
+        return "fail"
+    if cache and not ("stale" in scope and is_stale(cache.created_at, ttl_days, now)):
+        return "cache"
+    return "call"
+
+
 @dataclass
 class JobState:
     running: bool = False
+    state: str = "idle"                  # idle | running | paused | done | stopped
     inputs_hash: str | None = None
+    scope: tuple[str, ...] = DEFAULT_SCOPE
+    policy: str = "ask"
+    estimating: bool = False             # after an "estimate" decision: remaining calls become estimates
     total: int = 0
     done: int = 0
     calls: int = 0
     cached: int = 0
     estimated: int = 0
     skipped: int = 0
-    errors: int = 0
+    failed: int = 0                      # routes marked failed in this run (location or provider error)
+    errors: int = 0                      # provider errors other than an unroutable location
     last_error: str | None = None
+    pause_reason: str | None = None
+    failed_coords: list[dict[str, Any]] = field(default_factory=list)   # up to 20, for the decision dialog
     provider: str | None = None
     started_at: float | None = None
     finished_at: float | None = None
-    stopped: str | None = None           # budget | cancelled | error
+    stopped: str | None = None           # budget | cancelled | decision | error
     _task: asyncio.Task | None = field(default=None, repr=False)
+    _decision: asyncio.Future | None = field(default=None, repr=False)
 
     def reset(self, **values: Any) -> None:
         """Fresh counters for a new run; the task handle stays so cancel keeps working."""
@@ -93,32 +147,53 @@ class JobState:
         self.__init__(**values)
         self._task = task
 
+    def decide(self, action: str) -> bool:
+        """Answer a paused job: continue | estimate | stop. False when nothing is waiting."""
+        if self._decision is None or self._decision.done():
+            return False
+        self._decision.set_result(action)
+        return True
+
+    async def ask(self, reason: str) -> str:
+        self.state, self.pause_reason = "paused", reason
+        self._decision = asyncio.get_running_loop().create_future()
+        try:
+            return await self._decision
+        finally:
+            self._decision = None
+            self.state, self.pause_reason = "running", None
+
+    def note_failed_coord(self, zone_id: str, at: LatLon, code: str) -> None:
+        if len(self.failed_coords) < 20 and all(c["zone_id"] != zone_id for c in self.failed_coords):
+            self.failed_coords.append({"zone_id": zone_id, "lat": at.lat, "lon": at.lon, "code": code})
+
     def public(self) -> dict[str, Any]:
         eta = None
-        if self.running and self.started_at and self.done:
+        if self.state == "running" and self.started_at and self.done:
             rate = self.done / max(clock.monotonic() - self.started_at, 1e-3)
             eta = round((self.total - self.done) / rate) if rate else None
-        return {"running": self.running, "inputs_hash": self.inputs_hash, "total": self.total, "done": self.done,
+        return {"running": self.running, "state": self.state, "inputs_hash": self.inputs_hash, "scope": list(self.scope),
+                "policy": self.policy, "estimating": self.estimating, "total": self.total, "done": self.done,
                 "calls": self.calls, "cached": self.cached, "estimated": self.estimated, "skipped": self.skipped,
-                "errors": self.errors, "last_error": self.last_error, "provider": self.provider, "eta_s": eta,
-                "stopped": self.stopped}
+                "failed": self.failed, "errors": self.errors, "last_error": self.last_error,
+                "pause_reason": self.pause_reason, "failed_coords": self.failed_coords, "provider": self.provider,
+                "eta_s": eta, "stopped": self.stopped}
 
 
 JOB = JobState()
 
 
-async def _existing(conn, h: str, real_only: bool) -> set[tuple]:
-    """Pairs already computed; with a real provider, estimates do not count (they get replaced)."""
-    rows = await (await conn.execute(
-        "SELECT zone_id, point_id, direction, day_type, window_label FROM zone_commute WHERE inputs_hash = %s"
-        + (" AND NOT estimate" if real_only else ""), (h,))).fetchall()
-    return {(r["zone_id"], r["point_id"], r["direction"], r["day_type"], r["window_label"]) for r in rows}
+async def run(store: ConnectivityStore, registry, bundle: ConfigBundle, zones: ZoneSet,
+              point_coords: dict[str, LatLon], max_calls: int, scope: list[str] | str | None = None,
+              policy: str = "ask", today=None) -> None:
+    """Background job; one at a time (the caller checks JOB.running). Every route is written as soon as it is known.
 
-
-async def run(pool, registry, bundle: ConfigBundle, zones: ZoneSet, point_coords: dict[str, LatLon],
-              max_calls: int, today=None) -> None:
-    """Background job; one at a time (the caller checks JOB.running). Commits after every zone."""
+    A coordinate the provider cannot route is remembered and its other routes are marked failed without a call.
+    Three provider errors in a row pause the job (policy `ask`) or follow `continue` / `estimate`; it never falls
+    back to estimates on its own.
+    """
     h = inputs_hash(bundle)
+    sc = parse_scope(scope)
     reqs = plan(bundle, zones, point_coords)
     tz = ZoneInfo(bundle.time_model.timezone)
     today = today or datetime.now(tz).date()
@@ -126,61 +201,76 @@ async def run(pool, registry, bundle: ConfigBundle, zones: ZoneSet, point_coords
     refs = {n: reference_date(dt.days, dt.prefer, skip, today) for n, dt in bundle.time_model.day_types.items()}
     ttl = int(bundle.providers.cache.get("routing_ttl_days", 30))
     provider = registry.for_mode(MODE)
-    JOB.reset(running=True, inputs_hash=h, total=len(reqs), provider=provider.name, started_at=clock.monotonic())
-    failures = 0
+    real = provider.name != "haversine"
+    JOB.reset(running=True, state="running", inputs_hash=h, scope=sc, policy=policy, total=len(reqs),
+              provider=provider.name, started_at=clock.monotonic())
+    consecutive = 0
     try:
-        async with pool.connection() as conn:
-            have = await _existing(conn, h, real_only=provider.name != "haversine")
-        by_zone: dict[str, list[Request]] = {}
+        if real and "failed" in sc:
+            await store.clear_failures(provider.name)
+        have = await store.rows(h)
+        failures = await store.failures(provider.name) if real else {}
         for zid, r in reqs:
-            by_zone.setdefault(zid, []).append(r)
-        for zid, zreqs in by_zone.items():
-            async with pool.connection() as conn:
-                for r in zreqs:
-                    JOB.done += 1
-                    if (zid, r.point_id, r.direction, r.day_type, r.window_label) in have:
-                        JOB.skipped += 1
-                        continue
-                    prov = registry.haversine if failures >= MAX_CONSECUTIVE_ERRORS else provider
-                    key = cache_key(prov, r)
-                    row = await (await conn.execute(
-                        "SELECT minutes FROM routing_cache WHERE key = %s AND expires_at > now()", (key,))).fetchone()
-                    est = prov.name == "haversine"
-                    if row:
-                        JOB.cached += 1
-                        minutes = float(row["minutes"]) if row["minutes"] is not None else None
-                    elif est:
-                        JOB.estimated += 1
-                        minutes = registry.haversine.estimate(r.origin, r.dest, MODE)
-                    else:
-                        if JOB.calls >= max_calls:
-                            JOB.stopped = "budget"
-                            return
-                        when = datetime.combine(refs[r.day_type], time(0), tz) + timedelta(minutes=r.slot.minutes)
-                        try:
-                            res = await prov.travel(r.origin, r.dest, MODE, when, r.slot.kind)
-                        except Exception as exc:  # noqa: BLE001 - provider errors must not stop the job
-                            failures += 1
-                            JOB.errors += 1
-                            JOB.last_error = f"{prov.name}: {exc.__class__.__name__}: {exc}"[:300]
-                            continue
-                        failures = 0
-                        JOB.calls += 1
-                        minutes = res.minutes if res else None
-                        await conn.execute(
-                            """INSERT INTO routing_cache (key, provider, minutes, response, expires_at) VALUES (%s,%s,%s,%s,%s)
-                               ON CONFLICT (key) DO UPDATE SET minutes = EXCLUDED.minutes, response = EXCLUDED.response,
-                               created_at = now(), expires_at = EXCLUDED.expires_at""",
-                            (key, prov.name, minutes, Jsonb({"minutes": minutes, "source": "connectivity"}),
-                             datetime.now(UTC) + timedelta(days=ttl)))
-                    await conn.execute(
-                        """INSERT INTO zone_commute (inputs_hash, zone_id, point_id, direction, day_type, window_label,
-                             window_weight, provider, minutes, estimate) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                           ON CONFLICT (inputs_hash, zone_id, point_id, direction, day_type, window_label) DO UPDATE SET
-                             minutes = EXCLUDED.minutes, provider = EXCLUDED.provider, estimate = EXCLUDED.estimate,
-                             computed_at = now()""",
-                        (h, zid, r.point_id, r.direction, r.day_type, r.window_label, r.window_weight, prov.name,
-                         None if minutes is None else round(minutes, 1), est))
+            JOB.done += 1
+            pk = (zid, r.point_id, r.direction, r.day_type, r.window_label)
+            coord = zone_side(r).key()
+            key = cache_key(provider, r)
+            row = have.get(pk)
+            pre = decide(row, coord in failures, None, sc, real, ttl, datetime.now(UTC))
+            if pre == "skip":
+                JOB.skipped += 1
+                continue
+            hit = await store.cache_get(key) if pre == "call" else None
+            act = decide(row, coord in failures, hit, sc, real, ttl, datetime.now(UTC)) if hit else pre
+            if act == "call" and JOB.estimating:
+                act = "estimate"
+            write = functools.partial(RowWrite, h, pk, r.window_weight)
+            if act == "fail":
+                JOB.failed += 1
+                if not (row and row.status == "failed"):
+                    await store.write(write(provider.name, None, "failed", f"{failures[coord]}: no stop near the zone point"))
+                continue
+            if act == "cache":
+                JOB.cached += 1
+                await store.write(write(provider.name, hit.minutes, "ok", None, hit.created_at))
+                continue
+            if act == "estimate":
+                JOB.estimated += 1
+                await store.write(write("haversine", registry.haversine.estimate(r.origin, r.dest, MODE), "estimated"))
+                continue
+            if JOB.calls >= max_calls:
+                JOB.stopped = "budget"
+                return
+            when = datetime.combine(refs[r.day_type], time(0), tz) + timedelta(minutes=r.slot.minutes)
+            JOB.calls += 1
+            try:
+                res = await provider.travel(r.origin, r.dest, MODE, when, r.slot.kind)
+            except LocationNotFound as exc:
+                failures[coord] = exc.code
+                JOB.failed += 1
+                JOB.note_failed_coord(zid, zone_side(r), exc.code)
+                await store.record_failure(provider.name, coord, exc.code, exc.message)
+                await store.write(write(provider.name, None, "failed", f"{exc.code}: {exc.message}"[:300]))
+                continue
+            except Exception as exc:  # noqa: BLE001 - provider errors must not stop the job
+                consecutive += 1
+                JOB.errors += 1
+                JOB.failed += 1
+                JOB.last_error = f"{provider.name}: {exc.__class__.__name__}: {exc}"[:300]
+                await store.write(write(provider.name, None, "failed", JOB.last_error))
+                if consecutive >= MAX_CONSECUTIVE_ERRORS:
+                    consecutive = 0
+                    reason = f"{MAX_CONSECUTIVE_ERRORS} {provider.name} errors in a row; last: {JOB.last_error}"
+                    action = JOB.policy if JOB.policy != "ask" else await JOB.ask(reason)   # "don't ask again" sets it
+                    if action == "stop":
+                        JOB.stopped = "decision"
+                        return
+                    JOB.estimating = JOB.estimating or action == "estimate"
+                continue
+            consecutive = 0
+            minutes = res.minutes if res else None
+            fetched = await store.cache_put(key, provider.name, minutes, ttl)
+            await store.write(write(provider.name, minutes, "ok", None if res else "no connection found", fetched))
     except asyncio.CancelledError:
         JOB.stopped = "cancelled"
         raise
@@ -190,6 +280,7 @@ async def run(pool, registry, bundle: ConfigBundle, zones: ZoneSet, point_coords
         log.exception("connectivity job failed")
     finally:
         JOB.running = False
+        JOB.state = "stopped" if JOB.stopped else "done"
         JOB.finished_at = clock.monotonic()
 
 

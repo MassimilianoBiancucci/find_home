@@ -455,22 +455,59 @@ def area_check(lat: float, lon: float):
 
 # ── connectivity ─────────────────────────────────────────────────
 def _job_line(j: dict) -> str:
-    state = "running" if j["running"] else (j["stopped"] or "idle")
+    state = j.get("state") or ("running" if j["running"] else "idle")
+    if j.get("stopped"):
+        state += f" ({j['stopped']})"
     eta = f" · eta {j['eta_s'] // 60} min" if j.get("eta_s") else ""
-    return (f"{state} · {j['done']}/{j['total']} · calls {j['calls']} · cached {j['cached']} · estimated {j['estimated']}"
-            f" · errors {j['errors']} · provider {j['provider'] or '-'}{eta}" + (f"\nlast error: {j['last_error']}" if j["last_error"] else ""))
+    line = (f"{state} · {j['done']}/{j['total']} · calls {j['calls']} · cached {j['cached']} · estimated {j['estimated']}"
+            f" · failed {j.get('failed', 0)} · skipped {j['skipped']} · provider {j['provider'] or '-'}{eta}")
+    if j.get("pause_reason"):
+        line += f"\npaused: {j['pause_reason']}\nanswer with: findhome connectivity decide continue|estimate|stop"
+    if j["last_error"]:
+        line += f"\nlast error: {j['last_error']}"
+    return line
 
 
 @connectivity_app.command("refresh")
-def connectivity_refresh():
-    """Start the background refresh in the API (resumes; skips pairs already computed)."""
-    _out(j := _api().post("/api/connectivity/refresh", {}), _job_line(j))
+def connectivity_refresh(scope: Optional[list[str]] = typer.Option(
+        None, "--scope", "-s", help="missing | estimates | failed | stale | all (repeatable; default missing + estimates)")):
+    """Start the background refresh in the API (resumes; recomputes only the routes in scope)."""
+    _out(j := _api().post("/api/connectivity/refresh", {"scope": scope} if scope else {}), _job_line(j))
+
+
+@connectivity_app.command("plan")
+def connectivity_plan(scope: Optional[list[str]] = typer.Option(None, "--scope", "-s", help="as for refresh")):
+    """What a refresh would cost before running it: provider calls, cache hits, skipped."""
+    p = _api().get("/api/connectivity/plan" + (f"?scope={','.join(scope)}" if scope else ""))
+    eta = f" · ~{p['eta_s'] // 60} min" if p.get("eta_s") else ""
+    _out(p, f"{p['provider']}: {p['calls']} calls{eta} · {p['cached']} from cache · {p['failed_skipped']} known failures"
+            f" · {p['skipped']} kept" + (f" · {p['calls_over_budget']} over the budget" if p["calls_over_budget"] else ""))
 
 
 @connectivity_app.command("status")
 def connectivity_status():
     """Progress of the running or last refresh."""
     _out(j := _api().get("/api/connectivity/status"), _job_line(j))
+
+
+@connectivity_app.command("decide")
+def connectivity_decide(action: str = typer.Argument(..., help="continue | estimate | stop"),
+                        remember: bool = typer.Option(False, "--remember", help="Save as on_provider_failure")):
+    """Answer a refresh paused by repeated provider errors."""
+    _out(j := _api().post("/api/connectivity/decision", {"action": action, "remember": remember}), _job_line(j))
+
+
+@connectivity_app.command("routes")
+def connectivity_routes(status: Optional[str] = typer.Option(None, "--status", help="cached,stale,estimated,failed,missing"),
+                        zone: Optional[str] = typer.Option(None, "--zone"), limit: int = typer.Option(50, "--limit")):
+    """Planned routes with their status, e.g. --status failed."""
+    qs = "&".join(f"{k}={v}" for k, v in (("status", status), ("zone", zone), ("limit", limit)) if v)
+    r = _api().get(f"/api/connectivity/routes?{qs}")
+    lines = [f"{r['total']} routes"] + [
+        f"{i['status']:9} {i['zone'][:28]:28} → {i['point'][:24]:24} {i['direction']:10} {i['window_label']:8} "
+        f"{'' if i['minutes'] is None else round(i['minutes'])}{(' · ' + i['error']) if i['error'] else ''}"
+        for i in r["items"]]
+    _out(r, "\n".join(lines))
 
 
 if __name__ == "__main__":

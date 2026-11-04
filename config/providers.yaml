@@ -68,7 +68,14 @@ poi:
     key_env: GOOGLE_MAPS_SERVER_KEY
 budget:
   max_routing_calls_per_run: 500
-  max_connectivity_calls_per_run: 2500   # Map → Connectivity refresh (zones × points × windows, ResRobot)
+connectivity:                            # Map → Connectivity refresh (zones × points × windows, ResRobot)
+  max_calls_per_run: 2500
+  # When ResRobot fails 3 times in a row (outage, quota, bad key); a zone point it cannot route is never a reason:
+  #   ask      pause the refresh and ask in the UI (the CLI stops instead)
+  #   continue keep calling; failed routes stay failed and are retried only with "Retry failed"
+  #   estimate straight-line estimates for the rest of the run, tagged as estimates
+  # The pause dialog's "don't ask again" writes this value.
+  on_provider_failure: ask
 cache:
   routing_ttl_days: 30
   geocode_ttl_days: 365
