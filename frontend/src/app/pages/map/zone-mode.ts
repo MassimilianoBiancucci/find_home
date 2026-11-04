@@ -87,7 +87,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
             @for (p of patternRows(); track p.key) {
               <div class="fh-pat"><div class="small"><b>{{ p.label }}</b> · {{ p.minutes }} min ({{ p.walk }} walk + {{ p.transit }} transit)</div>
                 <div class="fh-split"><i class="rail" [style.width.%]="p.rail * 100"></i><i class="bus" [style.width.%]="p.bus * 100"></i></div>
-                <div class="small text-body-secondary">best start: {{ p.best }} · rail {{ p.rail * 100 | number: '1.0-0' }}% · bus {{ p.bus * 100 | number: '1.0-0' }}% of homes</div></div>
+                <div class="small text-body-secondary">ride near the zone: rail {{ p.rail * 100 | number: '1.0-0' }}% · bus {{ p.bus * 100 | number: '1.0-0' }}% of homes · best start: {{ p.best }}</div></div>
             }
           } @else { <div class="small text-body-secondary mt-1">No station refresh yet: Map → Connectivity → Refresh.</div> }
         </details>
@@ -227,12 +227,15 @@ export class ZoneMode {
     const c = this.zone.centroids();
     const names = new Map((c?.centroids ?? []).map((s) => [s.key, s.name]));
     return (c?.patterns ?? []).filter((p) => p.payload.minutes != null).map((p) => {
-      const g = p.payload.groups ?? {};
+      // what the homes' best trips ride near the zone (a trip from a bus stop may walk on to the metro); older rows: start group
+      const modes = p.payload.modes, g = p.payload.groups ?? {};
+      const rail = modes ? Object.entries(modes).filter(([m]) => RAILISH.has(m) || m === 'ferry').reduce((a, [, v]) => a + v, 0) : g['rail'] ?? 0;
+      const bus = modes ? modes['bus'] ?? 0 : g['bus'] ?? 0;
       const best = Object.keys(p.payload.winners ?? {})[0];
       return { key: `${p.point_id}|${p.direction}|${p.window_label}`, minutes: Math.round(p.payload.minutes!),
         label: `${p.point_id} · ${p.direction === 'to_point' ? 'there' : 'back'} · ${p.window_label}`,
         walk: Math.round(p.payload.walk_median ?? 0), transit: Math.round(p.payload.transit_median ?? 0),
-        rail: g['rail'] ?? 0, bus: g['bus'] ?? 0, best: best ? names.get(best) ?? best : '–' };
+        rail, bus, best: best ? names.get(best) ?? best : '–' };
     });
   });
 
