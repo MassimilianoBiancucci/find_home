@@ -44,6 +44,8 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 `provider_failure` (zone points a provider cannot route).
 [`005_zone_cache.sql`](../../backend/migrations/005_zone_cache.sql) adds `zone_heatmap` (zone analysis cache).
 [`006_zone_index.sql`](../../backend/migrations/006_zone_index.sql) adds `zone_index` (mobility indices).
+[`007_centroid_commute.sql`](../../backend/migrations/007_centroid_commute.sql) adds `centroid_commute` (station commutes) and
+`zone_pattern` (where each zone's best trips start).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -130,7 +132,7 @@ next to its own itinerary.
 
 **Zone mode** (`/map/zone`, `/map/zone/:id`, [`zone-mode.ts`](../../frontend/src/app/pages/map/zone-mode.ts#L116)) studies one zone.
 Without an id it is a picker: every zone is outlined, hover highlights one, a click opens it.
-[`ZoneService`](../../frontend/src/app/pages/map/zone.service.ts#L19) owns the state and the layer groups:
+[`ZoneService`](../../frontend/src/app/pages/map/zone.service.ts#L21) owns the state and the layer groups:
 
 ```mermaid
 stateDiagram-v2
@@ -145,16 +147,19 @@ stateDiagram-v2
 
 | Step | Code |
 |---|---|
-| picker: outline, hover, click | [`installPicker()`](../../frontend/src/app/pages/map/zone.service.ts#L44) |
-| load facts and lines, then heatmap and targets | [`select()`](../../frontend/src/app/pages/map/zone.service.ts#L78) |
-| neon outline (three blurred lines), dimmed outside, 3D buildings at distance 0 from the zone | [`drawFocus()`](../../frontend/src/app/pages/map/zone.service.ts#L157) |
-| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L191) |
-| camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L217) |
+| picker: outline, hover, click | [`installPicker()`](../../frontend/src/app/pages/map/zone.service.ts#L49) |
+| load facts and lines, then heatmap and targets | [`select()`](../../frontend/src/app/pages/map/zone.service.ts#L83) |
+| neon outline (three blurred lines), dimmed outside, 3D buildings at distance 0 from the zone | [`drawFocus()`](../../frontend/src/app/pages/map/zone.service.ts#L167) |
+| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L201) |
+| camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L248) |
 
-The right panel shows the two mobility indices first (value, percentile, component bars, a one-line insight), then
-KPI tiles (median walk per target set, share of homes within 5 and 10 minutes, lines
-at the zone's stops), then collapsed sections: metro lines, bus lines, other transit (stops served and the peak
-departures per hour at the zone's stops), services in the zone, and nearby zones' extra lines.
+The right panel shows, in order:
+- the two mobility indices (value, percentile, component bars, a one-line insight);
+- "Where the best trips start": the zone's connectivity centroids (rings on the map) and, per route, the share of
+  homes whose best trip starts at a rail or a bus station;
+- KPI tiles (median walk per target set, share of homes within 5 and 10 minutes, lines at the zone's stops);
+- collapsed sections: metro lines, bus lines, other transit (stops served and the peak departures per hour at the
+  zone's stops), services in the zone, and nearby zones' extra lines.
 
 The map's **right-click menu** ([`ContextMenuService`](../../frontend/src/app/pages/map/context-menu.service.ts#L16),
 [`map-context-menu.ts`](../../frontend/src/app/pages/map/map-context-menu.ts)) opens at the click and shows the zone under it

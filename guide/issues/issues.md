@@ -13,12 +13,3 @@ author emails are real, and `tasks/` and some code comments name a private emplo
 **Fix direction:** publish from a fresh history (a new repository seeded with the current tree) or rewrite history
 with `git filter-repo` into a new remote; decide first what to do with the author email and the employer references.
 Check with `git log -p --all -S"<term>"`.
-
-## Connectivity matrix
-
-### Some zones have no usable transit answer
-**Impact: medium.** The zone origin is its centroid ([`zone_origin()`](../../backend/src/findhome/domain/connectivity.py#L36)).
-ResRobot cannot route 22 to 37 of the 263 centroids (`SVC_LOC`: no stop within about 500 m). The refresh records
-them once and marks their routes failed (grey on the map), so the matrix has holes for those zones.
-**Fix direction:** represent a zone by its stops instead of its centroid (connectivity centroids), planned in
-`tasks/advanced-zone-view/` (sub-plan 6).

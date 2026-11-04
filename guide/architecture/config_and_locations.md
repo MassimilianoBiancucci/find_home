@@ -144,21 +144,60 @@ follow the track and carry the line colour. Nothing here changes scores.
 ## Connectivity matrix
 
 [`domain/connectivity.py`](../../backend/src/findhome/domain/connectivity.py) answers "how well connected is each zone to my points".
-[`plan()`](../../backend/src/findhome/domain/connectivity.py#L48) makes one transit request per zone × enabled point × trip direction ×
-window (the window's middle slot, the trip's first day type) from a point inside the zone
-([`zone_origin()`](../../backend/src/findhome/domain/connectivity.py#L36): its centroid, or a point surely inside it). With the current
-points that is ~2,100 requests for the 263 zones. Nothing here changes scores.
+[`plan_origins()`](../../backend/src/findhome/domain/connectivity.py#L48) makes one transit request per origin × enabled point × trip
+direction × window (the window's middle slot, the trip's first day type). `providers.yaml` `connectivity.origin`
+chooses the origins:
 
-[`run()`](../../backend/src/findhome/domain/connectivity.py#L186) is a background job in the API (`POST /api/connectivity/refresh`,
+- `stations` (default once `findhome zone centroids` has run): every zone's **connectivity centroids**, each station
+  routed once from its own coordinate ([`plan_stations()`](../../backend/src/findhome/domain/connectivity.py#L80)), so the provider always
+  finds a stop. Answers go to `centroid_commute`, and the zone values are derived from them.
+- `zone`: one point inside each zone ([`plan()`](../../backend/src/findhome/domain/connectivity.py#L74),
+  [`zone_origin()`](../../backend/src/findhome/domain/connectivity.py#L36)), written straight to `zone_commute`.
+
+Nothing here changes scores.
+
+**Connectivity centroids** ([`zone/centroids.py`](../../backend/src/findhome/zone/centroids.py), built by
+[`build_centroids()`](../../backend/src/findhome/zone/centroid_build.py#L63) into `data/geo/centroids/`). Candidates are the timetable
+stations in and around a zone, split by `zone.yaml` `centroids.groups` (rail, bus). Per group,
+[`cover()`](../../backend/src/findhome/zone/centroids.py#L50) greedily picks the fewest stations that put `coverage` of the zone's homes
+within `walk_min` of walking along the network. Each pick adds at least `min_gain` of the homes, and more lines win
+near ties. A group with no station near enough keeps one reference station: the one most homes reach within
+`max_walk_min` ([`select()`](../../backend/src/findhome/zone/centroids.py#L75)). Both groups are kept, so a bus start can be compared with a
+farther metro start for the same homes. Every home keeps its walk time to each centroid.
+
+```mermaid
+flowchart LR
+  C[centroids: stations + homes' walks] --> P[plan_stations: station × point × window]
+  P --> J[run: ResRobot from each station once]
+  J --> CC[(centroid_commute)]
+  CC --> D[derive: per home, best walk + transit over its stations]
+  C --> D
+  D --> ZC[(zone_commute: home-weighted zone value)]
+  D --> ZP[(zone_pattern: rail / bus share, best stations, walk and transit medians)]
+```
+
+| Step | Code |
+|---|---|
+| origin choice, plan, refresh job then derive | [`origin_kind()`](../../backend/src/findhome/api/routers/connectivity.py#L61), [`derive_zones()`](../../backend/src/findhome/api/routers/connectivity.py#L81) |
+| the comparison pass (pure) | [`derive()`](../../backend/src/findhome/domain/connectivity_derive.py#L35) |
+| rerun the pass on stored answers | `POST /api/connectivity/derive` |
+
+The **comparison pass** runs after every station refresh, also one cut short. For each zone and route, every home
+takes its best start: walk to the station + transit from it. The zone value is the home-weighted mean of those bests.
+The route is `failed` when no home reaches a station with an answer, and `estimated` when most bests use estimates.
+The pattern records the share of homes whose best trip starts at a rail or a bus station, the winning stations, and
+the walk and transit medians. `GET /api/zone/{id}/centroids` returns them for the zone view.
+
+[`run()`](../../backend/src/findhome/domain/connectivity.py#L201) is a background job in the API (`POST /api/connectivity/refresh`,
 `findhome connectivity refresh`; one at a time, cancellable). It uses the transit provider, `routing_cache` and the
 reference dates of the commute matrix, stops at `connectivity.max_calls_per_run`, and writes every route as soon as
-it is known to `zone_commute` under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so
+it is known (to `centroid_commute` or `zone_commute`) under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so
 search-area or weight edits keep the matrix). Storage goes through the
-[`ConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L44) protocol
-([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L82) in the API, an in-memory store in tests).
+[`ConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L46) protocol
+([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L85) in the API, an in-memory store in tests).
 
-A refresh has a **scope** ([`parse_scope()`](../../backend/src/findhome/domain/connectivity.py#L79)): `missing`, `estimates`, `failed`,
-`stale` or `all`; the default is missing + estimates. [`decide()`](../../backend/src/findhome/domain/connectivity.py#L99) chooses per
+A refresh has a **scope** ([`parse_scope()`](../../backend/src/findhome/domain/connectivity.py#L94)): `missing`, `estimates`, `failed`,
+`stale` or `all`; the default is missing + estimates. [`decide()`](../../backend/src/findhome/domain/connectivity.py#L114) chooses per
 route, and the cost preview (`GET /api/connectivity/plan`) uses the same function:
 
 ```mermaid
@@ -181,8 +220,8 @@ flowchart TD
 
 | Step | Code |
 |---|---|
-| per-route decision | [`decide()`](../../backend/src/findhome/domain/connectivity.py#L99) |
-| zone end of a request (where `SVC_LOC` applies) | [`zone_side()`](../../backend/src/findhome/domain/connectivity.py#L94) |
+| per-route decision | [`decide()`](../../backend/src/findhome/domain/connectivity.py#L114) |
+| zone end of a request (where `SVC_LOC` applies) | [`zone_side()`](../../backend/src/findhome/domain/connectivity.py#L109) |
 | unroutable point: stored once, its other routes fail without a call | [`except LocationNotFound`](../../backend/src/findhome/domain/connectivity.py#L248), table `provider_failure` |
 | ResRobot error body → typed error | [`_error()`](../../backend/src/findhome/providers/resrobot.py#L109) |
 
@@ -205,7 +244,7 @@ stateDiagram-v2
 
 | State handling | Code |
 |---|---|
-| job state, pause and answer | [`JobState`](../../backend/src/findhome/domain/connectivity.py#L119), [`ask()`](../../backend/src/findhome/domain/connectivity.py#L157), [`decide()`](../../backend/src/findhome/domain/connectivity.py#L150) |
+| job state, pause and answer | [`JobState`](../../backend/src/findhome/domain/connectivity.py#L134), [`ask()`](../../backend/src/findhome/domain/connectivity.py#L172), [`JobState.decide()`](../../backend/src/findhome/domain/connectivity.py#L165) |
 | endpoints (matrix, routes, plan, refresh, decision, cancel) | [`api/routers/connectivity.py`](../../backend/src/findhome/api/routers/connectivity.py#L54) |
 
 Every planned route has a **status**, derived in one place
@@ -215,7 +254,7 @@ Every planned route has a **status**, derived in one place
 stores ok / estimated / failed and `fetched_at` the provider's answer time; `GET /api/connectivity` returns the
 counts, `GET /api/connectivity/routes` the filtered, paged list.
 
-[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L287) gives per zone the window-weighted minutes per point and the
+[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L302) gives per zone the window-weighted minutes per point and the
 point-weighted mix (point weights as in the commute score); the matrix endpoint returns it with and without
 estimates (`zones`, `zones_real`) and lists the zones with only failed routes.
 
@@ -262,11 +301,11 @@ flowchart LR
 | walk / bike access per way (`geo.yaml` `datasets.network`) | [`access()`](../../backend/src/findhome/geo/build_network.py#L38) |
 | split ways at shared nodes into edges | [`edges_from_ways()`](../../backend/src/findhome/geo/build_network.py#L49) |
 | fetch per kommun, raw answers reused for `refresh_days` | [`build_network()`](../../backend/src/findhome/geo/build_network.py#L86), [`geo/overpass.py`](../../backend/src/findhome/geo/overpass.py) |
-| merged graph of several kommuner, nearest node | [`load_network()`](../../backend/src/findhome/zone/network.py#L70), [`Network`](../../backend/src/findhome/zone/network.py#L25) |
+| merged graph of several kommuner, nearest node | [`load_network()`](../../backend/src/findhome/zone/network.py#L78), [`Network`](../../backend/src/findhome/zone/network.py#L25) |
 | services per date (`calendar` + `calendar_dates`), reference dates | [`active_services()`](../../backend/src/findhome/geo/build_timetable.py#L51), [`reference_dates()`](../../backend/src/findhome/geo/build_timetable.py#L69) |
 | lines per stop, departures per hour (streams `stop_times`) | [`from_gtfs()`](../../backend/src/findhome/geo/build_timetable.py#L82) |
-| fallback without a GTFS key: lines per stop only | [`from_osm()`](../../backend/src/findhome/geo/build_timetable.py#L125) |
-| query side: stops near a point, lines, departures | [`TimetableIndex`](../../backend/src/findhome/geo/store.py#L177), [`load_timetable()`](../../backend/src/findhome/geo/store.py#L208) |
+| fallback without a GTFS key: lines per stop only | [`from_osm()`](../../backend/src/findhome/geo/build_timetable.py#L126) |
+| query side: stops near a point, lines, departures | [`TimetableIndex`](../../backend/src/findhome/geo/store.py#L177), [`load_timetable()`](../../backend/src/findhome/geo/store.py#L215) |
 
 **Network.** A way is walkable when its `highway` class is in `datasets.network.walk` (or `foot=yes`), and cyclable
 when it is in `bike`, or in `bike_if_allowed` with `bicycle=yes|designated`. `foot=no`, `bicycle=no` and
@@ -313,12 +352,12 @@ sequenceDiagram
 | focus (zone, optional neighbours) and search area (focus + reach) | [`extent()`](../../backend/src/findhome/zone/extent.py#L29), [`neighbours()`](../../backend/src/findhome/zone/extent.py#L22) |
 | target points per set | [`target_points()`](../../backend/src/findhome/zone/targets.py#L17) |
 | homes: residential buildings weighted by floors (`geo fetch buildings`) | [`homes_from_elements()`](../../backend/src/findhome/geo/build_buildings.py#L44), [`load_homes()`](../../backend/src/findhome/zone/homes.py#L13) |
-| one Dijkstra per set from a virtual source, cutoff, segment times, summary | [`compute()`](../../backend/src/findhome/zone/heatmap.py#L67) |
+| one Dijkstra per set from a virtual source, cutoff, segment times, summary | [`compute()`](../../backend/src/findhome/zone/heatmap.py#L115) |
 | cache key: datasets' meta, zone.yaml, POI file times | [`version()`](../../backend/src/findhome/zone/analysis.py#L47) |
 | endpoints: zone at a point, facts, lines, targets, heatmap | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py#L33) |
 | lines at the zone's stops (and the neighbours') with departures per hour | [`lines()`](../../backend/src/findhome/zone/analysis.py#L171) |
 
-[`compute()`](../../backend/src/findhome/zone/heatmap.py#L67) works on the network inside the search area. Every target snaps to its nearest
+[`compute()`](../../backend/src/findhome/zone/heatmap.py#L115) works on the network inside the search area. Every target snaps to its nearest
 node (at most `snap_max_m`), and the snap walk is the weight of its edge from the virtual source. Edge time is
 `length / (speed × factor)`. A segment's time is the mean of its two end nodes, and is missing when an end is
 beyond the cutoff. The summary per set (and `any`, the nearest of all sets) is weighted by homes inside the focus.
