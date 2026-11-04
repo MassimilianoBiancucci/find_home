@@ -1,5 +1,5 @@
 import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { ApiService, apiError } from '../../services/api.service';
@@ -11,6 +11,8 @@ import { ProbeService } from './probe.service';
 import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
 import { ConnectivityService } from './connectivity.service';
+import { ContextMenuService } from './context-menu.service';
+import { MapContextMenu } from './map-context-menu';
 
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
 
@@ -21,7 +23,7 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
  */
 @Component({
   selector: 'fh-map-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MapContextMenu],
   template: `
   <div class="fh-map-shell">
     <div class="fh-map-bar">
@@ -29,10 +31,11 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
         <a routerLink="explore" routerLinkActive="on">Explore</a>
         <a routerLink="area" routerLinkActive="on">Area</a>
         <a routerLink="connectivity" routerLinkActive="on">Connectivity</a>
+        <a routerLink="zone" routerLinkActive="on">Zone</a>
       </div>
       <button class="btn btn-sm btn-outline-secondary" (click)="toggle3d()">{{ tilted() ? '2D' : '3D tilt' }}</button>
       <button class="btn btn-sm" [class.btn-primary]="probe.picking()" [class.btn-outline-primary]="!probe.picking()"
-        title="Click the map to drop a test point (or right-click anywhere)" (click)="probe.picking.set(!probe.picking())">
+        title="Click the map to drop a test point (or right-click → Set test point here)" (click)="probe.picking.set(!probe.picking())">
         {{ probe.picking() ? 'Click the map…' : 'Test point' }}</button>
       @if (state.testPoint()) { <button class="btn btn-sm btn-link p-0" (click)="probe.clear()">clear test point</button> }
       @if (missing().length) { <span class="small text-warning" title="Set an address or coords in Locations">no coords: {{ missing().join(', ') }}</span> }
@@ -40,6 +43,7 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
     </div>
     <div class="fh-map-wrap">
       <div #mapEl class="fh-map" [class.picking]="probe.picking()"></div>
+      <fh-map-context-menu />
       @if (conn.hover(); as h) {
         <div class="fh-hover">
           <b>{{ h.name }}</b>@if (h.estimate) {<sup title="straight-line estimate">~</sup>}
@@ -73,6 +77,8 @@ export class MapShell {
   private poiLayers = inject(PoiLayersService);
   private transit = inject(TransitLayersService);
   protected conn = inject(ConnectivityService);
+  private menu = inject(ContextMenuService);
+  private router = inject(Router);
   private el = viewChild.required<ElementRef<HTMLDivElement>>('mapEl');
   protected tilted = signal(false);
   protected error = signal('');
@@ -82,6 +88,11 @@ export class MapShell {
   constructor() {
     const destroy = inject(DestroyRef);
     afterNextRender(() => void this.init(destroy));
+    this.menu.register(destroy, [
+      { id: 'test-point', order: 10, label: () => 'Set test point here', run: (c) => this.probe.set(c.lat, c.lon) },
+      { id: 'zone-view', order: 20, label: (c) => (c.zone ? `Open zone view: ${c.zone.name}` : 'Open zone view'),
+        enabled: (c) => !!c.zone, run: (c) => void this.router.navigate(['/map/zone', c.zone!.id]) },
+    ]);
     effect(() => {
       const mode = this.theme.theme();
       untracked(() => this.applyStyle(mode));
@@ -134,7 +145,13 @@ export class MapShell {
           this.probe.picking.set(false);
           this.probe.set(e.lngLat.lat, e.lngLat.lng);
         });
-        map.on('contextmenu', (e) => { e.preventDefault(); this.probe.set(e.lngLat.lat, e.lngLat.lng); });
+        map.on('contextmenu', (e) => {
+          e.preventDefault();
+          const { lat, lng } = e.lngLat;
+          this.menu.open({ lat, lon: lng, x: e.point.x, y: e.point.y, zone: null });
+          this.api.zoneAt(lat, lng).subscribe({ next: (r) => this.menu.setZone(r.zone), error: () => undefined });
+        });
+        map.on('movestart', () => this.menu.close());
         this.addBaseLayers(map, pts, lst);
         this.probe.install();
         this.poiLayers.install();

@@ -9,6 +9,8 @@ export const routes: Routes = [
     { path: 'explore', title: 'Explore · find_home', loadComponent: () => import('./pages/map/explore-mode').then((m) => m.ExploreMode) },
     { path: 'area', title: 'Area · find_home', loadComponent: () => import('./pages/map/area-mode').then((m) => m.AreaMode) },
     { path: 'connectivity', title: 'Connectivity · find_home', loadComponent: () => import('./pages/map/connectivity-mode').then((m) => m.ConnectivityMode) },
+    { path: 'zone', title: 'Zone · find_home', loadComponent: () => import('./pages/map/zone-mode').then((m) => m.ZoneMode) },
+    { path: 'zone/:id', title: 'Zone · find_home', loadComponent: () => import('./pages/map/zone-mode').then((m) => m.ZoneMode) },
   ] },
   { path: 'locations', title: 'Locations · find_home', loadComponent: () => import('./pages/locations').then((m) => m.LocationsPage) },
   { path: 'sites', title: 'Sites · find_home', loadComponent: () => import('./pages/sites').then((m) => m.SitesPage) },

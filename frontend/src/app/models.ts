@@ -176,3 +176,22 @@ export interface ZoneCommute {
   rows: { point_id: string; direction: string; day_type: string; window_label: string; window_weight: number; provider: string;
     minutes: number | null; estimate: boolean; status: string; error: string | null }[];
 }
+export interface ZoneRef { id: string; name: string; district?: string; }
+export interface ZoneFacts {
+  zone: { id: string; name: string; district: string; kommun: string; area_km2: number | null };
+  outline: any; neighbours: ZoneRef[]; stops_by_mode: Record<string, number>; lines: number;
+  poi: Record<string, number>; timetable: 'gtfs' | 'osm' | null; target_sets: Record<string, string>;
+}
+export interface HeatSummary {
+  targets: number; median_s: number | null; p90_s: number | null; share_le_5min: number; share_le_10min: number; share_reached: number;
+}
+export interface ZoneHeatmap {
+  zone_id: string; zone_ids: string[]; mode: 'walk' | 'bike'; sets: string[]; neighbours: boolean; bins_min: number[];
+  cutoff_min: number; summary: Record<string, HeatSummary>; homes: number; homes_source: 'buildings' | 'network';
+  segments: GeoCollection; cached: boolean;
+}
+export interface ZoneLine {
+  id: string; mode: string; ref: string | null; name: string | null; colour: string; stops: string[];
+  departures: number[] | null; peak_per_hour: number | null;
+}
+export interface ZoneLines { zone_id: string; day_kind: string; source: string; ref_date: string | null; lines: ZoneLine[]; nearby_lines: ZoneLine[]; }

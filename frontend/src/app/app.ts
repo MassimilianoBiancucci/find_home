@@ -28,7 +28,7 @@ export class App implements OnInit {
     { path: '/candidates', label: 'Candidates', key: 'C' },
     { path: '/map', label: 'Map', key: 'M', children: [
       { path: '/map/explore', label: 'Explore' }, { path: '/map/area', label: 'Area' },
-      { path: '/map/connectivity', label: 'Connectivity' },
+      { path: '/map/connectivity', label: 'Connectivity' }, { path: '/map/zone', label: 'Zone' },
     ] },
     { path: '/locations', label: 'Locations', key: 'L' },
     { path: '/sites', label: 'Sites', key: 'S' },

@@ -1,5 +1,6 @@
 import { Component, DestroyRef, TemplateRef, afterNextRender, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { ConnectivityJob, ConnectivityScope, RouteStatus, ZoneCommute } from '../../models';
 import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
@@ -11,7 +12,7 @@ import { ProbePanel } from './probe-panel';
 /** Connectivity mode: zones coloured by commute minutes to your points (one point or the weighted mix). */
 @Component({
   selector: 'fh-connectivity-mode',
-  imports: [DecimalPipe, ProbePanel, ConnectivityDecision, ConnectivityRoutesDialog],
+  imports: [DecimalPipe, RouterLink, ProbePanel, ConnectivityDecision, ConnectivityRoutesDialog],
   template: `
   <ng-template #viewTpl>
     @if (conn.matrix(); as m) {
@@ -77,7 +78,8 @@ import { ProbePanel } from './probe-panel';
   <ng-template #panelTpl>
     @if (zone(); as z) {
       <h6 class="mb-0">{{ z.zone.name }}</h6>
-      <div class="small text-body-secondary mb-2">{{ short(z.zone.district) }} · {{ z.zone.kommun }}</div>
+      <div class="small text-body-secondary mb-2">{{ short(z.zone.district) }} · {{ z.zone.kommun }} ·
+        <a [routerLink]="['/map/zone', z.zone.id]">Open zone view</a></div>
       @for (g of grouped(z); track g.point) {
         <div class="fh-section mt-2">{{ g.label }}</div>
         @for (r of g.rows; track $index) {

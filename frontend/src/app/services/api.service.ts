@@ -7,6 +7,7 @@ import {
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, Listing, ListingDetail,
   PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta, ZoneCommute,
+  ZoneFacts, ZoneHeatmap, ZoneLines, ZoneRef,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -101,6 +102,21 @@ export class ApiService {
     if (f.point) p = p.set('point', f.point);
     if (f.q) p = p.set('q', f.q);
     return this.http.get<ConnectivityRoutes>('/api/connectivity/routes', { params: p });
+  }
+  zoneAt(lat: number, lon: number) {
+    return this.http.get<{ zone: ZoneRef | null }>('/api/zone/at', { params: new HttpParams().set('lat', lat).set('lon', lon) });
+  }
+  zone(id: string) { return this.http.get<ZoneFacts>(`/api/zone/${encodeURIComponent(id)}`); }
+  zoneTargets(id: string, sets: string[], neighbours: boolean) {
+    const p = new HttpParams().set('sets', sets.join(',')).set('neighbours', neighbours);
+    return this.http.get<Record<string, GeoCollection>>(`/api/zone/${encodeURIComponent(id)}/targets`, { params: p });
+  }
+  zoneHeatmap(id: string, sets: string[], mode: 'walk' | 'bike', neighbours: boolean) {
+    const p = new HttpParams().set('sets', sets.join(',')).set('mode', mode).set('neighbours', neighbours);
+    return this.http.get<ZoneHeatmap>(`/api/zone/${encodeURIComponent(id)}/heatmap`, { params: p });
+  }
+  zoneLines(id: string, dayKind = 'weekday') {
+    return this.http.get<ZoneLines>(`/api/zone/${encodeURIComponent(id)}/lines`, { params: new HttpParams().set('day_kind', dayKind) });
   }
   connectivityDecide(action: 'continue' | 'estimate' | 'stop', remember: boolean) {
     return this.http.post<ConnectivityJob>('/api/connectivity/decision', { action, remember });
