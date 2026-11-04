@@ -6,7 +6,7 @@ import { HeatSummary, ZoneLine } from '../../models';
 import { LayoutService } from '../../services/layout.service';
 import { MapStateService } from './map-state.service';
 import { IDX_RAMP } from './connectivity.service';
-import { BEYOND, GROUP_COLOURS, SET_COLOURS, ZoneService } from './zone.service';
+import { BEYOND, GROUP_COLOURS, SET_COLOURS, ZoneService, targetPinUrl } from './zone.service';
 
 const RAILISH = new Set(['metro', 'commuter_rail', 'local_rail', 'tram', 'train']);
 const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Commuter rail', local_rail: 'Local rail', tram: 'Tram',
@@ -41,7 +41,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
       @for (s of setIds(); track s) {
         <label class="fh-row">
           <input type="checkbox" class="form-check-input" [checked]="zone.sets().includes(s)" (change)="toggleSet(s)" />
-          <span class="fh-dot" [style.background]="setColour(s)"></span><span class="fh-grow">{{ f.target_sets[s] }}</span>
+          <img [src]="pin(s)" width="18" height="23" alt="" /><span class="fh-grow">{{ f.target_sets[s] }}</span>
           @if (summary(s); as m) { <span class="small text-body-secondary">{{ minutes(m.median_s) }}</span> }
         </label>
       }
@@ -198,6 +198,7 @@ export class ZoneMode {
     if (next.length) this.zone.setSets(next);
   }
   protected setColour(s: string): string { return SET_COLOURS[s] ?? '#8a8aa0'; }
+  protected pin(s: string): string { return targetPinUrl(s); }
   protected summary(s: string): HeatSummary | null { return this.zone.heatmap()?.summary[s] ?? null; }
   protected minutes(s: number | null): string { return s == null ? 'beyond cutoff' : `${Math.round(s / 60)} min`; }
   protected short(d: string): string { return d.replace(/ stadsdelsområde$/, ''); }

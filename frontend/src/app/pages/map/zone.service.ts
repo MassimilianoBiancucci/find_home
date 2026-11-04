@@ -1,12 +1,27 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Map as MlMap } from 'maplibre-gl';
 import { GeoCollection, IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines } from '../../models';
+import { pinId, pinUrl } from '../../components/map-icons';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
 import { MapStateService } from './map-state.service';
 
 /** Connectivity centroid colour per group. */
 export const GROUP_COLOURS: Record<string, string> = { rail: '#0089ca', bus: '#d71d24' };
+/** The 3D pin of each target set: glyph, badge colour and glyph colour (the vet is a black cat on a light badge). */
+export const TARGET_PINS: Record<string, { glyph: string; bg: string; fg?: string }> = {
+  rail: { glyph: 'metro', bg: '#0089ca' }, bus: { glyph: 'bus', bg: '#d71d24' }, ferry: { glyph: 'ferry', bg: '#00a5ac' },
+  grocery: { glyph: 'cart', bg: '#2f9e44' }, pharmacy: { glyph: 'pill', bg: '#1c7ed6' }, gym: { glyph: 'dumbbell', bg: '#e8590c' },
+  park: { glyph: 'tree', bg: '#5c940d' }, vet: { glyph: 'cat', bg: '#f3e8ff', fg: '#111111' },
+};
+export function targetPinId(set: string): string {
+  const p = TARGET_PINS[set] ?? { glyph: 'dot', bg: '#8a8aa0' };
+  return pinId(p.glyph, p.bg, p.fg);
+}
+export function targetPinUrl(set: string): string {
+  const p = TARGET_PINS[set] ?? { glyph: 'dot', bg: '#8a8aa0' };
+  return pinUrl(p.glyph, p.bg, p.fg);
+}
 const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 /** Heatmap colours from near to far, one per legend bin (zone.yaml bins_min) plus "beyond the last bin". */
 export const HEAT_COLOURS = ['#1a9850', '#66bd63', '#a6d96a', '#fee08b', '#fdae61', '#f46d43', '#d73027'];
@@ -212,16 +227,21 @@ export class ZoneService {
     if (map?.getLayer('zone-heat-line')) map.setPaintProperty('zone-heat-line', 'line-color', this.heatColour(this.colourBy()) as any);
   }
 
+  /** Targets as small standing 3D pins: anchored at the spot, upright when the map is tilted, drawn above the
+   *  buildings and the heatmap; nearer pins cover farther ones. */
   private drawTargets(fc: GeoCollection): void {
-    const colour: any = ['match', ['get', 'set'], ...Object.entries(SET_COLOURS).flat(), '#8a8aa0'];
+    const icon: any = ['match', ['get', 'set'], ...Object.keys(TARGET_PINS).flatMap((k) => [k, targetPinId(k)]), targetPinId('')];
     this.state.addGroup({
       id: 'zone-targets',
       sources: { 'zone-targets': { type: 'geojson', data: EMPTY as any } },
-      layers: [{ id: 'zone-targets-dot', type: 'circle', source: 'zone-targets',
-        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 3, 16, 6], 'circle-color': colour,
-          'circle-stroke-color': '#fff', 'circle-stroke-width': 1.2 } }] as any,
+      layers: [{ id: 'zone-targets-pin', type: 'symbol', source: 'zone-targets',
+        layout: { 'icon-image': icon, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+          'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport', 'symbol-z-order': 'viewport-y',
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 14, 0.62, 17, 0.85] } }] as any,
     });
     this.state.setData('zone-targets', fc);
+    const map = this.state.map();
+    if (map?.getLayer('zone-targets-pin')) map.moveLayer('zone-targets-pin');   // above everything added since
   }
 
   /** Show or hide the centroid layer (hidden by default; the choice persists like the other map layers). */

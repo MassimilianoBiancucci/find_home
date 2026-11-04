@@ -111,6 +111,11 @@ load, because the dark base style paints water barely darker than land.
 Every marker is a round **blip** (category colour, white glyph, dark outline, glow) drawn on a canvas by
 [`components/map-icons.ts`](../../frontend/src/app/components/map-icons.ts) and added on demand through
 MapLibre's `styleimagemissing` (`blip:<glyph>:<rrggbb>`), so blips survive style reloads.
+The zone view's heatmap targets are small standing **3D pins** from the same module (`pin3d:<glyph>:<bg>:<fg>`): a
+shaded badge on a stem with a ground shadow, anchored at the bottom, upright when the map is tilted
+(`icon-pitch-alignment: viewport`) and moved above every other layer, so buildings and the heatmap never cover them.
+Each target set has its pin in `TARGET_PINS` ([`zone.service.ts`](../../frontend/src/app/pages/map/zone.service.ts));
+the vet is a black cat on a light badge.
 [`PoiLayersService`](../../frontend/src/app/pages/map/poi-layers.service.ts) adds one layer per POI category, loaded
 the first time it is switched on. The **test point** (right-click → Set test point here, or the Test point button) lives in
 [`ProbeService`](../../frontend/src/app/pages/map/probe.service.ts): it survives mode switches, calls

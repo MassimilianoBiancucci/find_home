@@ -27,6 +27,9 @@ export const GLYPHS: Record<string, Glyph> = {
   pin: { d: `M12 21s-6.5-6.2-6.5-11.2a6.5 6.5 0 0 1 13 0C18.5 14.8 12 21 12 21z${circle(12, 9.8, 2.2)}` },
   target: { d: `${circle(12, 12, 5.5)}M12 2v5M12 17v5M2 12h5M17 12h5` },
   dot: { d: circle(12, 12, 4), fill: true },
+  // a sitting cat seen from the front, with its tail curling round (filled; pin3d adds the eyes)
+  cat: { d: 'M7 3.5l2.4 3.3h5.2L17 3.5v6.3a5 5 0 0 1-1.1 3.1c1.6 1.3 2.6 3.4 2.6 5.8 0 1.4-.8 2.3-2 2.3H8.5c-1.3 0-2-.9-2-2.3 '
+    + '0-2.4 1-4.5 2.6-5.8A5 5 0 0 1 7 9.8zM17.2 20.6c2.6.3 4.4-1 4.6-3.4l-1.3-.2c-.2 1.6-1.3 2.4-3.3 2.3z', fill: true },
 };
 
 export const BLIP_PREFIX = 'blip:';
@@ -107,3 +110,109 @@ export function blipUrl(glyph: string | null | undefined, color: string | null |
   urlCache.set(id, url);
   return url;
 }
+
+// ── 3D pins ─────────────────────────────────────────────────
+/**
+ * A small standing pin for heatmap targets: a glossy shaded badge (radial light from the top left, dark rim, specular
+ * arc) on a tapered stem with a soft ground shadow, so in a tilted map it reads as an object standing on the spot.
+ * Used with `icon-anchor: bottom` and `icon-pitch-alignment: viewport`. Image id: `pin3d:<glyph>:<bg>:<fg>`.
+ */
+export const PIN_PREFIX = 'pin3d:';
+const PIN_W = 56, PIN_H = 72;            // px, added with pixelRatio 2 → 28 × 36 css px before icon-size
+
+export function pinId(glyph: string, bg: string, fg = '#ffffff'): string {
+  return `${PIN_PREFIX}${GLYPHS[glyph] ? glyph : 'dot'}:${bg.replace('#', '').toLowerCase()}:${fg.replace('#', '').toLowerCase()}`;
+}
+
+export function parsePinId(id: string): { glyph: string; bg: string; fg: string } | null {
+  if (!id.startsWith(PIN_PREFIX)) return null;
+  const [glyph, bg, fg] = id.slice(PIN_PREFIX.length).split(':');
+  return /^[0-9a-f]{6}$/.test(bg ?? '') && /^[0-9a-f]{6}$/.test(fg ?? '') ? { glyph, bg: `#${bg}`, fg: `#${fg}` } : null;
+}
+
+/** Mix a #rrggbb colour towards white (t > 0) or black (t < 0). */
+export function shade(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [n >> 16, (n >> 8) & 255, n & 255].map((v) => Math.round(t >= 0 ? v + (255 - v) * t : v * (1 + t)));
+  return `#${ch.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function drawPin(glyph: string, bg: string, fg: string): HTMLCanvasElement | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = PIN_W;
+  canvas.height = PIN_H;
+  const g = canvas.getContext('2d');
+  if (!g || typeof Path2D === 'undefined') return null;
+  const cx = PIN_W / 2, cy = 25, r = 20;
+  g.beginPath();                                                  // ground shadow
+  g.ellipse(cx, PIN_H - 6, 11, 4, 0, 0, Math.PI * 2);
+  g.fillStyle = 'rgba(0,0,0,.38)';
+  g.fill();
+  g.beginPath();                                                  // stem
+  g.moveTo(cx - 6, cy + r - 4);
+  g.lineTo(cx + 6, cy + r - 4);
+  g.lineTo(cx, PIN_H - 6);
+  g.closePath();
+  g.fillStyle = shade(bg, -0.45);
+  g.fill();
+  const grad = g.createRadialGradient(cx - 7, cy - 9, 2, cx, cy, r);
+  grad.addColorStop(0, shade(bg, 0.5));
+  grad.addColorStop(0.55, bg);
+  grad.addColorStop(1, shade(bg, -0.4));
+  g.beginPath();
+  g.arc(cx, cy, r, 0, Math.PI * 2);
+  g.fillStyle = grad;
+  g.shadowColor = 'rgba(0,0,0,.45)';
+  g.shadowBlur = 5;
+  g.shadowOffsetY = 2;
+  g.fill();
+  g.shadowColor = 'transparent';
+  g.lineWidth = 2.5;
+  g.strokeStyle = '#101014';
+  g.stroke();
+  g.beginPath();                                                  // specular arc
+  g.arc(cx, cy, r - 4, Math.PI * 1.1, Math.PI * 1.55);
+  g.strokeStyle = 'rgba(255,255,255,.7)';
+  g.lineWidth = 2.2;
+  g.lineCap = 'round';
+  g.stroke();
+  const def = GLYPHS[glyph] ?? GLYPHS['dot'];
+  const sc = (r * (glyph === 'cat' ? 1.45 : 1.25)) / 24;     // the cat silhouette is thinner: draw it larger
+  g.save();
+  g.translate(cx - 12 * sc, cy - 12 * sc);
+  g.scale(sc, sc);
+  g.strokeStyle = g.fillStyle = fg;
+  g.lineWidth = 2.4;
+  g.lineJoin = 'round';
+  const path = new Path2D(def.d);
+  if (def.fill) g.fill(path); else g.stroke(path);
+  if (glyph === 'cat') {                                         // yellow eyes on the black cat
+    g.fillStyle = '#ffd43b';
+    for (const ex of [10.2, 13.8]) { g.beginPath(); g.ellipse(ex, 9.6, 0.9, 1.2, 0, 0, Math.PI * 2); g.fill(); }
+  }
+  g.restore();
+  return canvas;
+}
+
+/** Add a missing 3D pin image synchronously (styleimagemissing); ignores other ids. */
+export function installPin(map: MlMap, id: string): void {
+  const p = parsePinId(id);
+  if (!p || map.hasImage(id)) return;
+  const canvas = drawPin(p.glyph, p.bg, p.fg);
+  const ctx = canvas?.getContext('2d');
+  if (!canvas || !ctx) return;
+  map.addImage(id, ctx.getImageData(0, 0, canvas.width, canvas.height), { pixelRatio: 2 });
+}
+
+const pinUrls = new Map<string, string>();
+
+/** Data URL of a 3D pin for legends ('' without canvas). */
+export function pinUrl(glyph: string, bg: string, fg = '#ffffff'): string {
+  const id = pinId(glyph, bg, fg);
+  if (!pinUrls.has(id)) {
+    const p = parsePinId(id)!;
+    pinUrls.set(id, drawPin(p.glyph, p.bg, p.fg)?.toDataURL() ?? '');
+  }
+  return pinUrls.get(id)!;
+}
+
