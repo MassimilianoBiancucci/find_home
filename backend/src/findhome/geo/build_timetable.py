@@ -9,7 +9,7 @@ Sources from geo.yaml `datasets.timetable.order`:
 Files:
     stops.json       {"source", "ref_dates": {kind: date}, "lines": {line_id: {mode, ref, name}},
                       "stops": {stop_id: {name, lat, lon, parent, lines: [line_id]}}}
-    departures.json  {kind: {stop_id: [24 ints]}}   (gtfs only; hour of departure, 24:xx folded to 0)
+    departures.json  {kind: {stop_id: {line_id: [24 ints]}}}   (gtfs only; hour of departure, 24:xx folded to 0)
 """
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def from_gtfs(zip_path: Path, kinds: list[str], today: date) -> tuple[dict[str, 
         trips = {t["trip_id"]: (t["route_id"], t["service_id"]) for t in _rows(z, "trips.txt")}
         active = {k: on[d] for k, d in refs.items()}
         stop_lines: dict[str, set[str]] = defaultdict(set)
-        dep: dict[str, dict[str, list[int]]] = {k: defaultdict(lambda: [0] * 24) for k in refs}
+        dep: dict[str, dict[str, dict[str, list[int]]]] = {k: defaultdict(dict) for k in refs}
         with z.open("stop_times.txt") as fh:
             reader = csv.reader(io.TextIOWrapper(fh, encoding="utf-8-sig"))
             head = next(reader)
@@ -109,7 +109,8 @@ def from_gtfs(zip_path: Path, kinds: list[str], today: date) -> tuple[dict[str, 
                 hour = int(t.split(":", 1)[0]) % 24
                 for kind, services in active.items():
                     if trip[1] in services:
-                        dep[kind][stop][hour] += 1
+                        counts = dep[kind][stop].setdefault(trip[0], [0] * 24)
+                        counts[hour] += 1
         stops = {}
         for s in _rows(z, "stops.txt"):
             if s["stop_id"] not in stop_lines:

@@ -112,8 +112,9 @@ def test_gtfs_lines_per_stop_and_departures(tmp_path):
     assert set(stops["stops"]) == {"S1", "S2"} and stops["stops"]["S1"]["parent"] == "P1"
     assert stops["stops"]["S2"]["lines"] == ["R13", "R4"]
     assert stops["lines"]["R13"]["mode"] == "metro" and stops["lines"]["R4"]["mode"] == "bus"
-    assert dep["weekday"]["S1"][8] == 2 and dep["weekday"]["S2"][8] == 1 and dep["weekday"]["S2"][17] == 1
-    assert dep["saturday"]["S2"][1] == 1 and sum(dep["saturday"]["S2"]) == 1                # 25:10 → 01
+    assert dep["weekday"]["S1"]["R13"][8] == 2 and dep["weekday"]["S2"]["R13"][8] == 1
+    assert dep["weekday"]["S2"]["R4"][17] == 1 and "R4" not in dep["weekday"]["S1"]
+    assert dep["saturday"]["S2"]["R4"][1] == 1 and sum(dep["saturday"]["S2"]["R4"]) == 1      # 25:10 → 01
 
 
 def test_osm_fallback_lines_per_stop(tmp_path):
@@ -143,3 +144,4 @@ def test_timetable_index(tmp_path, monkeypatch):
     assert [s for _, s in near] == ["S1"]
     assert [ln["ref"] for ln in idx.lines_at("S2")] == ["13", "4"]
     assert idx.departures_at("S1", "weekday")[8] == 2 and idx.departures_at("S3", "weekday") == [0] * 24
+    assert idx.departures_by_line("S2", "weekday")["R4"][17] == 1

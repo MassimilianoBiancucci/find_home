@@ -180,7 +180,7 @@ class TimetableIndex:
     ref_dates: dict[str, str]
     lines: dict[str, dict[str, Any]]                  # line id → {mode, ref, name}
     stops: dict[str, dict[str, Any]]                  # stop id → {name, lat, lon, parent, lines}
-    departures: dict[str, dict[str, list[int]]]       # day kind → stop id → 24 counts; {} without GTFS
+    departures: dict[str, dict[str, dict[str, list[int]]]]   # day kind → stop → line → 24 counts; {} without GTFS
     ids: list[str]
     points: list[Any]                                 # shapely Points in EPSG:3006, same order as ids
     tree: STRtree
@@ -195,11 +195,18 @@ class TimetableIndex:
     def lines_at(self, stop_id: str) -> list[dict[str, Any]]:
         return [{"id": lid, **self.lines[lid]} for lid in self.stops.get(stop_id, {}).get("lines", []) if lid in self.lines]
 
-    def departures_at(self, stop_id: str, day_kind: str) -> list[int] | None:
-        """24 hourly counts, or None when there is no timetable (OSM source)."""
+    def departures_by_line(self, stop_id: str, day_kind: str) -> dict[str, list[int]] | None:
+        """line id → 24 hourly departures at this stop; None when there is no timetable (OSM source)."""
         if not self.departures:
             return None
-        return self.departures.get(day_kind, {}).get(stop_id, [0] * 24)
+        return self.departures.get(day_kind, {}).get(stop_id, {})
+
+    def departures_at(self, stop_id: str, day_kind: str) -> list[int] | None:
+        """24 hourly departures of every line at this stop, or None when there is no timetable (OSM source)."""
+        by_line = self.departures_by_line(stop_id, day_kind)
+        if by_line is None:
+            return None
+        return [sum(c[h] for c in by_line.values()) for h in range(24)]
 
 
 _timetable_cache: dict[str, TimetableIndex] = {}
