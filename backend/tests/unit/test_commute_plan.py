@@ -87,3 +87,26 @@ def test_resrobot_plan_sets_rate_and_429_is_retried():
     assert abs(_resrobot({"plan": "bronze"}, handler).limiter.interval - 60 / 45) < 1e-9
     asyncio.run(p.travel(LatLon(59.4, 18.0), LatLon(59.3, 18.0), "transit", datetime(2026, 11, 3, 8, 30), "depart_at"))
     assert len(calls) == 2
+
+
+def test_resrobot_errors_are_typed():
+    from findhome.providers.base import LocationNotFound, ProviderError
+
+    def handler(req):
+        if req.url.params["originCoordLat"] == "59.1":
+            return httpx.Response(400, json={"errorCode": "SVC_LOC", "errorText": "nearby to the given address stations"
+                                             " could not be found (H9220).", "internalErrorCode": "H9220"})
+        return httpx.Response(500, json={"errorCode": "INT_ERR", "errorText": "internal error"})
+
+    p = _resrobot({"max_calls_per_minute": 6000}, handler)
+    t = datetime(2026, 11, 3, 8, 30)
+    try:
+        asyncio.run(p.travel(LatLon(59.1, 18.0), LatLon(59.3, 18.0), "transit", t, "arrive_by"))
+        raise AssertionError("expected LocationNotFound")
+    except LocationNotFound as exc:
+        assert exc.code == "SVC_LOC"
+    try:
+        asyncio.run(p.travel(LatLon(59.4, 18.0), LatLon(59.3, 18.0), "transit", t, "arrive_by"))
+        raise AssertionError("expected ProviderError")
+    except ProviderError as exc:
+        assert exc.code == "INT_ERR" and not isinstance(exc, LocationNotFound)

@@ -13,12 +13,23 @@ from datetime import datetime
 
 import httpx
 
-from findhome.providers.base import LatLon, Mode, ProviderUnavailable, RateLimiter, TravelResult, WhenIs
+from findhome.providers.base import (
+    LatLon,
+    LocationNotFound,
+    Mode,
+    ProviderError,
+    ProviderUnavailable,
+    RateLimiter,
+    TravelResult,
+    WhenIs,
+)
 
 # Trafiklab key levels: calls per minute (guide/documentation/providers.md). A new key starts on a "default" level that may be
 # lower than bronze; set `plan` or `max_calls_per_minute` in providers.yaml to what your key allows.
 PLAN_CALLS_PER_MINUTE = {"bronze": 45, "silver": 60, "gold": 200}
 MAX_RETRIES = 3
+# Error codes for a coordinate ResRobot cannot snap to a stop (about 500 m); the same coordinate always fails again.
+LOCATION_CODES = {"SVC_LOC", "SVC_LOC_ARR", "SVC_LOC_DEP", "H9220"}
 
 _ISO_DURATION = re.compile(r"P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?")
 
@@ -78,7 +89,8 @@ class ResRobotProvider:
                 break
             retry_after = resp.headers.get("Retry-After", "")
             await asyncio.sleep(float(retry_after) if retry_after.isdigit() else self.retry_delay_s * (attempt + 1))
-        resp.raise_for_status()
+        if resp.is_error:
+            raise _error(resp)
         return resp
 
     async def itinerary(self, origin: LatLon, dest: LatLon, when: datetime, when_is: WhenIs) -> dict | None:
@@ -92,6 +104,20 @@ class ResRobotProvider:
         }
         resp = await self._get(params)
         return parse_itinerary(resp.json(), when_is)
+
+
+def _error(resp: httpx.Response) -> ProviderError:
+    """ResRobot's JSON error body as a typed error: errorCode (SVC_LOC, API_PARAM, ...) or HTTP_<status>."""
+    try:
+        body = resp.json()
+    except ValueError:
+        body = {}
+    code = str(body.get("errorCode") or f"HTTP_{resp.status_code}")
+    message = str(body.get("errorText") or resp.reason_phrase or "")[:200]
+    internal = str(body.get("internalErrorCode") or "")
+    if code in LOCATION_CODES or internal in LOCATION_CODES:
+        return LocationNotFound(code, message)
+    return ProviderError(code, message)
 
 
 # ResRobot catCode → map mode; catOut text as fallback (UNVERIFIED against live answers, see notes/04 §D1)

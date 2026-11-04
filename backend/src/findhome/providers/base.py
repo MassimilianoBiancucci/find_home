@@ -34,6 +34,19 @@ class ProviderUnavailable(Exception):
     """Provider disabled, missing key, or not supporting the request."""
 
 
+class ProviderError(Exception):
+    """The provider answered with an error; `code` is its own code (SVC_LOC, API_PARAM) or HTTP_<status>."""
+
+    def __init__(self, code: str, message: str = ""):
+        super().__init__(f"{code}: {message}" if message else code)
+        self.code = code
+        self.message = message
+
+
+class LocationNotFound(ProviderError):
+    """A coordinate the provider cannot route from or to (no stop nearby). Retrying the same coordinate fails again."""
+
+
 class RoutingProvider(Protocol):
     name: str
     modes: set[str]
