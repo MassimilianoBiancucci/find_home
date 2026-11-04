@@ -1,63 +1,39 @@
-// ════════════════════════════════════════════════════════════════════════════
-//  find_home — VS Code launch configurations
-//
-//  Processes:
-//    • FastAPI backend :8200  — debugpy (breakpoints)        "FH: Backend (FastAPI)"
-//    • Angular dev    :4400   — node launch of ng serve       "FH: Frontend (ng serve)"
-//    • Postgres :5434 / pgAdmin :5052 — docker compose (task "FH: Infra Up")
-//
-//  The preLaunchTask "FH: Dev Prereqs" only contains tasks that END (free ports, ensure env,
-//  compose up --wait, migrate). Both servers are launch configurations started together by
-//  the compound, so the debugger never waits on a long-running task's output.
-//
-//  "FH: Full Stack"              stops docker compose when debugging ends.
-//  "FH: Full Stack (keep infra)" leaves Postgres/pgAdmin running.
-//  No BFF: Angular calls FastAPI through the ng serve proxy (frontend/proxy.conf.json).
-// ════════════════════════════════════════════════════════════════════════════
+// find_home — one app debug configuration.
+// FH: Full Stack prepares the environment, restarts Compose, migrates the DB,
+// starts Angular as a background task, then launches FastAPI under debugpy.
+// Ending the debug session stops Angular and all Compose containers.
 {
     "version": "0.2.0",
-    "compounds": [
-        {
-            "name": "FH: Full Stack",
-            "preLaunchTask": "FH: Dev Prereqs",
-            "configurations": ["FH: Backend (FastAPI)", "FH: Frontend (ng serve)"],
-            "stopAll": true,
-            "postDebugTask": "FH: Infra Down",
-            "presentation": { "group": "find_home", "order": 1 }
-        },
-        {
-            "name": "FH: Full Stack (keep infra)",
-            "preLaunchTask": "FH: Dev Prereqs",
-            "configurations": ["FH: Backend (FastAPI)", "FH: Frontend (ng serve)"],
-            "stopAll": true,
-            "presentation": { "group": "find_home", "order": 2 }
-        }
-    ],
     "configurations": [
         {
-            "name": "FH: Backend (FastAPI)",
+            "name": "FH: Full Stack",
             "type": "debugpy",
             "request": "launch",
             "module": "uvicorn",
-            "args": ["findhome.api.main:app", "--host", "127.0.0.1", "--port", "8200", "--reload", "--reload-dir", "src"],
+            "args": [
+                "findhome.api.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8200",
+                "--reload",
+                "--reload-dir",
+                "src"
+            ],
             "cwd": "${workspaceFolder}/backend",
             "python": "${workspaceFolder}/backend/.venv/bin/python",
             "envFile": "${workspaceFolder}/config/backend.env",
-            "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
+            "env": {
+                "FINDHOME_ROOT": "${workspaceFolder}"
+            },
             "justMyCode": false,
             "console": "integratedTerminal",
-            "presentation": { "group": "find_home", "order": 10 }
-        },
-        {
-            "name": "FH: Frontend (ng serve)",
-            "type": "node",
-            "request": "launch",
-            "runtimeExecutable": "npm",
-            "runtimeArgs": ["run", "start", "--", "--port", "4400", "--proxy-config", "proxy.conf.json"],
-            "cwd": "${workspaceFolder}/frontend",
-            "console": "integratedTerminal",
-            "autoAttachChildProcesses": false,
-            "presentation": { "group": "find_home", "order": 11 }
+            "presentation": {
+                "group": "find_home",
+                "order": 1
+            },
+            "preLaunchTask": "FH: Dev Prereqs",
+            "postDebugTask": "FH: Dev Stop"
         },
         {
             "name": "FH: CLI (prompt for args)",
@@ -68,23 +44,35 @@
             "cwd": "${workspaceFolder}",
             "python": "${workspaceFolder}/backend/.venv/bin/python",
             "envFile": "${workspaceFolder}/config/backend.env",
-            "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
+            "env": {
+                "FINDHOME_ROOT": "${workspaceFolder}"
+            },
             "justMyCode": false,
             "console": "integratedTerminal",
-            "presentation": { "group": "find_home", "order": 12 }
+            "presentation": {
+                "group": "find_home",
+                "order": 12
+            }
         },
         {
             "name": "FH: Pytest",
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["-q"],
+            "args": [
+                "-q"
+            ],
             "cwd": "${workspaceFolder}/backend",
             "python": "${workspaceFolder}/backend/.venv/bin/python",
-            "env": { "FINDHOME_ROOT": "${workspaceFolder}" },
+            "env": {
+                "FINDHOME_ROOT": "${workspaceFolder}"
+            },
             "justMyCode": false,
             "console": "integratedTerminal",
-            "presentation": { "group": "find_home", "order": 12 }
+            "presentation": {
+                "group": "find_home",
+                "order": 12
+            }
         }
     ],
     "inputs": [

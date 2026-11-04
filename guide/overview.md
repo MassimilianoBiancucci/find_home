@@ -49,9 +49,9 @@ an OSM-based vector map style.
 | [`config/`](../config/README.md) | YAML configuration and [`schemas/`](../config/schemas/locations.schema.json); personal files are gitignored, each with a committed `*.example.*` |
 | [`sites/`](../sites/README.md) | one folder per listing website: `site.yaml`, `NAVIGATION.md`, probes |
 | [`.agents/skills/`](../.agents/skills/find-home/SKILL.md) | skills (`find-home`, `guide`); linked into `.claude/skills/` |
-| [`scripts/`](../scripts/install.sh) | install, smoke check, free ports, skill sync, `findhome` wrapper |
+| [`scripts/`](../scripts/install.sh) | install, infrastructure restart, smoke check, free ports, skill sync, `findhome` wrapper |
 | [`.vscode/`](../.vscode/launch.json) | debug configurations and tasks (`FH:` prefix) |
-| [`docker-compose.yml`](../docker-compose.yml) | Postgres :5434 and pgAdmin :5052 |
+| [`docker-compose.yml`](../docker-compose.yml) | Postgres :5434 (local storage in gitignored `data/postgres/`) and pgAdmin :5052 |
 | [`guide/documentation/`](documentation/api_keys.md) | how-to and reference pages for the user: provider keys, what each provider does, Google costs, ports, agent permissions |
 | [`tasks/`](../tasks/README.md) | planning history and backlog (not current state) |
 | [`runs/`](../runs/README.md) | agent run folders (gitignored) |

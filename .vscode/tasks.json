@@ -10,12 +10,11 @@
 //    preLaunchTask "FH: Dev Prereqs"  (dependsOrder: sequence)
 //      ├─ "FH: Free Ports"   → scripts/free-ports.sh (8200, 4400)
 //      ├─ "FH: Ensure Env"   → scripts/ensure-env.sh (venv, node_modules, env files if missing)
-//      ├─ "FH: Infra Up"     → docker compose up -d --wait (Postgres :5434, pgAdmin :5052)
-//      └─ "FH: Migrate DB"   → findhome db migrate
-//    then the compound launches "FH: Backend (FastAPI)" and "FH: Frontend (ng serve)" together.
-//    Every prereq task terminates: no background task in the chain, so the launch never waits
-//    on matching a server's output. "FH: ng serve" below is kept for running the UI by hand.
-//    postDebugTask "FH: Infra Down" (only in "FH: Full Stack", not "keep infra")
+//      ├─ "FH: Infra Up"     → stop existing Compose containers, start with current config, wait
+//      ├─ "FH: Migrate DB"   → findhome db migrate
+//      └─ "FH: ng serve"     → background task, ready when Angular prints its local URL
+//    then the single backend launch starts under debugpy.
+//    postDebugTask "FH: Dev Stop" frees app ports and stops all Compose containers.
 // ════════════════════════════════════════════════════════════════════════════
 {
     "version": "2.0.0",
@@ -25,6 +24,7 @@
             "label": "FH: Free Ports",
             "type": "shell",
             "command": "${workspaceFolder}/scripts/free-ports.sh",
+            "args": ["--force"],
             "presentation": { "reveal": "silent", "panel": "shared", "close": true },
             "problemMatcher": []
         },
@@ -40,15 +40,15 @@
         {
             "label": "FH: Infra Up",
             "type": "shell",
-            "command": "docker compose up -d --wait",
+            "command": "${workspaceFolder}/scripts/infra-up.sh",
             "options": { "cwd": "${workspaceFolder}" },
             "presentation": { "reveal": "always", "panel": "shared" },
             "problemMatcher": []
         },
         {
-            "label": "FH: Infra Down",
+            "label": "FH: Infra Stop",
             "type": "shell",
-            "command": "docker compose down",
+            "command": "docker compose stop --timeout 30",
             "options": { "cwd": "${workspaceFolder}" },
             "presentation": { "reveal": "always", "panel": "shared" },
             "problemMatcher": []
@@ -63,22 +63,24 @@
         },
 
         // ═══ Frontend ═══════════════════════════════════════════════════════
-        // Background matcher lets the sequenced "FH: Dev Prereqs" continue once
-        // the first build is done (same technique as the Debug UI ng serve task).
+        // The readiness matcher releases the backend pre-launch chain once Angular is serving.
         {
             "label": "FH: ng serve",
             "type": "shell",
             "command": "npx ng serve --port 4400 --proxy-config proxy.conf.json",
-            "options": { "cwd": "${workspaceFolder}/frontend" },
+            "options": {
+                "cwd": "${workspaceFolder}/frontend",
+                "env": { "NO_COLOR": "1", "NG_CLI_ANALYTICS": "false" }
+            },
             "isBackground": true,
             "presentation": { "reveal": "always", "panel": "dedicated", "group": "fh-ui" },
             "problemMatcher": {
+                "base": "$tsc",
                 "owner": "fh-ng",
-                "pattern": { "regexp": "^$" },
                 "background": {
                     "activeOnStart": true,
                     "beginsPattern": "Building|Compiling|Initial chunk files",
-                    "endsPattern": "bundle generation complete|Compiled successfully|Watch mode enabled|Application bundle generation (complete|failed)"
+                    "endsPattern": "Local:.*http://(localhost|127\\.0\\.0\\.1):4400|Application bundle generation failed"
                 }
             }
         },
@@ -93,7 +95,13 @@
         // ═══ Orchestrator ═══════════════════════════════════════════════════
         {
             "label": "FH: Dev Prereqs",
-            "dependsOn": ["FH: Free Ports", "FH: Ensure Env", "FH: Infra Up", "FH: Migrate DB"],
+            "dependsOn": ["FH: Free Ports", "FH: Ensure Env", "FH: Infra Up", "FH: Migrate DB", "FH: ng serve"],
+            "dependsOrder": "sequence",
+            "problemMatcher": []
+        },
+        {
+            "label": "FH: Dev Stop",
+            "dependsOn": ["FH: Free Ports", "FH: Infra Stop"],
             "dependsOrder": "sequence",
             "problemMatcher": []
         },
@@ -127,7 +135,7 @@
             "options": { "cwd": "${workspaceFolder}" },
             "problemMatcher": []
         },
-        // Same API as "FH: Backend (FastAPI)" but without the debugger, with auto-reload.
+        // Same API as "FH: Full Stack" but without the debugger, with auto-reload.
         // Useful when the debug session does not start: errors print in this terminal.
         {
             "label": "FH: API (no debugger)",

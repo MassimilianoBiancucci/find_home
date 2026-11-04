@@ -8,11 +8,23 @@ directory map.
 **Infrastructure.** [`docker-compose.yml`](../../docker-compose.yml) runs Postgres 16 on host port 5434 and pgAdmin
 on 5052 with the server preloaded from [`infra/pgadmin/`](../../infra/pgadmin/servers.json). The API and the
 Angular dev server run on the host, started by [`.vscode/launch.json`](../../.vscode/launch.json) and
-[`.vscode/tasks.json`](../../.vscode/tasks.json): the compound `FH: Full Stack` first runs `FH: Dev Prereqs`, a
-sequence of tasks that all terminate (free ports, [`scripts/ensure-env.sh`](../../scripts/ensure-env.sh) to create
-a missing `backend/.venv`, `frontend/node_modules` or `config/*.env`, `docker compose up --wait`, migrate). It then
-launches `FH: Backend (FastAPI)` under debugpy and `FH: Frontend (ng serve)` as a Node launch, together. No
-long-running server is part of the pre-launch chain, so the launch never depends on matching a server's output.
+[`.vscode/tasks.json`](../../.vscode/tasks.json). There is one app debug configuration, `FH: Full Stack`, which
+launches FastAPI under debugpy. Its `preLaunchTask`, `FH: Dev Prereqs`, runs in sequence: free app ports,
+[`scripts/ensure-env.sh`](../../scripts/ensure-env.sh) to create a missing `backend/.venv`, `frontend/node_modules`
+or `config/*.env`, [`scripts/infra-up.sh`](../../scripts/infra-up.sh), migrate, then `FH: ng serve`. Angular runs as
+a background task; its readiness matcher releases the pre-launch chain when the local URL is printed.
+The infrastructure script stops all project containers before running
+`docker compose up -d --wait --wait-timeout 90`, which recreates containers whose configuration changed.
+Both services have health checks; pgAdmin must answer `/misc/ping` before launch continues. A startup failure
+prints service status and recent logs, then stops the containers.
+The launch's `postDebugTask`, `FH: Dev Stop`, frees the app ports and runs `FH: Infra Stop`
+(`docker compose stop --timeout 30`). A debug restart uses the same stop/start sequence.
+
+Postgres data is bind-mounted from the local `data/postgres/` folder into `/var/lib/postgresql/data`.
+The folder and local backups under `data/backups/` are gitignored. Removing containers or Compose volumes
+does not delete these database files. A fresh folder is initialised by the Postgres image; an existing cluster
+is reused. Keep this folder when cleaning local runtime data.
+[`scripts/smoke-check.sh`](../../scripts/smoke-check.sh) checks both Postgres and pgAdmin health.
 
 **API.** [`api/main.py`](../../backend/src/findhome/api/main.py) builds the FastAPI app, binds to 127.0.0.1:8200,
 opens an async psycopg pool ([`core/db.py`](../../backend/src/findhome/core/db.py)) without waiting for the

@@ -28,9 +28,18 @@ Code-level documentation lives in [`guide/`](guide/overview.md). Planning histor
 
 Open the `find_home` folder as the VS Code workspace and press F5 on **FH: Full Stack**. It frees the app ports,
 creates anything missing (`backend/.venv` with Poetry or uv, `frontend/node_modules`, `config/*.env`), starts
-Postgres and pgAdmin, applies migrations, then launches FastAPI under the debugger and `ng serve` side by side
-(two entries in the debug toolbar's session list). The first run
-takes a few minutes because of the installs.
+Postgres and pgAdmin, applies migrations, starts Angular as a background task, then launches FastAPI under the
+debugger. There is one app debug configuration. The first run takes a few minutes because of the installs.
+
+Infrastructure startup uses `scripts/infra-up.sh`: it stops all existing project containers, starts them with
+the current Compose configuration, and waits up to 90 seconds for both services to be healthy. Compose recreates
+containers whose configuration changed. A startup failure prints diagnostics and stops the containers.
+Ending **FH: Full Stack** stops Angular and all project containers; restarting it runs the same startup sequence.
+
+Postgres stores its database files in the local, gitignored `data/postgres/` folder, bind-mounted into the
+container. Stopping or deleting containers, including `docker compose down -v`, preserves this folder.
+Keep it when cleaning the repo; deleting `data/postgres/` deletes the database. Local database backups belong
+under the gitignored `data/backups/` folder.
 
 `scripts/install.sh` does the same installs from a terminal and forces a clean reinstall.
 
@@ -40,7 +49,7 @@ takes a few minutes because of the installs.
 | http://localhost:8200/docs | API (OpenAPI) |
 | http://localhost:5052 | pgAdmin (server preloaded) |
 
-Without VS Code: `docker compose up -d --wait`, then `backend/.venv/bin/findhome db migrate`,
+Without VS Code: `scripts/infra-up.sh`, then `backend/.venv/bin/findhome db migrate`,
 `backend/.venv/bin/findhome serve` and `cd frontend && npx ng serve --port 4400 --proxy-config proxy.conf.json`.
 
 Check everything: `scripts/smoke-check.sh`.

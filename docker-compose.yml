@@ -5,9 +5,11 @@
 #  VS Code debugger / tasks (see .vscode/). Only Postgres + pgAdmin live here.
 #
 #  Usage:
-#    docker compose up -d --wait     # start (waits for healthchecks)
-#    docker compose down             # stop, keep data
-#    docker compose down -v          # stop and wipe data
+#    scripts/infra-up.sh              # stop existing containers, start and wait for health
+#    docker compose stop             # stop containers
+#    docker compose down             # remove containers; data/postgres is preserved
+#
+#  Database files live in ./data/postgres (gitignored), outside the containers.
 #
 #  ┌──────────────────────────────────────────────┐
 #  │  Service    Host port  Purpose               │
@@ -37,27 +39,29 @@ services:
       timeout: 3s
       retries: 10
     volumes:
-      - fh_pgdata:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
 
   pgadmin:
     image: dpage/pgadmin4:8.12
     container_name: fh-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: "admin@findhome.local"
+      PGADMIN_DEFAULT_EMAIL: "admin@example.com"
       PGADMIN_DEFAULT_PASSWORD: "admin"
       PGADMIN_CONFIG_SERVER_MODE: "False"
       PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
       PGADMIN_SERVER_JSON_FILE: "/pgadmin4/servers.json"
     ports:
       - "5052:80"
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1/misc/ping"]
+      interval: 3s
+      timeout: 3s
+      start_period: 30s
+      retries: 10
     volumes:
       - ./infra/pgadmin/servers.json:/pgadmin4/servers.json:ro
       - ./infra/pgadmin/pgpass:/pgadmin4/pgpass:ro
     depends_on:
       postgres:
         condition: service_healthy
-
-volumes:
-  fh_pgdata:
-    driver: local

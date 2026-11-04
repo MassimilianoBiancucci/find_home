@@ -20,7 +20,7 @@ fail() { echo "❌ $1"; exit 1; }
 
 if ! $NO_DOCKER; then
     step "compose services healthy"
-    for svc in fh-postgres; do
+    for svc in fh-postgres fh-pgadmin; do
         state="$(docker inspect -f '{{.State.Health.Status}}' "$svc" 2>/dev/null || echo missing)"
         [[ "$state" == "healthy" ]] || fail "$svc is $state (run: docker compose up -d --wait)"
         echo "   $svc healthy"
