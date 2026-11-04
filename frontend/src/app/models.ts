@@ -195,3 +195,16 @@ export interface ZoneLine {
   departures: number[] | null; peak_per_hour: number | null;
 }
 export interface ZoneLines { zone_id: string; day_kind: string; source: string; ref_date: string | null; lines: ZoneLine[]; nearby_lines: ZoneLine[]; }
+export interface ZoneIndexWindow { transport: number | null; transport_services: number | null; components: Record<string, number | null>; }
+export interface ZoneIndices {
+  zone_id: string; transport: number | null; transport_services: number | null; services: number | null;
+  windows: Record<string, ZoneIndexWindow>; cached: boolean;
+  measured: { rail_access_min: number | null; bus_access_min: number | null; coverage: number | null;
+    lines: Record<string, number | null>; frequency: Record<string, number | null>; services_min: Record<string, number | null>;
+    reachable_stops: number | null; modes: string[]; homes: number };
+}
+export interface IndexValue { value: number | null; percentile: number | null; }
+export interface IndicesMap {
+  version: string; window: string | null; windows: string[]; count: number; zone_count: number;
+  zones: Record<string, { transport: IndexValue; transport_services: IndexValue }>;
+}

@@ -5,7 +5,7 @@ import { ConnectivityJob, ConnectivityScope, RouteStatus, ZoneCommute } from '..
 import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
 import { ConnectivityDecision, ConnectivityRoutesDialog } from './connectivity-dialogs';
-import { ConnectivityService, RAMP, SCOPE_LABELS, STATUS_COLOURS } from './connectivity.service';
+import { ConnectivityService, IDX_RAMP, RAMP, SCOPE_LABELS, STATUS_COLOURS } from './connectivity.service';
 import { MapStateService } from './map-state.service';
 import { ProbePanel } from './probe-panel';
 
@@ -23,10 +23,29 @@ import { ProbePanel } from './probe-panel';
           <span class="fh-swatch" [style.background]="p.color"></span><span class="fh-grow">{{ p.label }}</span>
           <span class="small text-body-secondary">×{{ p.weight }}</span></label>
       }
-      <div class="fh-ramp mt-2">
-        @for (r of ramp; track r[0]; let last = $last) { <span [style.background]="r[1]">{{ r[0] }}{{ last ? '+' : '' }}</span> }
-        <span class="small text-body-secondary ms-1">min</span>
-      </div>
+      <div class="fh-section mt-2">Mobility index</div>
+      <label class="fh-row"><input type="radio" class="form-check-input" name="cview" [checked]="conn.view() === 'idx:transport'" (change)="conn.setView('idx:transport')" />
+        <span class="fh-grow">Transport</span></label>
+      <label class="fh-row"><input type="radio" class="form-check-input" name="cview" [checked]="conn.view() === 'idx:transport_services'" (change)="conn.setView('idx:transport_services')" />
+        <span class="fh-grow">Transport + services</span></label>
+      @if (conn.view().startsWith('idx:')) {
+        @if (conn.indices(); as ix) {
+          <select class="form-select form-select-sm mt-1" [value]="conn.indexWindow()" (change)="conn.setIndexWindow($any($event.target).value)">
+            <option value="">Average of the day</option>
+            @for (w of ix.windows; track w) { <option [value]="w">{{ w }}</option> }
+          </select>
+          <div class="fh-ramp mt-2">
+            @for (r of idxRamp; track r[0]) { <span [style.background]="r[1]">{{ r[0] }}</span> }
+            <span class="small text-body-secondary ms-1">percentile</span>
+          </div>
+          @if (ix.count < ix.zone_count) { <div class="small text-warning mt-1">{{ ix.count }}/{{ ix.zone_count }} zones computed: <code>findhome zone indices --all</code></div> }
+        }
+      } @else {
+        <div class="fh-ramp mt-2">
+          @for (r of ramp; track r[0]; let last = $last) { <span [style.background]="r[1]">{{ r[0] }}{{ last ? '+' : '' }}</span> }
+          <span class="small text-body-secondary ms-1">min</span>
+        </div>
+      }
       <label class="small mt-2 d-block">Opacity
         <input type="range" class="form-range" min="0.15" max="0.9" step="0.05" [value]="conn.opacity()" (input)="conn.setOpacity(+$any($event.target).value)" /></label>
       <div class="small text-body-secondary">Transit, from a point inside each zone, at the middle slot of each window; the weighted mix uses your point weights.</div>
@@ -110,6 +129,7 @@ export class ConnectivityMode {
   private matrixTpl = viewChild.required<TemplateRef<unknown>>('matrixTpl');
   private panelTpl = viewChild.required<TemplateRef<unknown>>('panelTpl');
   protected readonly ramp = RAMP;
+  protected readonly idxRamp = IDX_RAMP;
   protected readonly colours = STATUS_COLOURS;
   protected readonly statuses: RouteStatus[] = ['cached', 'stale', 'estimated', 'failed', 'pending', 'missing'];
   protected readonly main = 'missing,estimates';

@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Map as MlMap } from 'maplibre-gl';
-import { ConnectivityJob, ConnectivityMatrix, ConnectivityPlan, ConnectivityScope, GeoCollection, RouteStatus } from '../../models';
+import { ConnectivityJob, ConnectivityMatrix, ConnectivityPlan, ConnectivityScope, GeoCollection, IndicesMap, RouteStatus } from '../../models';
 import { ApiService, apiError } from '../../services/api.service';
 import { MapStateService } from './map-state.service';
 
@@ -10,6 +10,9 @@ export const RAMP: [number, string][] = [[0, '#1f9d55'], [15, '#7bc96f'], [25, '
 export const NO_DATA_GREY = '#7d7d88';
 const colourExpr: any = ['case', ['==', ['get', 'g'], 1], NO_DATA_GREY,
   ['step', ['coalesce', ['get', 'm'], -1], 'rgba(0,0,0,0)', ...RAMP.flatMap(([v, c]) => [v, c])]];   // -1: no data
+/** Index percentile → colour (higher is better), for the 'idx:*' views. */
+export const IDX_RAMP: [number, string][] = [[0, '#b0303a'], [20, '#e5653e'], [40, '#f0a95a'], [60, '#d6c94a'], [80, '#7bc96f'], [90, '#1f9d55']];
+const idxExpr: any = ['step', ['coalesce', ['get', 'p'], -1], 'rgba(0,0,0,0)', ...IDX_RAMP.flatMap(([v, c]) => [v, c])];
 /** One colour per route status, shared by the bubble chips, the route list and the legend. */
 export const STATUS_COLOURS: Record<RouteStatus, string> = {
   cached: 'var(--fh-good)', stale: 'var(--fh-amber)', estimated: 'var(--fh-blue)', failed: 'var(--fh-bad)',
@@ -29,7 +32,9 @@ export class ConnectivityService {
   private state = inject(MapStateService);
   readonly matrix = signal<ConnectivityMatrix | null>(null);
   readonly job = signal<ConnectivityJob | null>(null);
-  readonly view = signal<string>('weighted');            // 'weighted' or a point id
+  readonly view = signal<string>('weighted');            // 'weighted', a point id, or 'idx:transport' / 'idx:transport_services'
+  readonly indices = signal<IndicesMap | null>(null);
+  readonly indexWindow = signal<string>('');              // '' = window-weighted average
   readonly opacity = signal(0.55);
   readonly hover = signal<ZoneHover | null>(null);
   readonly error = signal('');
@@ -53,7 +58,15 @@ export class ConnectivityService {
     });
   }
 
-  setView(v: string): void { this.view.set(v); this.redraw(); }
+  setView(v: string): void {
+    this.view.set(v);
+    if (v.startsWith('idx:') && !this.indices()) this.loadIndices(); else this.redraw();
+  }
+  setIndexWindow(w: string): void { this.indexWindow.set(w); this.loadIndices(); }
+  private loadIndices(): void {
+    this.api.allIndices(this.indexWindow() || undefined).subscribe({
+      next: (i) => { this.indices.set(i); this.redraw(); }, error: (e) => this.error.set(apiError(e)) });
+  }
 
   setOpacity(v: number): void {
     this.opacity.set(v);
@@ -140,6 +153,10 @@ export class ConnectivityService {
     const m = this.matrix();
     if (!this.zones || !m) return;
     const v = this.view();
+    const idxKey = v.startsWith('idx:') ? (v.slice(4) as 'transport' | 'transport_services') : null;
+    const idx = this.indices();
+    const map = this.state.map();
+    if (map?.getLayer('conn-fill')) map.setPaintProperty('conn-fill', 'fill-color', idxKey ? idxExpr : colourExpr);
     const failed = new Set(m.failed_zones ?? []);
     const hideEst = this.excludeEstimates();
     const fc = { ...this.zones, features: this.zones.features.map((f) => {
@@ -148,7 +165,8 @@ export class ConnectivityService {
       const z = hideEst ? m.zones_real?.[id] : all;
       const val = z ? (v === 'weighted' ? z.weighted : z.by_point[v] ?? null) : null;
       const grey = !z && (!!all || failed.has(id)) ? 1 : 0;      // only estimates (excluded) or only failures
-      return { ...f, properties: { ...f.properties, m: val, est: all?.estimate ?? false, g: grey } };
+      const p = idxKey ? idx?.zones[id]?.[idxKey]?.percentile ?? null : null;
+      return { ...f, properties: { ...f.properties, m: val, p, est: all?.estimate ?? false, g: idxKey ? 0 : grey } };
     }) };
     this.state.setData('conn-zones', fc);
     this.state.setData('conn-tint', fc);

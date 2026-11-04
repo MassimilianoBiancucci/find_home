@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Map as MlMap } from 'maplibre-gl';
-import { GeoCollection, ZoneFacts, ZoneHeatmap, ZoneLines } from '../../models';
+import { GeoCollection, IndicesMap, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines } from '../../models';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
 import { MapStateService } from './map-state.service';
@@ -24,6 +24,8 @@ export class ZoneService {
   readonly facts = signal<ZoneFacts | null>(null);
   readonly lines = signal<ZoneLines | null>(null);
   readonly heatmap = signal<ZoneHeatmap | null>(null);
+  readonly indices = signal<ZoneIndices | null>(null);
+  readonly allIndices = signal<IndicesMap | null>(null);   // every zone's indices, for the percentile
   readonly sets = signal<string[]>(['rail', 'bus']);
   readonly mode = signal<'walk' | 'bike'>('walk');
   readonly neighbours = signal(false);
@@ -87,6 +89,9 @@ export class ZoneService {
       error: (e) => this.error.set(apiError(e)),
     });
     this.api.zoneLines(id).subscribe({ next: (l) => this.lines.set(l), error: () => this.lines.set(null) });
+    this.indices.set(null);
+    this.api.zoneIndices(id).subscribe({ next: (i) => this.indices.set(i), error: () => this.indices.set(null) });
+    if (!this.allIndices()) this.api.allIndices().subscribe({ next: (a) => this.allIndices.set(a), error: () => undefined });
   }
 
   /** After a style reload (theme switch): redraw the focus layers, whose colours depend on the theme. */

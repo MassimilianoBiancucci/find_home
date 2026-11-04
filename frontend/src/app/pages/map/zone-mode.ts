@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HeatSummary, ZoneLine } from '../../models';
 import { LayoutService } from '../../services/layout.service';
 import { MapStateService } from './map-state.service';
+import { IDX_RAMP } from './connectivity.service';
 import { BEYOND, SET_COLOURS, ZoneService } from './zone.service';
 
 const RAILISH = new Set(['metro', 'commuter_rail', 'local_rail', 'tram', 'train']);
@@ -58,6 +59,23 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
     @if (zone.facts(); as f) {
       <h6 class="mb-0">{{ f.zone.name }}</h6>
       <div class="small text-body-secondary mb-2">{{ short(f.zone.district) }} · {{ f.zone.kommun }}@if (f.zone.area_km2) { · {{ f.zone.area_km2 | number: '1.1-1' }} km² }</div>
+      @if (zone.indices(); as ix) {
+        <div class="fh-tiles mb-2">
+          <div class="fh-tile" [style.--c]="idxColour(pct('transport'))"><div class="fh-tile-v">{{ ix.transport ?? '–' }}</div>
+            <div class="fh-tile-l">Transport index</div><div class="fh-tile-n">{{ pctLabel('transport') }}</div></div>
+          <div class="fh-tile" [style.--c]="idxColour(pct('transport_services'))"><div class="fh-tile-v">{{ ix.transport_services ?? '–' }}</div>
+            <div class="fh-tile-l">Transport + services</div><div class="fh-tile-n">{{ pctLabel('transport_services') }}</div></div>
+        </div>
+        @if (insight(); as i) { <div class="small mb-2">{{ i }}</div> }
+        <details class="fh-sec mt-0 mb-2"><summary>Index components <span>day average</span></summary>
+          @for (c of components(); track c.key) {
+            <div class="fh-bar-row"><span class="fh-bar-l">{{ c.label }}</span>
+              <span class="fh-bar"><i [style.width.%]="(c.score ?? 0) * 100"></i></span>
+              <span class="fh-bar-v">{{ c.value }}</span></div>
+          }
+          <div class="small text-body-secondary mt-1">Thresholds and weights: <code>config/zone.yaml</code> indices.</div>
+        </details>
+      }
       @if (zone.heatmap(); as h) {
         <div class="fh-tiles">
           @for (t of tiles(); track t.key) {
@@ -110,6 +128,10 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
     .fh-sec { margin-top: 8px; border-top: 1px solid var(--bs-border-color); padding-top: 6px;
       summary { font-weight: 600; font-size: .85rem; cursor: pointer; span { color: var(--bs-secondary-color); font-weight: 400; } } }
     .fh-line-row { display: flex; align-items: center; gap: 6px; font-size: .8rem; margin: 3px 0; }
+    .fh-bar-row { display: flex; align-items: center; gap: 6px; font-size: .78rem; margin: 3px 0; }
+    .fh-bar-l { width: 105px; } .fh-bar-v { width: 72px; text-align: right; color: var(--bs-secondary-color); }
+    .fh-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--fh-sub); overflow: hidden;
+      i { display: block; height: 100%; background: var(--fh-accent-fill); } }
     .fh-badge { min-width: 30px; text-align: center; border-radius: 4px; color: #fff; font-weight: 700; font-size: .75rem; padding: 0 4px; }
   `],
 })
@@ -177,6 +199,60 @@ export class ZoneMode {
       out.push({ key: 'lines', colour: '#0089ca', value: String(l.lines.length), label: 'lines at the zone\'s stops', note: `${rail} rail / metro / tram` });
     }
     return out;
+  });
+
+  protected pct(key: 'transport' | 'transport_services'): number | null {
+    const id = this.zone.selected();
+    return id ? this.zone.allIndices()?.zones[id]?.[key]?.percentile ?? null : null;
+  }
+  protected pctLabel(key: 'transport' | 'transport_services'): string {
+    const p = this.pct(key), all = this.zone.allIndices();
+    return p == null ? 'out of 100' : `better than ${Math.round(p)}% of ${all?.count ?? ''} zones`;
+  }
+  protected idxColour(p: number | null): string {
+    if (p == null) return '#8a8aa0';
+    return [...IDX_RAMP].reverse().find(([v]) => p >= v)?.[1] ?? IDX_RAMP[0][1];
+  }
+
+  /** Component scores averaged over the windows, with the measured value behind each. */
+  protected components = computed(() => {
+    const ix = this.zone.indices();
+    if (!ix) return [];
+    const m = ix.measured, wins = Object.values(ix.windows);
+    const avg = (k: string) => {
+      const v = wins.map((w) => w.components[k]).filter((x): x is number => x != null);
+      return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    };
+    const mean = (r: Record<string, number | null>) => {
+      const v = Object.values(r).filter((x): x is number => x != null);
+      return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null;
+    };
+    const fmt = (v: number | null, unit: string) => (v == null ? '–' : `${v}${unit}`);
+    return [
+      { key: 'rail_access', label: 'Walk to rail', score: avg('rail_access'), value: fmt(m.rail_access_min, ' min') },
+      { key: 'bus_access', label: 'Walk to bus', score: avg('bus_access'), value: fmt(m.bus_access_min, ' min') },
+      { key: 'coverage', label: 'Homes near a stop', score: avg('coverage'), value: m.coverage == null ? '–' : `${Math.round(m.coverage * 100)}%` },
+      { key: 'lines', label: 'Lines', score: avg('lines'), value: fmt(mean(m.lines), '') },
+      { key: 'frequency', label: 'Departures', score: avg('frequency'), value: fmt(mean(m.frequency), '/h') },
+      { key: 'services', label: 'Services', score: ix.services == null ? null : ix.services / 100,
+        value: fmt(mean(m.services_min), ' min') },
+    ];
+  });
+
+  /** One line: the strongest component and the weakest component in its weakest window. */
+  protected insight = computed(() => {
+    const ix = this.zone.indices();
+    const cs = this.components().filter((c) => c.score != null);
+    if (!ix || !cs.length) return '';
+    const best = cs.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a));
+    let worst = { label: '', score: 2, window: '' };
+    for (const [w, v] of Object.entries(ix.windows)) {
+      for (const c of cs) {
+        const sc = c.key === 'services' ? c.score : v.components[c.key];
+        if (sc != null && sc < worst.score) worst = { label: c.label, score: sc, window: ['lines', 'frequency'].includes(c.key) ? w : '' };
+      }
+    }
+    return `Strongest: ${best.label.toLowerCase()}. Weakest: ${worst.label.toLowerCase()}${worst.window ? ` (${worst.window})` : ''}.`;
   });
 
   protected groups(lines: ZoneLine[]): { mode: string; label: string; lines: ZoneLine[] }[] {
