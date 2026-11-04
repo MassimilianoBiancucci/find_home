@@ -239,6 +239,46 @@ mode edits the pieces and saves them through the config writer; `POST /api/area/
 into a polygon (buffered in metres, unioned with or cut from a base piece). Agents read the area with
 `findhome area show` and the history digest's Search area section.
 
+## Walking network and timetable data
+
+Two local datasets feed the zone analysis. Both are built by `findhome geo fetch <dataset>` into `data/geo/`
+(gitignored) and need no API call at query time.
+
+```mermaid
+flowchart LR
+  O[Overpass: highway ways, one request per kommun] --> NB[build_network]
+  G[sl.zip, GTFS Regional Static] --> TB[build_timetable]
+  R[OSM route relations, raw transit answers] -. no GTFS key .-> TB
+  NB --> NF[network/kommun.json.gz: nodes + edges, EPSG:3006]
+  TB --> SF[timetable/stops.json: lines per stop]
+  TB --> DF[timetable/departures.json: per stop, day kind and hour]
+  NF --> NL[load_network: networkx graph per mode]
+  SF --> TL[load_timetable: TimetableIndex]
+  DF --> TL
+```
+
+| Step | Code |
+|---|---|
+| walk / bike access per way (`geo.yaml` `datasets.network`) | [`access()`](../../backend/src/findhome/geo/build_network.py#L38) |
+| split ways at shared nodes into edges | [`edges_from_ways()`](../../backend/src/findhome/geo/build_network.py#L49) |
+| fetch per kommun, raw answers reused for `refresh_days` | [`build_network()`](../../backend/src/findhome/geo/build_network.py#L86), [`geo/overpass.py`](../../backend/src/findhome/geo/overpass.py) |
+| merged graph of several kommuner, nearest node | [`load_network()`](../../backend/src/findhome/zone/network.py#L70), [`Network`](../../backend/src/findhome/zone/network.py#L25) |
+| services per date (`calendar` + `calendar_dates`), reference dates | [`active_services()`](../../backend/src/findhome/geo/build_timetable.py#L51), [`reference_dates()`](../../backend/src/findhome/geo/build_timetable.py#L69) |
+| lines per stop, departures per hour (streams `stop_times`) | [`from_gtfs()`](../../backend/src/findhome/geo/build_timetable.py#L82) |
+| fallback without a GTFS key: lines per stop only | [`from_osm()`](../../backend/src/findhome/geo/build_timetable.py#L125) |
+| query side: stops near a point, lines, departures | [`TimetableIndex`](../../backend/src/findhome/geo/store.py#L177), [`load_timetable()`](../../backend/src/findhome/geo/store.py#L208) |
+
+**Network.** A way is walkable when its `highway` class is in `datasets.network.walk` (or `foot=yes`), and cyclable
+when it is in `bike`, or in `bike_if_allowed` with `bicycle=yes|designated`. `foot=no`, `bicycle=no` and
+`access=no|private` remove it. Each edge joins two junctions or dead ends and keeps its geometry, so a heatmap can
+draw it. Buildings are not obstacles: the ways already go around them. One-way streets are ignored, including for
+cycling. Ways crossing a municipal border are in both files and merge by OSM node id.
+
+**Timetable.** The GTFS source reuses the transit layer's `sl.zip` (no second download). The weekday reference date
+is the first Tuesday with service from today; Saturday and Sunday likewise. Departures after midnight (`25:10`) fold
+into hour 1. Without `TRAFIKLAB_GTFS_KEY` the stops come from the OSM route relations: they have lines, but no
+names and no departures (`departures_at()` returns `None`).
+
 ## Scoring
 
 [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) `score_listing`:

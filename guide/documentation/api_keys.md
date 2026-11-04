@@ -7,7 +7,7 @@ falls back to a free or estimated answer (see [what each provider does](provider
 | Variable | Service | Costs | Without it |
 |---|---|---|---|
 | `TRAFIKLAB_RESROBOT_KEY` | Trafiklab ResRobot v2.1: public transport times | free | straight-line estimates, marked `~` |
-| `TRAFIKLAB_GTFS_KEY` | Trafiklab GTFS Regional Static data: SL lines, stops and timetables for the map | free | lines and stations built from OpenStreetMap routes |
+| `TRAFIKLAB_GTFS_KEY` | Trafiklab GTFS Regional Static data: SL lines, stops and timetables (map layer, departures per stop) | free | lines and stations built from OpenStreetMap routes; no departures |
 | `ORS_API_KEY` | OpenRouteService: walking minutes and address suggestions | free | straight-line walking estimates marked `~`; Photon suggests addresses |
 | `GOOGLE_MAPS_SERVER_KEY` | Google Routes API: transit and traffic-aware driving | paid beyond a monthly free cap; **off by default** | ResRobot and OSM answer instead |
 | `GOOGLE_MAPS_BROWSER_KEY` | Google Maps JavaScript API in the browser | paid beyond a monthly free cap | no code reads it today |

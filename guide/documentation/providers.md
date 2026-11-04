@@ -43,7 +43,9 @@ Sweden-wide journey planner on official timetables (SL included).
   key the matrix holds straight-line estimates, replaced on the next refresh with a key.
 
 ## Transit network for the map: SL GTFS or OSM routes
-`findhome geo fetch transit` builds the map's lines and stations under `data/geo/transit/`. With
+`findhome geo fetch transit` builds the map's lines and stations under `data/geo/transit/`, and
+`findhome geo fetch timetable` builds lines per stop and departures per hour under `data/geo/timetable/` from the
+same `sl.zip`. With
 `TRAFIKLAB_GTFS_KEY` (Trafiklab project + "GTFS Regional Static data" API; CC0; Bronze key: 50 downloads/month) it
 uses SL's GTFS (`sl.zip`, downloaded at most every `refresh_days`). Without a key it uses OpenStreetMap route
 relations from Overpass (three requests, raw answers kept in `data/geo/raw/` for `refresh_days`). SL lines without a
