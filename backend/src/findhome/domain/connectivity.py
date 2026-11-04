@@ -247,7 +247,7 @@ async def run(store: ConnectivityStore, registry, bundle: ConfigBundle, zones: Z
                 continue
             if act == "cache":
                 JOB.cached += 1
-                await store.write(write(provider.name, hit.minutes, "ok", None, hit.created_at))
+                await store.write(write(provider.name, hit.minutes, "ok", None, hit.created_at, hit.zone_mode))
                 continue
             if act == "estimate":
                 JOB.estimated += 1
@@ -284,8 +284,10 @@ async def run(store: ConnectivityStore, registry, bundle: ConfigBundle, zones: Z
                 continue
             consecutive = 0
             minutes = res.minutes if res else None
-            fetched = await store.cache_put(key, provider.name, minutes, ttl)
-            await store.write(write(provider.name, minutes, "ok", None if res else "no connection found", fetched))
+            # the ride at the zone's end: the first one outbound, the last one on the way back
+            first = (res.raw or {}).get("first_mode" if r.direction == "to_point" else "last_mode") if res else None
+            fetched = await store.cache_put(key, provider.name, minutes, ttl, first)
+            await store.write(write(provider.name, minutes, "ok", None if res else "no connection found", fetched, first))
     except asyncio.CancelledError:
         JOB.stopped = "cancelled"
         raise

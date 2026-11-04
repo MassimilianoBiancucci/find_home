@@ -2,8 +2,9 @@
 
 For every zone and route (point, direction, day type, window), each home takes its best start among the zone's
 stations: walk (from data/geo/centroids/) + transit (centroid_commute). The zone value is the home-weighted mean of
-those bests; the pattern records which stations and which group (rail, bus) the best routes start from, so a bus that
-beats a nearby metro shows up. Pure: rows in, rows out.
+those bests. The pattern records where the best trips start (station, group) and what they ride near the zone
+(`modes`: the first ride outbound, the last ride on the way back): a trip from a bus stop may walk on to the metro,
+so only `modes` says whether a bus beats a nearby metro. Pure: rows in, rows out.
 """
 from __future__ import annotations
 
@@ -41,10 +42,12 @@ def derive(centroids: dict[str, Any], rows: dict[PairKey, StoredRow], routes: di
         total = sum(w for w, _ in homes) or 1.0
         for route, weight in routes.items():
             transit: dict[int, tuple[float, bool]] = {}
+            near_mode: dict[int, str | None] = {}
             for i, k in enumerate(keys):
                 row = rows.get((k, *route))
                 if row and row.status in ("ok", "estimated") and row.minutes is not None:
                     transit[i] = (row.minutes, row.status == "estimated")
+                    near_mode[i] = row.zone_mode
             best: list[tuple[float, float, float, int]] = []          # (total min, weight, walk min, station)
             for w, walks in homes:
                 cands = [(s / 60 + transit[int(i)][0], s / 60, int(i)) for i, s in walks.items() if int(i) in transit]
@@ -59,16 +62,20 @@ def derive(centroids: dict[str, Any], rows: dict[PairKey, StoredRow], routes: di
             minutes = round(sum(t * w for t, w, _, _ in best) / wsum, 1)
             winners: dict[str, float] = {}
             by_group: dict[str, float] = {}
+            by_mode: dict[str, float] = {}
             for _, w, _, i in best:
                 winners[keys[i]] = winners.get(keys[i], 0.0) + w / wsum
                 by_group[groups[i]] = by_group.get(groups[i], 0.0) + w / wsum
+                m = near_mode[i] or "unknown"
+                by_mode[m] = by_mode.get(m, 0.0) + w / wsum
             estimated = sum(w for _, w, _, i in best if transit[i][1]) / wsum > 0.5
             pattern = {
                 "minutes": minutes, "reached": round(wsum / total, 3),
                 "median": weighted_quantile([(t, w) for t, w, _, _ in best], 0.5),
                 "walk_median": weighted_quantile([(walk, w) for _, w, walk, _ in best], 0.5),
                 "transit_median": weighted_quantile([(transit[i][0], w) for _, w, _, i in best], 0.5),
-                "groups": {g: round(v, 3) for g, v in by_group.items()},
+                "groups": {g: round(v, 3) for g, v in by_group.items()},          # where the best trips start
+                "modes": {m: round(v, 3) for m, v in sorted(by_mode.items(), key=lambda kv: -kv[1])},   # ride at the zone's end
                 "winners": {k: round(v, 3) for k, v in sorted(winners.items(), key=lambda kv: -kv[1])},
             }
             for key in ("median", "walk_median", "transit_median"):

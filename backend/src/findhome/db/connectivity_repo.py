@@ -23,12 +23,14 @@ class StoredRow:
     minutes: float | None
     error: str | None
     fetched_at: datetime | None
+    zone_mode: str | None = None          # mode of the trip's first ride (metro, bus, ...)
 
 
 @dataclass(frozen=True)
 class CacheHit:
     minutes: float | None
     created_at: datetime
+    zone_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,7 @@ class RowWrite:
     status: str
     error: str | None = None
     fetched_at: datetime | None = None
+    zone_mode: str | None = None
 
 
 class ConnectivityStore(Protocol):
@@ -49,17 +52,18 @@ class ConnectivityStore(Protocol):
     async def record_failure(self, provider: str, coord_key: str, code: str, message: str) -> None: ...
     async def clear_failures(self, provider: str) -> int: ...
     async def cache_get(self, key: str) -> CacheHit | None: ...
-    async def cache_put(self, key: str, provider: str, minutes: float | None, ttl_days: int) -> datetime: ...
+    async def cache_put(self, key: str, provider: str, minutes: float | None, ttl_days: int,
+                        zone_mode: str | None = None) -> datetime: ...
     async def write(self, row: RowWrite) -> None: ...
 
 
-_ROWS = """SELECT {col} AS origin, point_id, direction, day_type, window_label, status, provider, minutes, error, fetched_at
-           FROM {table} WHERE inputs_hash = %s"""
+_ROWS = """SELECT {col} AS origin, point_id, direction, day_type, window_label, status, provider, minutes, error, fetched_at,
+                  zone_mode FROM {table} WHERE inputs_hash = %s"""
 
 
 def stored_row(r: dict) -> StoredRow:
     return StoredRow(r["status"], r["provider"], None if r["minutes"] is None else float(r["minutes"]), r["error"],
-                     r["fetched_at"])
+                     r["fetched_at"], r.get("zone_mode"))
 
 
 async def read_rows(conn, inputs_hash: str, kind: str = "zone") -> dict[PairKey, StoredRow]:
@@ -112,12 +116,14 @@ class PgConnectivityStore:
     async def cache_get(self, key: str) -> CacheHit | None:
         async with self.pool.connection() as conn:
             r = await (await conn.execute(
-                "SELECT minutes, created_at FROM routing_cache WHERE key = %s", (key,))).fetchone()
+                "SELECT minutes, created_at, response->>'zone_mode' AS zone_mode FROM routing_cache WHERE key = %s",
+                (key,))).fetchone()
         if r is None:
             return None
-        return CacheHit(None if r["minutes"] is None else float(r["minutes"]), r["created_at"])
+        return CacheHit(None if r["minutes"] is None else float(r["minutes"]), r["created_at"], r["zone_mode"])
 
-    async def cache_put(self, key: str, provider: str, minutes: float | None, ttl_days: int) -> datetime:
+    async def cache_put(self, key: str, provider: str, minutes: float | None, ttl_days: int,
+                        zone_mode: str | None = None) -> datetime:
         now = datetime.now(UTC)
         async with self.pool.connection() as conn:
             await conn.execute(
@@ -125,7 +131,7 @@ class PgConnectivityStore:
                    VALUES (%s, %s, %s, %s, %s, %s)
                    ON CONFLICT (key) DO UPDATE SET minutes = EXCLUDED.minutes, response = EXCLUDED.response,
                      created_at = EXCLUDED.created_at, expires_at = EXCLUDED.expires_at""",
-                (key, provider, minutes, Jsonb({"minutes": minutes, "source": "connectivity"}), now,
+                (key, provider, minutes, Jsonb({"minutes": minutes, "zone_mode": zone_mode, "source": "connectivity"}), now,
                  now + timedelta(days=ttl_days)))
         return now
 
@@ -134,15 +140,15 @@ class PgConnectivityStore:
         async with self.pool.connection() as conn:
             await conn.execute(
                 f"""INSERT INTO {self.table} (inputs_hash, {self.col}, point_id, direction, day_type, window_label,
-                     window_weight, provider, minutes, estimate, status, error, fetched_at)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     window_weight, provider, minutes, estimate, status, error, fetched_at, zone_mode)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    ON CONFLICT (inputs_hash, {self.col}, point_id, direction, day_type, window_label) DO UPDATE SET
                      minutes = EXCLUDED.minutes, provider = EXCLUDED.provider, estimate = EXCLUDED.estimate,
                      status = EXCLUDED.status, error = EXCLUDED.error, fetched_at = EXCLUDED.fetched_at,
-                     computed_at = now()""",
+                     zone_mode = EXCLUDED.zone_mode, computed_at = now()""",
                 (row.inputs_hash, zid, pid, direction, day, window, row.window_weight, row.provider,
                  None if row.minutes is None else round(row.minutes, 1), row.status == "estimated", row.status,
-                 row.error, row.fetched_at))
+                 row.error, row.fetched_at, row.zone_mode))
 
 
 async def write_derived(pool, inputs_hash: str, results) -> None:

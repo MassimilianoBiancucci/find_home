@@ -100,13 +100,13 @@ class MemStore:
     async def cache_get(self, key):
         return self.cache.get(key)
 
-    async def cache_put(self, key, provider, minutes, ttl_days):
+    async def cache_put(self, key, provider, minutes, ttl_days, zone_mode=None):
         now = datetime.now(UTC)
-        self.cache[key] = CacheHit(minutes, now)
+        self.cache[key] = CacheHit(minutes, now, zone_mode)
         return now
 
     async def write(self, row: RowWrite):
-        self.matrix[row.key] = StoredRow(row.status, row.provider, row.minutes, row.error, row.fetched_at)
+        self.matrix[row.key] = StoredRow(row.status, row.provider, row.minutes, row.error, row.fetched_at, row.zone_mode)
 
     def by_status(self) -> dict[str, int]:
         out: dict[str, int] = {}
@@ -273,13 +273,13 @@ def test_derive_takes_each_homes_best_start_and_records_the_pattern():
         "centroids": [{"key": "metro", "group": "rail"}, {"key": "bus", "group": "bus"}],
         # home 1 near the metro, home 2 near the bus stop; home 3 only reaches the metro; home 4 reaches nothing
         "homes": [[1.0, {"0": 120, "1": 600}], [3.0, {"0": 900, "1": 60}], [1.0, {"0": 300}], [1.0, {}]]}}}
-    rows = {("metro", *route): StoredRow("ok", "resrobot", 20.0, None, None),
-            ("bus", *route): StoredRow("ok", "resrobot", 15.0, None, None)}
+    rows = {("metro", *route): StoredRow("ok", "resrobot", 20.0, None, None, "metro"),
+            ("bus", *route): StoredRow("ok", "resrobot", 15.0, None, None, "metro")}   # the bus stop walks on to the metro
     (r,) = derive(centroids, rows, {route: 1.0})
     # bests: 2 + 20 = 22 (metro), 1 + 15 = 16 (bus), 5 + 20 = 25 (metro); weights 1, 3, 1 → (22 + 48 + 25) / 5 = 19
     assert r.status == "ok" and r.minutes == 19.0
     assert r.pattern["groups"] == {"rail": 0.4, "bus": 0.6} and r.pattern["reached"] == round(5 / 6, 3)
-    assert list(r.pattern["winners"]) == ["bus", "metro"]
+    assert list(r.pattern["winners"]) == ["bus", "metro"] and r.pattern["modes"] == {"metro": 1.0}
 
     (none,) = derive(centroids, {}, {route: 1.0})
     assert none.status == "failed" and none.minutes is None
