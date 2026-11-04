@@ -220,11 +220,11 @@ export function pinUrl(glyph: string, bg: string, fg = '#ffffff'): string {
 // ── 3D objects ──────────────────────────────────────────────
 /**
  * Standalone 3D-looking objects for targets that read better as a thing than as a pin: a sitting black cat (vet),
- * an extruded green cross (pharmacy), a dumbbell (gym), a shopping cart (groceries) and a tree (parks). Each stands on a soft ground
+ * an extruded green cross (pharmacy), a kettlebell (gym), a grocery bag (groceries) and a tree (parks). Each stands on a soft ground
  * shadow; used with `icon-anchor: bottom`. Image id: `obj3d:<object>`. Drawn on a 72 × 72 canvas (36 css px).
  */
 export const OBJECT_PREFIX = 'obj3d:';
-export const OBJECTS = ['cat', 'cross', 'dumbbell', 'cart', 'tree'] as const;
+export const OBJECTS = ['cat', 'cross', 'kettlebell', 'bag', 'tree'] as const;
 export type ObjectKind = (typeof OBJECTS)[number];
 const OBJ = 72;
 
@@ -334,74 +334,6 @@ function drawCross(g: CanvasRenderingContext2D): void {
   g.stroke();
 }
 
-function drawDumbbell(g: CanvasRenderingContext2D): void {
-  groundShadow(g, 26);
-  g.save();
-  g.translate(36, 42);
-  g.rotate(-0.14);
-  const handle = g.createLinearGradient(0, -4, 0, 4);                // chrome handle with knurled grip
-  handle.addColorStop(0, '#ffffff');
-  handle.addColorStop(0.45, '#adb5bd');
-  handle.addColorStop(1, '#343a40');
-  g.fillStyle = handle;
-  g.strokeStyle = '#111';
-  g.lineWidth = 1.6;
-  g.beginPath();
-  g.rect(-14, -4, 28, 8);
-  g.fill();
-  g.stroke();
-  g.strokeStyle = 'rgba(30,30,35,.55)';
-  g.lineWidth = 0.9;
-  for (let x = -9; x <= 9; x += 3) {
-    g.beginPath();
-    g.moveTo(x, -3.5);
-    g.lineTo(x + 1.5, 3.5);
-    g.stroke();
-  }
-  const hexHead = (cx: number, dir: number) => {                     // a hexagonal head: neon faces, glowing rim
-    const r = 14, depth = 7;
-    const hex = (ox: number) => {
-      g.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI / 6 + (i * Math.PI) / 3;
-        const x = ox + Math.cos(a) * r * 0.55, y = Math.sin(a) * r;
-        if (i) g.lineTo(x, y); else g.moveTo(x, y);
-      }
-      g.closePath();
-    };
-    g.shadowColor = '#ff2bd6';
-    g.shadowBlur = 9;
-    const side = g.createLinearGradient(0, -r, 0, r);
-    side.addColorStop(0, '#ff6ff0');
-    side.addColorStop(0.5, '#c2179e');
-    side.addColorStop(1, '#4a0a52');
-    hex(cx + dir * depth);
-    g.fillStyle = side;
-    g.fill();
-    g.shadowBlur = 0;
-    g.fillRect(Math.min(cx, cx + dir * depth), -r * 0.86, depth, r * 1.72);
-    hex(cx);
-    const face = g.createRadialGradient(cx - 2, -5, 1, cx, 0, r);
-    face.addColorStop(0, '#ffe3fb');
-    face.addColorStop(0.35, '#ff4fe1');
-    face.addColorStop(1, '#8f1fd1');
-    g.fillStyle = face;
-    g.fill();
-    g.strokeStyle = '#2b0633';
-    g.lineWidth = 1.8;
-    g.stroke();
-    g.strokeStyle = 'rgba(255,255,255,.85)';                         // neon rim light
-    g.lineWidth = 1.1;
-    g.beginPath();
-    g.moveTo(cx - r * 0.45, -r * 0.62);
-    g.lineTo(cx + r * 0.1, -r * 0.92);
-    g.stroke();
-  };
-  hexHead(-19, -1);
-  hexHead(19, 1);
-  g.restore();
-}
-
 function drawTree(g: CanvasRenderingContext2D): void {
   groundShadow(g, 22);
   const trunk = g.createLinearGradient(31, 0, 41, 0);                 // trunk: a lit cylinder
@@ -438,65 +370,104 @@ function drawTree(g: CanvasRenderingContext2D): void {
   ball(36, 22, 15);
 }
 
-function drawCart(g: CanvasRenderingContext2D): void {
-  groundShadow(g, 24);
+/** Outline a filled path as a sticker: a wide white edge, then a dark one, so it stands out on any map colour. */
+function sticker(g: CanvasRenderingContext2D, path: Path2D, white = 5, dark = 2): void {
   g.lineJoin = 'round';
-  g.lineCap = 'round';
-  const basket: [number, number][] = [[18, 22], [58, 22], [53, 44], [23, 44]];
-  g.beginPath();                                                      // basket back face (depth)
-  basket.forEach(([x, y], i) => (i ? g.lineTo(x + 4, y - 4) : g.moveTo(x + 4, y - 4)));
-  g.closePath();
-  g.fillStyle = 'rgba(90,98,106,.6)';
-  g.fill();
-  g.beginPath();                                                      // basket front face
-  basket.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
-  g.closePath();
-  const grad = g.createLinearGradient(18, 22, 50, 46);                // brushed steel
-  grad.addColorStop(0, '#f1f3f5');
-  grad.addColorStop(0.45, '#adb5bd');
-  grad.addColorStop(0.7, '#dee2e6');
-  grad.addColorStop(1, '#6c757d');
-  g.fillStyle = grad;
-  g.fill();
-  g.strokeStyle = '#1b1b1f';
-  g.lineWidth = 2.2;
-  g.stroke();
-  g.strokeStyle = 'rgba(52,58,64,.55)';                               // wire grid
-  g.lineWidth = 1.1;
-  for (const t of [0.25, 0.5, 0.75]) {
-    g.beginPath();
-    g.moveTo(18 + 40 * t, 22);
-    g.lineTo(23 + 30 * t, 44);
-    g.stroke();
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = white;
+  g.stroke(path);
+  g.strokeStyle = '#141418';
+  g.lineWidth = dark;
+  g.stroke(path);
+}
+
+function drawBag(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 22);
+  const leek = new Path2D('M26 28 L21 6 L27 5 L31 27 Z');            // greens sticking out at the back
+  const leaf = new Path2D('M30 26 C29 14 36 8 38 4 C41 12 38 20 35 27 Z');
+  for (const [p, c1, c2] of [[leek, '#8ce99a', '#2f9e44'], [leaf, '#69db7c', '#237a34']] as [Path2D, string, string][]) {
+    const grad = g.createLinearGradient(20, 4, 40, 28);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    sticker(g, p, 4, 1.6);
+    g.fillStyle = grad;
+    g.fill(p);
   }
+  const bread = new Path2D('M40 27 L48 6 C50 4 53 5 52 8 L46 28 Z');  // baguette
+  sticker(g, bread, 4, 1.6);
+  const crust = g.createLinearGradient(44, 6, 50, 28);
+  crust.addColorStop(0, '#ffd8a8');
+  crust.addColorStop(1, '#d9480f');
+  g.fillStyle = crust;
+  g.fill(bread);
+  const bag = new Path2D('M15 26 L57 26 L53 64 L19 64 Z');           // the bag: bold, warm, solid
+  sticker(g, bag, 5, 2.2);
+  const paper = g.createLinearGradient(15, 26, 57, 64);
+  paper.addColorStop(0, '#ffe066');
+  paper.addColorStop(0.5, '#fcc419');
+  paper.addColorStop(1, '#e67700');
+  g.fillStyle = paper;
+  g.fill(bag);
+  g.fillStyle = 'rgba(160,70,0,.35)';                                 // folded rim
+  g.fillRect(16, 26, 40.5, 5);
+  const apple = new Path2D();                                         // a red apple in front
+  apple.arc(30, 33, 7.5, 0, Math.PI * 2);
+  sticker(g, apple, 3.5, 1.6);
+  const red = g.createRadialGradient(27.5, 30.5, 1, 30, 33, 7.5);
+  red.addColorStop(0, '#ffa8a8');
+  red.addColorStop(0.5, '#f03e3e');
+  red.addColorStop(1, '#a51111');
+  g.fillStyle = red;
+  g.fill(apple);
+  g.fillStyle = 'rgba(255,255,255,.8)';                               // glossy highlights
   g.beginPath();
-  g.moveTo(20.5, 33);
-  g.lineTo(55.5, 33);
-  g.stroke();
-  g.strokeStyle = '#343a40';                                          // frame, handle, base
-  g.lineWidth = 3;
+  g.ellipse(27.5, 30.5, 2, 1.3, -0.6, 0, Math.PI * 2);
+  g.fill();
+  g.fillStyle = 'rgba(255,255,255,.35)';
+  g.fillRect(19, 33, 3, 27);
+}
+
+function drawKettlebell(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 22);
+  const handle = new Path2D();                                        // the handle: a thick arch
+  handle.moveTo(22, 34);
+  handle.bezierCurveTo(18, 8, 54, 8, 50, 34);
+  handle.lineTo(43, 34);
+  handle.bezierCurveTo(46, 17, 26, 17, 29, 34);
+  handle.closePath();
+  sticker(g, handle, 5, 2);
+  const metal = g.createLinearGradient(20, 10, 52, 34);
+  metal.addColorStop(0, '#fff4e6');
+  metal.addColorStop(0.5, '#ff922b');
+  metal.addColorStop(1, '#8a3200');
+  g.fillStyle = metal;
+  g.fill(handle);
+  const bell = new Path2D();                                          // the bell: a heavy ball with a flat base
+  bell.arc(36, 46, 18, Math.PI * 0.78, Math.PI * 2.22);
+  bell.closePath();
+  g.shadowColor = '#ff5a00';
+  g.shadowBlur = 10;
+  sticker(g, bell, 5, 2.2);
+  g.shadowBlur = 0;
+  const body = g.createRadialGradient(29, 38, 2, 36, 46, 19);
+  body.addColorStop(0, '#ffe8cc');
+  body.addColorStop(0.3, '#ff7a1a');
+  body.addColorStop(0.75, '#d9480f');
+  body.addColorStop(1, '#5c1a00');
+  g.fillStyle = body;
+  g.fill(bell);
+  g.fillStyle = 'rgba(255,255,255,.85)';                              // specular spot
   g.beginPath();
-  g.moveTo(8, 14);
-  g.lineTo(14, 14);
-  g.lineTo(18, 22);
-  g.moveTo(23, 44);
-  g.lineTo(25, 52);
-  g.lineTo(54, 52);
-  g.stroke();
-  for (const wx of [28, 50]) {                                        // wheels
-    g.beginPath();
-    g.arc(wx, 57, 4, 0, Math.PI * 2);
-    g.fillStyle = '#111';
-    g.fill();
-    g.beginPath();
-    g.arc(wx - 1, 56, 1.3, 0, Math.PI * 2);
-    g.fillStyle = 'rgba(255,255,255,.6)';
-    g.fill();
-  }
+  g.ellipse(29, 39, 4, 2.6, -0.7, 0, Math.PI * 2);
+  g.fill();
+  g.font = 'bold 11px system-ui, sans-serif';                         // a weight mark, like a real kettlebell
+  g.textAlign = 'center';
+  g.fillStyle = 'rgba(255,255,255,.9)';
+  g.fillText('28', 36, 54);                                   // orange = 28 kg in competition colours
 }
 
 const OBJECT_DRAW: Record<ObjectKind, (g: CanvasRenderingContext2D) => void> = {
-  cat: drawCat, cross: drawCross, dumbbell: drawDumbbell, cart: drawCart, tree: drawTree,
+  cat: drawCat, cross: drawCross, kettlebell: drawKettlebell, bag: drawBag, tree: drawTree,
 };
 
 function drawObject(kind: ObjectKind): HTMLCanvasElement | null {

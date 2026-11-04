@@ -19,6 +19,6 @@ describe('3D pins', () => {
 describe('3D objects', () => {
   it('has an id per object and ignores unknown ones', async () => {
     const { OBJECTS, objectId } = await import('./map-icons');
-    expect(OBJECTS.map(objectId)).toEqual(['obj3d:cat', 'obj3d:cross', 'obj3d:dumbbell', 'obj3d:cart', 'obj3d:tree']);
+    expect(OBJECTS.map(objectId)).toEqual(['obj3d:cat', 'obj3d:cross', 'obj3d:kettlebell', 'obj3d:bag', 'obj3d:tree']);
   });
 });

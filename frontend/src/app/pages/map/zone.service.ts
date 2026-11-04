@@ -14,8 +14,8 @@ export type TargetIcon = ({ pin: { glyph: string; bg: string; fg?: string } } | 
 export const TARGET_ICONS: Record<string, TargetIcon> = {
   rail: { pin: { glyph: 'metro', bg: '#0089ca' }, halo: '#1c9bff' }, bus: { pin: { glyph: 'bus', bg: '#d71d24' } },
   ferry: { pin: { glyph: 'ferry', bg: '#00a5ac' }, halo: '#12d6d6' }, park: { object: 'tree' },
-  grocery: { object: 'cart', halo: '#ffc94d' }, pharmacy: { object: 'cross', halo: '#2ff07a' },
-  gym: { object: 'dumbbell', halo: '#ff2bd6' }, vet: { object: 'cat', halo: '#c77dff' },
+  grocery: { object: 'bag', halo: '#ffe14d' }, pharmacy: { object: 'cross', halo: '#2ff07a' },
+  gym: { object: 'kettlebell', halo: '#ff5a00' }, vet: { object: 'cat', halo: '#c77dff' },
 };
 const FALLBACK: TargetIcon = { pin: { glyph: 'dot', bg: '#8a8aa0' } };
 export function targetIconId(set: string): string {
