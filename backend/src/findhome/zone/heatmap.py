@@ -64,55 +64,72 @@ def _summary(times: list[tuple[float | None, float]], n_targets: int) -> dict[st
             "share_reached": round(sum(w for _, w in reached) / total, 3)}
 
 
-def compute(net: Network, ext: Extent, targets: dict[str, list[Point]], p: HeatmapParams,
-            homes: list[tuple[float, float, float]]) -> Heatmap:
-    base = net.graph(p.mode)
-    ids = net.nodes_within(ext.search, p.mode)
-    g: nx.Graph = base.subgraph(ids).copy()
-    for _, _, d in g.edges(data=True):
-        d["t"] = d["length"] / (p.speed_mps * p.factors.get(d["highway"], 1.0))
-    node_ids = list(g.nodes)
-    tree = STRtree([Point(net.nodes[n]) for n in node_ids]) if node_ids else None
+class ExtentGraph:
+    """The network inside an extent with edge times for one mode, node snapping, and the focus homes snapped to it.
+    Built once per analysis and shared by the heatmap and the reach search of the indices."""
 
-    def snap(pt: Point) -> tuple[int, float] | None:
-        if tree is None:
+    def __init__(self, net: Network, ext: Extent, p: HeatmapParams, homes: list[tuple[float, float, float]]):
+        self.net, self.ext, self.p = net, ext, p
+        self.g: nx.Graph = net.graph(p.mode).subgraph(net.nodes_within(ext.search, p.mode)).copy()
+        for _, _, d in self.g.edges(data=True):
+            d["t"] = d["length"] / (p.speed_mps * p.factors.get(d["highway"], 1.0))
+        self.node_ids = list(self.g.nodes)
+        self._tree = STRtree([Point(net.nodes[n]) for n in self.node_ids]) if self.node_ids else None
+        focus = prep(ext.focus)
+        self.inside = {n for n in self.node_ids if focus.contains(Point(net.nodes[n]))}
+        points = [(Point(x, y), w) for x, y, w in homes if focus.contains(Point(x, y))]
+        if not points:                                        # no buildings: every network node counts once
+            points = [(Point(net.nodes[n]), 1.0) for n in self.inside]
+        snapped = [(self.snap(pt), w) for pt, w in points]
+        self.homes: list[tuple[tuple[int, float], float]] = [(s, w) for s, w in snapped if s]
+
+    def snap(self, pt: Point) -> tuple[int, float] | None:
+        """Nearest node and the distance to it, or None beyond snap_max_m."""
+        if self._tree is None:
             return None
-        n = node_ids[int(tree.nearest(pt))]
-        d = pt.distance(Point(net.nodes[n]))
-        return (n, d) if d <= p.snap_max_m else None
+        n = self.node_ids[int(self._tree.nearest(pt))]
+        d = pt.distance(Point(self.net.nodes[n]))
+        return (n, d) if d <= self.p.snap_max_m else None
 
+    def times_from(self, starts: dict[int, float], cutoff_s: float) -> dict[int, float]:
+        """Seconds to every node reachable within the cutoff from any start node (start node → initial seconds)."""
+        if not starts:
+            return {}
+        self.g.add_weighted_edges_from(((SOURCE, n, t) for n, t in starts.items()), weight="t")
+        try:
+            dist = nx.single_source_dijkstra_path_length(self.g, SOURCE, cutoff=cutoff_s, weight="t")
+        finally:
+            self.g.remove_node(SOURCE)
+        dist.pop(SOURCE, None)
+        return dist
+
+    def starts(self, pts: list[Point]) -> dict[int, float]:
+        out: dict[int, float] = {}
+        for pt in pts:
+            s = self.snap(pt)
+            if s:
+                out[s[0]] = min(out.get(s[0], float("inf")), s[1] / self.p.speed_mps)
+        return out
+
+
+def compute(net: Network, ext: Extent, targets: dict[str, list[Point]], p: HeatmapParams,
+            homes: list[tuple[float, float, float]], eg: ExtentGraph | None = None) -> Heatmap:
+    eg = eg or ExtentGraph(net, ext, p, homes)
     times: dict[str, dict[int, float]] = {}
     reached: dict[str, int] = {}
     for sid, pts in targets.items():
-        starts: dict[int, float] = {}
-        for pt in pts:
-            s = snap(pt)
-            if s:
-                starts[s[0]] = min(starts.get(s[0], float("inf")), s[1] / p.speed_mps)
+        starts = eg.starts(pts)
         reached[sid] = len(starts)
-        if not starts:
-            times[sid] = {}
-            continue
-        g.add_weighted_edges_from(((SOURCE, n, t) for n, t in starts.items()), weight="t")
-        dist = nx.single_source_dijkstra_path_length(g, SOURCE, cutoff=p.cutoff_s, weight="t")
-        g.remove_node(SOURCE)
-        dist.pop(SOURCE, None)
-        times[sid] = dist
+        times[sid] = eg.times_from(starts, p.cutoff_s)
 
-    focus = prep(ext.focus)
-    inside = {n for n in node_ids if focus.contains(Point(net.nodes[n]))}
     segments = []
-    for u, v, d in g.edges(data=True):
-        if u not in inside and v not in inside:
+    for u, v, d in eg.g.edges(data=True):
+        if u not in eg.inside and v not in eg.inside:
             continue
         per = {sid: round((t[u] + t[v]) / 2, 1) for sid, t in times.items() if u in t and v in t}
         segments.append((d["idx"], per))
 
-    points = [(Point(x, y), w) for x, y, w in homes if focus.contains(Point(x, y))]
-    if not points:                                            # no buildings: every network node counts once
-        points = [(Point(net.nodes[n]), 1.0) for n in inside]
-    snapped = [(snap(pt), w) for pt, w in points]
-    snapped = [(s, w) for s, w in snapped if s]
+    snapped = eg.homes
     summary: dict[str, dict[str, Any]] = {}
     for sid, t in times.items():
         summary[sid] = _summary([(t[n] + d / p.speed_mps if n in t else None, w) for (n, d), w in snapped], reached[sid])
