@@ -107,7 +107,7 @@ one or two workdays. Bronze is enough for this app; Silver and Gold are not need
 The app throttles itself to the level named by `plan` under `routing.resrobot` in `providers.yaml` (default
 `bronze`: 45 calls per minute; `silver`, `gold` also accepted). `max_calls_per_minute` overrides the plan. While your
 key is still on default, set it to what your key allows. A 429 answer is retried after `Retry-After` or
-`retry_delay_s`, up to three times. The budget `max_connectivity_calls_per_run` caps one connectivity refresh.
+`retry_delay_s`, up to three times. `connectivity.max_calls_per_run` caps one connectivity refresh.
 
 **Check it.** Replace the key and run (public coordinates: Stockholm Central to Slussen):
 

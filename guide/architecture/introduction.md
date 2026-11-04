@@ -39,7 +39,9 @@ real flat, rent and buy columns), `listing_sources` (one row per site item, with
 `listing_status_events`, `feedback`, `evaluations`, `scores` and `commute_results` (both keyed by `config_hash`),
 the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`, `scan_runs`, `agent_runs`.
 [`002_probes.sql`](../../backend/migrations/002_probes.sql) adds `probes` (alpha: saved test points);
-[`003_zone_commute.sql`](../../backend/migrations/003_zone_commute.sql) adds `zone_commute` (the Connectivity matrix).
+[`003_zone_commute.sql`](../../backend/migrations/003_zone_commute.sql) adds `zone_commute` (the Connectivity matrix);
+[`004_connectivity_status.sql`](../../backend/migrations/004_connectivity_status.sql) adds its route status and
+`provider_failure` (zone points a provider cannot route).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -116,7 +118,11 @@ mode (data loaded when first shown; buses from zoom 12) and the stations as blip
 stations in order or the lines serving a station.
 [`ConnectivityService`](../../frontend/src/app/pages/map/connectivity.service.ts) holds the zone × point matrix:
 the Connectivity mode ([`connectivity-mode.ts`](../../frontend/src/app/pages/map/connectivity-mode.ts)) fills the zones
-by minutes for one point or the weighted mix and starts or cancels the refresh; Explore can show a light tint of
+by minutes for one point or the weighted mix (grey: only failed routes, or only estimates while "exclude estimates"
+is on). Its Matrix bubble shows the route counts per status and the refresh actions with their cost in calls
+(Refresh, Retry failed, Update stale); [`connectivity-dialogs.ts`](../../frontend/src/app/pages/map/connectivity-dialogs.ts)
+holds the pause decision dialog and the route list (filter by status, point, zone; a row flies to the zone). Explore
+can show a light tint of
 the same colours; hovering a zone shows its minutes over the map; the test point shows its zone's matrix value
 next to its own itinerary.
 

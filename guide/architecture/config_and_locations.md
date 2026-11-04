@@ -143,17 +143,81 @@ follow the track and carry the line colour. Nothing here changes scores.
 
 ## Connectivity matrix
 
-[`domain/connectivity.py`](../../backend/src/findhome/domain/connectivity.py) answers "how well connected is each
-zone to my points". `plan` makes one transit request per zone × enabled point × trip direction × window (the
-window's middle slot, the trip's first day type) from a point inside the zone (its centroid, or a point surely
-inside it). `run` is a background job in the API (`POST /api/connectivity/refresh`, `findhome connectivity refresh`;
-one at a time, cancellable): it uses the commute providers, `routing_cache` and the reference dates of the commute
-matrix, stops at `budget.max_connectivity_calls_per_run`, commits after every zone, and stores rows in
-`zone_commute` under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so search-area or
-weight edits keep the matrix). A refresh skips pairs already stored, except straight-line estimates when a real
-provider is available, which it replaces. `aggregate` gives per zone the window-weighted minutes per point and the
-point-weighted mix (point weights as in the commute score). With the current points that is ~2,100 requests
-for the 263 zones. Nothing here changes scores.
+[`domain/connectivity.py`](../../backend/src/findhome/domain/connectivity.py) answers "how well connected is each zone to my points".
+[`plan()`](../../backend/src/findhome/domain/connectivity.py#L48) makes one transit request per zone × enabled point × trip direction ×
+window (the window's middle slot, the trip's first day type) from a point inside the zone
+([`zone_origin()`](../../backend/src/findhome/domain/connectivity.py#L36): its centroid, or a point surely inside it). With the current
+points that is ~2,100 requests for the 263 zones. Nothing here changes scores.
+
+[`run()`](../../backend/src/findhome/domain/connectivity.py#L186) is a background job in the API (`POST /api/connectivity/refresh`,
+`findhome connectivity refresh`; one at a time, cancellable). It uses the transit provider, `routing_cache` and the
+reference dates of the commute matrix, stops at `connectivity.max_calls_per_run`, and writes every route as soon as
+it is known to `zone_commute` under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so
+search-area or weight edits keep the matrix). Storage goes through the
+[`ConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L44) protocol
+([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L82) in the API, an in-memory store in tests).
+
+A refresh has a **scope** ([`parse_scope()`](../../backend/src/findhome/domain/connectivity.py#L79)): `missing`, `estimates`, `failed`,
+`stale` or `all`; the default is missing + estimates. [`decide()`](../../backend/src/findhome/domain/connectivity.py#L99) chooses per
+route, and the cost preview (`GET /api/connectivity/plan`) uses the same function:
+
+```mermaid
+flowchart TD
+  R[planned route] --> S{stored row?}
+  S -- ok --> ST{stale and scope has stale?}
+  ST -- no --> K[skip]
+  ST -- yes --> CALL
+  S -- estimated / failed --> IN{status in scope?}
+  IN -- no --> K
+  IN -- yes --> F
+  S -- none --> M{scope has missing?}
+  M -- no --> K
+  M -- yes --> F{zone point known unroutable?}
+  F -- yes --> FAIL[mark failed, no call]
+  F -- no --> C{cache entry usable?}
+  C -- yes --> CACHE[use cache]
+  C -- no --> CALL[provider call]
+```
+
+| Step | Code |
+|---|---|
+| per-route decision | [`decide()`](../../backend/src/findhome/domain/connectivity.py#L99) |
+| zone end of a request (where `SVC_LOC` applies) | [`zone_side()`](../../backend/src/findhome/domain/connectivity.py#L94) |
+| unroutable point: stored once, its other routes fail without a call | [`except LocationNotFound`](../../backend/src/findhome/domain/connectivity.py#L248), table `provider_failure` |
+| ResRobot error body → typed error | [`_error()`](../../backend/src/findhome/providers/resrobot.py#L109) |
+
+The job **never falls back to estimates on its own**. An unroutable zone point is the zone's problem, not the
+provider's, so it never pauses the job. Three other provider errors in a row
+([`consecutive >= MAX_CONSECUTIVE_ERRORS`](../../backend/src/findhome/domain/connectivity.py#L261)) follow
+`providers.yaml` `connectivity.on_provider_failure`: `ask` pauses until `POST /api/connectivity/decision` (the
+Connectivity mode shows a dialog; its "don't ask again" writes the policy), `continue` keeps calling, `estimate`
+fills the rest of the run with tagged straight-line estimates.
+
+```mermaid
+stateDiagram-v2
+  [*] --> running: refresh(scope)
+  running --> paused: 3 provider errors, policy ask
+  paused --> running: continue / estimate
+  paused --> stopped: stop
+  running --> stopped: budget, cancel, error
+  running --> done
+```
+
+| State handling | Code |
+|---|---|
+| job state, pause and answer | [`JobState`](../../backend/src/findhome/domain/connectivity.py#L119), [`ask()`](../../backend/src/findhome/domain/connectivity.py#L157), [`decide()`](../../backend/src/findhome/domain/connectivity.py#L150) |
+| endpoints (matrix, routes, plan, refresh, decision, cancel) | [`api/routers/connectivity.py`](../../backend/src/findhome/api/routers/connectivity.py#L54) |
+
+Every planned route has a **status**, derived in one place
+([`route_status()`](../../backend/src/findhome/domain/connectivity_status.py#L23)): `cached` (answered, younger than
+`cache.routing_ttl_days`), `stale` (answered longer ago; still used, refreshed only with the `stale` scope),
+`estimated`, `failed` (with its reason), `missing`, `pending` (missing while a refresh runs). `zone_commute.status`
+stores ok / estimated / failed and `fetched_at` the provider's answer time; `GET /api/connectivity` returns the
+counts, `GET /api/connectivity/routes` the filtered, paged list.
+
+[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L287) gives per zone the window-weighted minutes per point and the
+point-weighted mix (point weights as in the commute score); the matrix endpoint returns it with and without
+estimates (`zones`, `zones_real`) and lists the zones with only failed routes.
 
 ## Zones and the search area
 

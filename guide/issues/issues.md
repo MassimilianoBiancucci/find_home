@@ -16,11 +16,9 @@ Check with `git log -p --all -S"<term>"`.
 
 ## Connectivity matrix
 
-### A zone's representative point can be unroutable, and the refresh then degrades silently
-**Impact: medium.** ResRobot answers `SVC_LOC` (no stop near the coordinate, about 500 m) for 22 to 37 of the 263
-zone origins (the centroid, [`zone_origin`](../../backend/src/findhome/domain/connectivity.py)). After three failures
-in a row [`run`](../../backend/src/findhome/domain/connectivity.py#L144) switches the rest of the run to straight-line
-estimates and never switches back, so most rows end up estimated. A failed pair is not stored, so each refresh spends
-calls on the same origins again. The status shows counts and the last error only.
-**Fix direction:** keep failures per provider and coordinate, pause the job and ask instead of falling back, choose a
-representative stop per zone, show per-route status. Planned in `tasks/advanced-zone-view/`.
+### Some zones have no usable transit answer
+**Impact: medium.** The zone origin is its centroid ([`zone_origin()`](../../backend/src/findhome/domain/connectivity.py#L36)).
+ResRobot cannot route 22 to 37 of the 263 centroids (`SVC_LOC`: no stop within about 500 m). The refresh records
+them once and marks their routes failed (grey on the map), so the matrix has holes for those zones.
+**Fix direction:** represent a zone by its stops instead of its centroid (connectivity centroids), planned in
+`tasks/advanced-zone-view/` (sub-plan 6).
