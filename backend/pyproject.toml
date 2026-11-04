@@ -25,6 +25,7 @@ python-dotenv = ">=1.0"
 playwright = { version = ">=1.48", optional = true }
 shapely = ">=2.0"
 pyproj = ">=3.6"
+networkx = ">=3.3"           # walking / cycling network of the zone analysis
 
 [tool.poetry.extras]
 scrape = ["playwright"]

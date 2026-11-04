@@ -28,6 +28,17 @@ datasets:
     refresh_days: 7               # Bronze key: 50 static downloads/month
     simplify_m: {rail: 5, bus: 10}
     station_snap_m: 80            # a station serves the lines passing within this distance
+  network:                        # `findhome geo fetch network`: streets and paths for walking / cycling times (OSM)
+    refresh_days: 30              # raw Overpass answers are reused for this long
+    # OSM highway classes a person may walk / cycle on; foot=no, bicycle=no, access=no|private remove a way.
+    walk: [footway, path, pedestrian, steps, living_street, residential, service, unclassified, track, cycleway,
+           corridor, tertiary, tertiary_link, secondary, secondary_link, primary, primary_link]
+    bike: [cycleway, path, living_street, residential, service, unclassified, track, tertiary, tertiary_link,
+           secondary, secondary_link, primary, primary_link]
+    bike_if_allowed: [footway, pedestrian]   # only with bicycle=yes|designated (gång- och cykelbana)
+  timetable:                      # `findhome geo fetch timetable`: lines per stop and departures per hour
+    order: [gtfs, osm]            # GTFS reuses transit.gtfs_url and its key (same download); osm: lines only
+    day_kinds: [weekday, saturday, sunday]
 attribution:
   - "Statistical areas: Source: Statistics Sweden (SCB)"
   - "© OpenStreetMap contributors"

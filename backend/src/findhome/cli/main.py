@@ -392,8 +392,10 @@ def geocode(address: str, refresh: bool = typer.Option(False, "--refresh", help=
 
 # ── geo ─────────────────────────────────────────────────────
 @geo_app.command("fetch")
-def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit"),
-              category: Optional[list[str]] = typer.Option(None, "--category", "-c", help="poi: only these categories")):
+def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit | network | timetable"),
+              category: Optional[list[str]] = typer.Option(None, "--category", "-c", help="poi: only these categories"),
+              kommun: Optional[list[str]] = typer.Option(None, "--kommun", "-k", help="network: only these SCB codes"),
+              refresh: bool = typer.Option(False, "--refresh", help="network: query Overpass even if a raw answer is fresh")):
     """Download and build one dataset into data/geo/ (runs locally, no API needed)."""
     from findhome.config.loader import load_all
 
@@ -410,8 +412,22 @@ def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit"),
         meta = build_transit(b.geo, b.transit_colours)
         _out(meta, f"transit ({meta['source']}): " + ", ".join(f"{k} {v}" for k, v in meta["counts"].items()))
         return
+    if dataset == "network":
+        from findhome.geo.build_network import build_network
+
+        meta = build_network(b.geo, only=kommun, refresh=refresh)
+        _out(meta, "network: " + ", ".join(f"{k} {v['edges']} edges" for k, v in meta["kommuner"].items()))
+        return
+    if dataset == "timetable":
+        from findhome.geo.build_timetable import build_timetable
+
+        meta = build_timetable(b.geo)
+        _out(meta, f"timetable ({meta['source']}): {meta['stops']} stops, {meta['lines']} lines"
+                   + (f", departures for {', '.join(f'{k} {v}' for k, v in meta['ref_dates'].items())}"
+                      if meta["departures"] else ", no departures (no GTFS)"))
+        return
     if dataset != "zones":
-        typer.secho(f"unknown dataset '{dataset}' (available: zones, poi, transit)", fg="red", err=True)
+        typer.secho(f"unknown dataset '{dataset}' (available: zones, poi, transit, network, timetable)", fg="red", err=True)
         raise typer.Exit(2)
     from findhome.config.writer import apply_ops
     from findhome.geo.build_zones import build_zones

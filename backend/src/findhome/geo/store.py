@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from shapely.geometry import shape
+from shapely.geometry import Point, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.strtree import STRtree
 
@@ -170,4 +170,59 @@ def load_transit() -> TransitIndex | None:
             colours[key] = pr.get("colour")
     idx = TransitIndex(lines, colours, mtime)
     _transit_cache["idx"] = idx
+    return idx
+
+
+@dataclass
+class TimetableIndex:
+    """Stops with the lines they serve and (with GTFS) departures per hour, from data/geo/timetable/."""
+    source: str                                       # gtfs | osm
+    ref_dates: dict[str, str]
+    lines: dict[str, dict[str, Any]]                  # line id → {mode, ref, name}
+    stops: dict[str, dict[str, Any]]                  # stop id → {name, lat, lon, parent, lines}
+    departures: dict[str, dict[str, list[int]]]       # day kind → stop id → 24 counts; {} without GTFS
+    ids: list[str]
+    points: list[Any]                                 # shapely Points in EPSG:3006, same order as ids
+    tree: STRtree
+    mtime: float
+
+    def stops_near(self, pt, within_m: float) -> list[tuple[float, str]]:
+        """(distance m, stop id) of the stops within the radius, nearest first."""
+        idx = self.tree.query(pt.buffer(within_m))
+        return sorted((self.points[int(i)].distance(pt), self.ids[int(i)]) for i in idx
+                      if self.points[int(i)].distance(pt) <= within_m)
+
+    def lines_at(self, stop_id: str) -> list[dict[str, Any]]:
+        return [{"id": lid, **self.lines[lid]} for lid in self.stops.get(stop_id, {}).get("lines", []) if lid in self.lines]
+
+    def departures_at(self, stop_id: str, day_kind: str) -> list[int] | None:
+        """24 hourly counts, or None when there is no timetable (OSM source)."""
+        if not self.departures:
+            return None
+        return self.departures.get(day_kind, {}).get(stop_id, [0] * 24)
+
+
+_timetable_cache: dict[str, TimetableIndex] = {}
+
+
+def load_timetable() -> TimetableIndex | None:
+    """None until `findhome geo fetch timetable` has run."""
+    from findhome.geo.build_timetable import timetable_dir
+
+    d = timetable_dir()
+    meta = d / "meta.json"
+    if not meta.exists():
+        return None
+    mtime = meta.stat().st_mtime
+    hit = _timetable_cache.get("idx")
+    if hit and hit.mtime == mtime:
+        return hit
+    doc = json.loads((d / "stops.json").read_text(encoding="utf-8"))
+    dep_path = d / "departures.json"
+    departures = json.loads(dep_path.read_text(encoding="utf-8")) if dep_path.exists() else {}
+    ids = list(doc["stops"])
+    points = [to_metric(Point(doc["stops"][i]["lon"], doc["stops"][i]["lat"])) for i in ids]
+    idx = TimetableIndex(doc["source"], doc.get("ref_dates", {}), doc["lines"], doc["stops"], departures, ids, points,
+                         STRtree(points), mtime)
+    _timetable_cache["idx"] = idx
     return idx

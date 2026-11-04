@@ -25,3 +25,9 @@ def to_wgs84(geom: BaseGeometry, src: str = SWEREF) -> BaseGeometry:
 
 def point_metric(lon: float, lat: float) -> tuple[float, float]:
     return _tf(WGS84, SWEREF).transform(lon, lat)
+
+
+def points_metric(lons: list[float], lats: list[float]) -> tuple[list[float], list[float]]:
+    """Many lon/lat pairs at once (faster than one call per point)."""
+    xs, ys = _tf(WGS84, SWEREF).transform(lons, lats)
+    return list(xs), list(ys)
