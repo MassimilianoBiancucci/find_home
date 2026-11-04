@@ -220,6 +220,7 @@ class ZoneConfig(_Base):
     snap_max_m: float = 300
     target_sets: dict[str, TargetSet]
     homes: dict[str, Any] = Field(default_factory=dict)
+    indices: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── sites ───────────────────────────────────────────────────

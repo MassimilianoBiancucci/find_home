@@ -23,3 +23,23 @@ target_sets:
 homes:
   buildings: [apartments, residential, house, detached, semidetached_house, terrace, dormitory]
   default_levels: {apartments: 4, residential: 3, dormitory: 3, terrace: 2}   # when building:levels is missing; else 1
+# Mobility indices (0-100): absolute components, each mapped linearly from `zero` (score 0) to `full` (score 1) and
+# combined with its weight. The map colours zones by percentile. Display only: indices do not change scores.
+indices:
+  access_min: 10                  # stops within this walk of the zone's homes count for lines and frequency
+  windows:                        # weekday hours [from, to) of each time window, and its weight in the average
+    morning: {hours: [7, 9], weight: 1.0}
+    midday: {hours: [9, 15], weight: 0.5}
+    afternoon: {hours: [15, 19], weight: 1.0}
+    evening: {hours: [19, 24], weight: 0.5}
+  components:
+    rail_access: {zero: 20, full: 5, weight: 1.0}    # minutes: home-weighted median walk to metro / train / tram
+    bus_access: {zero: 10, full: 3, weight: 0.5}     # minutes: median walk to a bus stop
+    coverage: {zero: 0, full: 1, weight: 0.5}        # share of homes within 5 min of any stop
+    lines: {zero: 0, full: 15, weight: 1.0}          # distinct lines with a departure in the window (rail counts 3)
+    frequency: {zero: 0, full: 60, weight: 1.0}      # departures per hour at the 3 busiest reachable stops
+  services:                       # "transport + services" = transport × (1 − weight) + services × weight
+    sets: [grocery, pharmacy, gym, park]
+    zero: 20                      # minutes: median walk to the nearest of each set, averaged
+    full: 5
+    weight: 0.3

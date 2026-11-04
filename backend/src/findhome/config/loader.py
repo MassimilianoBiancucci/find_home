@@ -142,6 +142,10 @@ def _cross_checks(raw: dict[str, Any], sites: dict[str, Any]) -> list[str]:
         for cat in ts.get("poi", []):
             if cat not in poi_cats:
                 errors.append(f"zone.yaml: target_sets/{sid}/poi: '{cat}' not in poi.yaml categories")
+    zone_sets = set(((raw.get("zone") or {}).get("target_sets") or {}))
+    for s in (((raw.get("zone") or {}).get("indices") or {}).get("services") or {}).get("sets", []):
+        if s not in zone_sets:
+            errors.append(f"zone.yaml: indices/services/sets: '{s}' not in target_sets")
     for slug, site in sites.items():
         for key in site.get("filter_map", {}):
             if key not in catalog:

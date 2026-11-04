@@ -550,5 +550,32 @@ def zone_heatmap(zone_id: str, sets: str = typer.Option("rail,bus", "--sets", he
     _out({k: v for k, v in h.items() if k != "segments"}, "\n".join(lines))
 
 
+@zone_app.command("indices")
+def zone_indices_cmd(zone_id: Optional[str] = typer.Argument(None, help="one zone; omit with --all"),
+                     all_zones: bool = typer.Option(False, "--all", help="compute every zone (a few seconds each)")):
+    """Mobility indices (transport, transport + services): one zone, or fill the cache for every zone."""
+    api = _api()
+    if not all_zones:
+        if not zone_id:
+            typer.secho("give a zone id or --all", fg="red", err=True)
+            raise typer.Exit(2)
+        r = api.get(f"/api/zone/{zone_id}/indices")
+        m = r["measured"]
+        lines = [f"{zone_id}: transport {r['transport']} · transport + services {r['transport_services']} · services {r['services']}"]
+        lines += [f"  {w:10} transport {v['transport']} · lines {m['lines'].get(w)} · {m['frequency'].get(w)}/h"
+                  for w, v in r["windows"].items()]
+        lines.append(f"  walk: rail {m['rail_access_min']} min · bus {m['bus_access_min']} min · coverage {m['coverage']}"
+                     f" · {m['reachable_stops']} stops within reach")
+        _out(r, "\n".join(lines))
+        return
+    zones = api.get("/api/geo/zones")                  # served as application/geo+json: the client returns text
+    ids = [f["properties"]["zone_id"] for f in (json.loads(zones) if isinstance(zones, str) else zones)["features"]]
+    for done, zid in enumerate(ids, 1):
+        r = api.get(f"/api/zone/{zid}/indices")
+        if not r.get("cached"):
+            typer.echo(f"{done}/{len(ids)} {zid}: transport {r['transport']} · + services {r['transport_services']}")
+    _out({"zones": len(ids)}, f"indices ready for {len(ids)} zones")
+
+
 if __name__ == "__main__":
     app()

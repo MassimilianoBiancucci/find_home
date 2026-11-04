@@ -178,3 +178,42 @@ def lines(bundle: ConfigBundle, zones: ZoneSet, zone_id: str, day_kind: str = "w
                      skip={e["id"] for e in own})
     return {"zone_id": zone_id, "day_kind": day_kind, "source": tt.source, "ref_date": tt.ref_dates.get(day_kind),
             "lines": own, "nearby_lines": near}
+
+
+def index_sets(bundle: ConfigBundle) -> list[str]:
+    """Target sets the indices measure: rail and bus, plus the services sets of zone.yaml indices."""
+    return sorted({"rail", "bus", *bundle.zone.indices.get("services", {}).get("sets", [])} & set(bundle.zone.target_sets))
+
+
+def zone_indices(bundle: ConfigBundle, zones: ZoneSet, zone_id: str) -> dict[str, Any]:
+    from findhome.zone.heatmap import ExtentGraph
+    from findhome.zone.indices import indices
+    from findhome.zone.measure import measure
+
+    if not bundle.zone.indices:
+        raise MissingData("zone.yaml has no indices block")
+    sets = index_sets(bundle)
+    ext = _extent(bundle, zones, zone_id, False, "walk")
+    net = load_network(ext.kommuner)
+    if net is None:
+        raise MissingData("no walking network yet: run `findhome geo fetch network`")
+    p = params(bundle, "walk")
+    found = targets_for(bundle, ext, sets)
+    eg = ExtentGraph(net, ext, p, load_homes(ext.kommuner))
+    comps, detail = measure(bundle, ext, eg, load_timetable(), {s: [pt for pt, _ in v] for s, v in found.items()}, p)
+    return {"zone_id": zone_id, **indices(comps, bundle.zone.indices),
+            "measured": {"rail_access_min": comps.rail_access_min, "bus_access_min": comps.bus_access_min,
+                         "coverage": comps.coverage, "lines": comps.lines, "frequency": comps.frequency,
+                         "services_min": comps.services_min, **detail}}
+
+
+def percentiles(values: dict[str, float | None]) -> dict[str, float | None]:
+    """Rank of each zone among the zones with a value, 0 (lowest) to 100 (highest)."""
+    have = sorted(v for v in values.values() if v is not None)
+    n = len(have)
+    if n == 0:
+        return dict.fromkeys(values)
+    from bisect import bisect_left, bisect_right
+
+    return {k: None if v is None else round(100 * (bisect_left(have, v) + bisect_right(have, v)) / (2 * n), 1)
+            for k, v in values.items()}

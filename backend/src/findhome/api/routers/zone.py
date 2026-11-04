@@ -35,6 +35,47 @@ async def zone_at(lat: float, lon: float):
     return {"zone": za.zone_at(_zones_or_404(), lat, lon)}
 
 
+@router.get("/indices")
+async def all_indices(window: str | None = None, conn=Depends(get_conn)):
+    """Every zone's stored indices for the current inputs, with percentiles (the map colours by them)."""
+    b = bundle()
+    ver = za.version(b, za.index_sets(b))
+    rows = await (await conn.execute("SELECT zone_id, payload FROM zone_index WHERE version = %s", (ver,))).fetchall()
+
+    def value(pl: dict, key: str):
+        return pl["windows"].get(window, {}).get(key) if window else pl.get(key)
+
+    out = {}
+    for key in ("transport", "transport_services"):
+        vals = {r["zone_id"]: value(r["payload"], key) for r in rows}
+        pct = za.percentiles(vals)
+        for zid, v in vals.items():
+            out.setdefault(zid, {})[key] = {"value": v, "percentile": pct[zid]}
+    windows = list((b.zone.indices or {}).get("windows", {}))
+    return {"version": ver, "window": window, "windows": windows, "zones": out, "count": len(rows),
+            "zone_count": len(_zones_or_404().zones)}
+
+
+@router.get("/{zone_id}/indices")
+async def zone_indices(zone_id: str, conn=Depends(get_conn)):
+    """Mobility indices of one zone; computed once per inputs version (a few seconds), then from zone_index."""
+    b, zones = bundle(), _zones_or_404()
+    if zone_id not in zones.zones:
+        raise HTTPException(404, "unknown zone")
+    ver = za.version(b, za.index_sets(b))
+    row = await (await conn.execute("SELECT payload FROM zone_index WHERE zone_id = %s AND version = %s",
+                                    (zone_id, ver))).fetchone()
+    if row:
+        return {**row["payload"], "cached": True}
+    try:
+        payload = await asyncio.to_thread(za.zone_indices, b, zones, zone_id)
+    except za.MissingData as exc:
+        raise HTTPException(409, str(exc)) from exc
+    await conn.execute("INSERT INTO zone_index (zone_id, version, payload) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                       (zone_id, ver, Jsonb(payload)))
+    return {**payload, "cached": False}
+
+
 @router.get("/{zone_id}/lines")
 async def zone_lines(zone_id: str, day_kind: Literal["weekday", "saturday", "sunday"] = "weekday"):
     b, zones = bundle(), _zones_or_404()

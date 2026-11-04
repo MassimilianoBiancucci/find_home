@@ -6,38 +6,226 @@
   "properties": {
     "speeds_mps": {
       "type": "object",
-      "properties": {"walk": {"type": "number", "exclusiveMinimum": 0}, "bike": {"type": "number", "exclusiveMinimum": 0}},
-      "required": ["walk", "bike"],
+      "properties": {
+        "walk": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "bike": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "walk",
+        "bike"
+      ],
       "additionalProperties": false
     },
-    "factors": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
-    "cutoff_min": {"type": "number", "exclusiveMinimum": 0, "maximum": 60},
-    "bins_min": {"type": "array", "items": {"type": "number", "exclusiveMinimum": 0}, "minItems": 2},
-    "snap_max_m": {"type": "number", "exclusiveMinimum": 0},
+    "factors": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      }
+    },
+    "cutoff_min": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 60
+    },
+    "bins_min": {
+      "type": "array",
+      "items": {
+        "type": "number",
+        "exclusiveMinimum": 0
+      },
+      "minItems": 2
+    },
+    "snap_max_m": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
     "target_sets": {
       "type": "object",
-      "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9_]*$"
+      },
       "additionalProperties": {
         "type": "object",
         "properties": {
-          "label": {"type": "string"},
-          "stops": {"type": "array", "items": {"enum": ["metro", "commuter_rail", "local_rail", "tram", "train", "bus", "ferry"]}},
-          "poi": {"type": "array", "items": {"type": "string"}}
+          "label": {
+            "type": "string"
+          },
+          "stops": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "metro",
+                "commuter_rail",
+                "local_rail",
+                "tram",
+                "train",
+                "bus",
+                "ferry"
+              ]
+            }
+          },
+          "poi": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
         },
-        "required": ["label"],
-        "anyOf": [{"required": ["stops"]}, {"required": ["poi"]}],
+        "required": [
+          "label"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "stops"
+            ]
+          },
+          {
+            "required": [
+              "poi"
+            ]
+          }
+        ],
         "additionalProperties": false
       }
     },
     "homes": {
       "type": "object",
       "properties": {
-        "buildings": {"type": "array", "items": {"type": "string"}},
-        "default_levels": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}}
+        "buildings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "default_levels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        }
       },
+      "additionalProperties": false
+    },
+    "indices": {
+      "type": "object",
+      "properties": {
+        "access_min": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "windows": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "hours": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 24
+                },
+                "minItems": 2,
+                "maxItems": 2
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "hours",
+              "weight"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "components": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "rail_access",
+              "bus_access",
+              "coverage",
+              "lines",
+              "frequency"
+            ]
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "zero": {
+                "type": "number"
+              },
+              "full": {
+                "type": "number"
+              },
+              "weight": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "zero",
+              "full",
+              "weight"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "services": {
+          "type": "object",
+          "properties": {
+            "sets": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "zero": {
+              "type": "number"
+            },
+            "full": {
+              "type": "number"
+            },
+            "weight": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "required": [
+            "sets",
+            "zero",
+            "full",
+            "weight"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "access_min",
+        "windows",
+        "components",
+        "services"
+      ],
       "additionalProperties": false
     }
   },
-  "required": ["speeds_mps", "cutoff_min", "bins_min", "target_sets"],
+  "required": [
+    "speeds_mps",
+    "cutoff_min",
+    "bins_min",
+    "target_sets"
+  ],
   "additionalProperties": false
 }
