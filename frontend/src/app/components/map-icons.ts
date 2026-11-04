@@ -220,11 +220,11 @@ export function pinUrl(glyph: string, bg: string, fg = '#ffffff'): string {
 // ── 3D objects ──────────────────────────────────────────────
 /**
  * Standalone 3D-looking objects for targets that read better as a thing than as a pin: a sitting black cat (vet),
- * an extruded green cross (pharmacy), a dumbbell (gym) and a shopping cart (groceries). Each stands on a soft ground
+ * an extruded green cross (pharmacy), a dumbbell (gym), a shopping cart (groceries) and a tree (parks). Each stands on a soft ground
  * shadow; used with `icon-anchor: bottom`. Image id: `obj3d:<object>`. Drawn on a 72 × 72 canvas (36 css px).
  */
 export const OBJECT_PREFIX = 'obj3d:';
-export const OBJECTS = ['cat', 'cross', 'dumbbell', 'cart'] as const;
+export const OBJECTS = ['cat', 'cross', 'dumbbell', 'cart', 'tree'] as const;
 export type ObjectKind = (typeof OBJECTS)[number];
 const OBJ = 72;
 
@@ -335,44 +335,94 @@ function drawCross(g: CanvasRenderingContext2D): void {
 }
 
 function drawDumbbell(g: CanvasRenderingContext2D): void {
-  groundShadow(g, 26);
-  const y = 44;
-  const bar = g.createLinearGradient(0, y - 3, 0, y + 3);             // chrome bar
-  bar.addColorStop(0, '#f1f3f5');
+  groundShadow(g, 27);
+  const y = 42;
+  g.save();
+  g.translate(36, y);
+  g.rotate(-0.14);                                                    // a slight tilt reads as an object, not a sign
+  const bar = g.createLinearGradient(0, -4.5, 0, 4.5);                // chrome bar
+  bar.addColorStop(0, '#f8f9fa');
   bar.addColorStop(0.5, '#868e96');
-  bar.addColorStop(1, '#343a40');
+  bar.addColorStop(1, '#212529');
   g.fillStyle = bar;
-  g.fillRect(14, y - 3, 44, 6);
-  const plate = (x: number, w: number, h: number) => {                // a plate: cylinder side + lit face
-    const side = g.createLinearGradient(0, y - h, 0, y + h);
-    side.addColorStop(0, '#ff922b');
-    side.addColorStop(0.45, '#e8590c');
-    side.addColorStop(1, '#7a2e05');
-    g.fillStyle = side;
+  g.strokeStyle = '#111';
+  g.lineWidth = 2;
+  g.beginPath();
+  g.rect(-17, -4.5, 34, 9);
+  g.fill();
+  g.stroke();
+  const plate = (x: number, w: number, h: number) => {                // a plate: cylinder side + lit face, dark outline
+    const side = g.createLinearGradient(0, -h, 0, h);
+    side.addColorStop(0, '#ffa94d');
+    side.addColorStop(0.4, '#f76707');
+    side.addColorStop(1, '#6b2a04');
     g.beginPath();
-    g.ellipse(x + w, y, 4, h, 0, -Math.PI / 2, Math.PI / 2);
-    g.lineTo(x, y + h);
-    g.ellipse(x, y, 4, h, 0, Math.PI / 2, -Math.PI / 2, true);
+    g.ellipse(x + w, 0, 5, h, 0, -Math.PI / 2, Math.PI / 2);
+    g.lineTo(x, h);
+    g.ellipse(x, 0, 5, h, 0, Math.PI / 2, -Math.PI / 2, true);
     g.closePath();
+    g.fillStyle = side;
     g.fill();
+    g.strokeStyle = '#111';
+    g.lineWidth = 2.2;
+    g.stroke();
     g.beginPath();
-    g.ellipse(x, y, 4, h, 0, 0, Math.PI * 2);
-    g.fillStyle = '#ffa94d';
+    g.ellipse(x, 0, 5, h, 0, 0, Math.PI * 2);
+    g.fillStyle = '#ffc078';
     g.fill();
-    g.strokeStyle = '#1b1b1f';
+    g.stroke();
+    g.beginPath();                                                    // hole in the plate face
+    g.ellipse(x, 0, 1.6, 3.4, 0, 0, Math.PI * 2);
+    g.fillStyle = '#343a40';
+    g.fill();
+  };
+  plate(-28, 7, 18);
+  plate(-20, 5, 13);
+  plate(21, 7, 18);
+  plate(15, 5, 13);
+  g.beginPath();                                                      // highlight along the bar
+  g.moveTo(-12, -2.3);
+  g.lineTo(12, -2.3);
+  g.strokeStyle = 'rgba(255,255,255,.9)';
+  g.lineWidth = 1.4;
+  g.stroke();
+  g.restore();
+}
+
+function drawTree(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 22);
+  const trunk = g.createLinearGradient(31, 0, 41, 0);                 // trunk: a lit cylinder
+  trunk.addColorStop(0, '#a0703c');
+  trunk.addColorStop(0.5, '#7a4f24');
+  trunk.addColorStop(1, '#4a2e12');
+  g.fillStyle = trunk;
+  g.beginPath();
+  g.moveTo(32, 64);
+  g.lineTo(33.5, 40);
+  g.lineTo(38.5, 40);
+  g.lineTo(40, 64);
+  g.closePath();
+  g.fill();
+  g.strokeStyle = '#2b1a0a';
+  g.lineWidth = 1.4;
+  g.stroke();
+  const ball = (x: number, y: number, r: number) => {                 // canopy: overlapping lit spheres
+    const grad = g.createRadialGradient(x - r * 0.4, y - r * 0.45, r * 0.15, x, y, r);
+    grad.addColorStop(0, '#a9e34b');
+    grad.addColorStop(0.55, '#5c940d');
+    grad.addColorStop(1, '#2b4a06');
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = grad;
+    g.fill();
+    g.strokeStyle = 'rgba(20,40,5,.8)';
     g.lineWidth = 1.2;
     g.stroke();
   };
-  plate(8, 6, 15);
-  plate(15, 4, 11);
-  plate(53, 6, 15);
-  plate(49, 4, 11);
-  g.beginPath();                                                      // highlight along the bar
-  g.moveTo(24, y - 1.6);
-  g.lineTo(46, y - 1.6);
-  g.strokeStyle = 'rgba(255,255,255,.8)';
-  g.lineWidth = 1;
-  g.stroke();
+  ball(25, 36, 12);
+  ball(47, 36, 12);
+  ball(36, 40, 12);
+  ball(36, 22, 15);
 }
 
 function drawCart(g: CanvasRenderingContext2D): void {
@@ -431,7 +481,7 @@ function drawCart(g: CanvasRenderingContext2D): void {
 }
 
 const OBJECT_DRAW: Record<ObjectKind, (g: CanvasRenderingContext2D) => void> = {
-  cat: drawCat, cross: drawCross, dumbbell: drawDumbbell, cart: drawCart,
+  cat: drawCat, cross: drawCross, dumbbell: drawDumbbell, cart: drawCart, tree: drawTree,
 };
 
 function drawObject(kind: ObjectKind): HTMLCanvasElement | null {

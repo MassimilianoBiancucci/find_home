@@ -8,12 +8,14 @@ import { MapStateService } from './map-state.service';
 
 /** Connectivity centroid colour per group. */
 export const GROUP_COLOURS: Record<string, string> = { rail: '#0089ca', bus: '#d71d24' };
-/** How each target set is drawn: a standing 3D pin (glyph, badge, glyph colour) or a standalone 3D object. */
-export type TargetIcon = { pin: { glyph: string; bg: string; fg?: string } } | { object: ObjectKind };
+/** How each target set is drawn: a standing 3D pin (glyph, badge, glyph colour) or a standalone 3D object, and the
+ *  coloured glow on the ground under it (none for bus stops and parks: there are too many of them). */
+export type TargetIcon = ({ pin: { glyph: string; bg: string; fg?: string } } | { object: ObjectKind }) & { halo?: string };
 export const TARGET_ICONS: Record<string, TargetIcon> = {
-  rail: { pin: { glyph: 'metro', bg: '#0089ca' } }, bus: { pin: { glyph: 'bus', bg: '#d71d24' } },
-  ferry: { pin: { glyph: 'ferry', bg: '#00a5ac' } }, park: { pin: { glyph: 'tree', bg: '#5c940d' } },
-  grocery: { object: 'cart' }, pharmacy: { object: 'cross' }, gym: { object: 'dumbbell' }, vet: { object: 'cat' },
+  rail: { pin: { glyph: 'metro', bg: '#0089ca' }, halo: '#1c9bff' }, bus: { pin: { glyph: 'bus', bg: '#d71d24' } },
+  ferry: { pin: { glyph: 'ferry', bg: '#00a5ac' }, halo: '#12d6d6' }, park: { object: 'tree' },
+  grocery: { object: 'cart', halo: '#40c057' }, pharmacy: { object: 'cross', halo: '#2ff07a' },
+  gym: { object: 'dumbbell', halo: '#ff7a1a' }, vet: { object: 'cat', halo: '#c77dff' },
 };
 const FALLBACK: TargetIcon = { pin: { glyph: 'dot', bg: '#8a8aa0' } };
 export function targetIconId(set: string): string {
@@ -233,17 +235,23 @@ export class ZoneService {
    *  buildings and the heatmap; nearer pins cover farther ones. */
   private drawTargets(fc: GeoCollection): void {
     const icon: any = ['match', ['get', 'set'], ...Object.keys(TARGET_ICONS).flatMap((k) => [k, targetIconId(k)]), targetIconId('')];
+    const halos = Object.entries(TARGET_ICONS).filter(([, t]) => t.halo);
+    const haloColour: any = ['match', ['get', 'set'], ...halos.flatMap(([k, t]) => [k, t.halo!]), '#ffffff'];
     this.state.addGroup({
       id: 'zone-targets',
       sources: { 'zone-targets': { type: 'geojson', data: EMPTY as any } },
-      layers: [{ id: 'zone-targets-pin', type: 'symbol', source: 'zone-targets',
+      layers: [{ id: 'zone-targets-halo', type: 'circle', source: 'zone-targets',
+        filter: ['in', ['get', 'set'], ['literal', halos.map(([k]) => k)]],
+        paint: { 'circle-color': haloColour, 'circle-blur': 0.9, 'circle-opacity': 0.55, 'circle-pitch-alignment': 'map',
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 9, 14, 18, 17, 30] } },
+      { id: 'zone-targets-pin', type: 'symbol', source: 'zone-targets',
         layout: { 'icon-image': icon, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
           'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport', 'symbol-z-order': 'viewport-y',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 14, 0.85, 17, 1.15] } }] as any,
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.7, 14, 1.05, 17, 1.4] } }] as any,
     });
     this.state.setData('zone-targets', fc);
     const map = this.state.map();
-    if (map?.getLayer('zone-targets-pin')) map.moveLayer('zone-targets-pin');   // above everything added since
+    for (const id of ['zone-targets-halo', 'zone-targets-pin']) if (map?.getLayer(id)) map.moveLayer(id);   // above everything added since
   }
 
   /** Show or hide the centroid layer (hidden by default; the choice persists like the other map layers). */
