@@ -125,3 +125,56 @@ def facts(bundle: ConfigBundle, zones: ZoneSet, zone_id: str) -> dict[str, Any]:
             "stops_by_mode": dict(modes), "lines": len(lines), "poi": poi_counts,
             "timetable": tt.source if tt else None,
             "target_sets": {k: v.label for k, v in bundle.zone.target_sets.items()}}
+
+
+def zone_at(zones: ZoneSet, lat: float, lon: float) -> dict[str, str] | None:
+    from shapely.geometry import Point
+
+    from findhome.geo.crs import point_metric
+
+    z = zones.containing(Point(point_metric(lon, lat)))
+    return {"id": z.id, "name": z.name, "district": z.district} if z else None
+
+
+MODE_ORDER = ("metro", "commuter_rail", "local_rail", "tram", "train", "ferry", "bus", "other")
+
+
+def _lines_in(bundle: ConfigBundle, tt, geoms, day_kind: str, skip: set[str] | None = None) -> list[dict[str, Any]]:
+    """Lines serving the stops inside geoms, with the stops' names and the departures per hour of that line there."""
+    by_line: dict[str, dict[str, Any]] = {}
+    for geom in geoms:
+        for i in tt.tree.query(geom, predicate="intersects"):
+            sid = tt.ids[int(i)]
+            stop = tt.stops[sid]
+            deps = tt.departures_by_line(sid, day_kind)
+            for lid in stop.get("lines", []):
+                if lid not in tt.lines or (skip and lid in skip):
+                    continue
+                ln = tt.lines[lid]
+                e = by_line.setdefault(lid, {"id": lid, "mode": ln["mode"], "ref": ln.get("ref"), "name": ln.get("name"),
+                                             "colour": bundle.transit_colours.colour(ln["mode"], ln.get("ref")),
+                                             "stops": [], "departures": [0] * 24 if deps is not None else None})
+                name = stop.get("name") or sid
+                if name not in e["stops"]:
+                    e["stops"].append(name)
+                if deps is not None and lid in deps:
+                    e["departures"] = [a + b for a, b in zip(e["departures"], deps[lid], strict=True)]
+    out = list(by_line.values())
+    for e in out:
+        e["peak_per_hour"] = max(e["departures"]) if e["departures"] else None
+    def ref_key(e: dict[str, Any]) -> tuple:
+        r = str(e["ref"] or "")
+        return (MODE_ORDER.index(e["mode"]) if e["mode"] in MODE_ORDER else 99, int(r) if r.isdigit() else 9999, r)
+    return sorted(out, key=ref_key)
+
+
+def lines(bundle: ConfigBundle, zones: ZoneSet, zone_id: str, day_kind: str = "weekday") -> dict[str, Any]:
+    """Lines at the zone's stops, then the extra lines at the neighbouring zones' stops."""
+    tt = load_timetable()
+    if tt is None:
+        raise MissingData("no timetable yet: run `findhome geo fetch timetable`")
+    own = _lines_in(bundle, tt, [zones.zones[zone_id].geom], day_kind)
+    near = _lines_in(bundle, tt, [zones.zones[n].geom for n in neighbours(zones, zone_id)], day_kind,
+                     skip={e["id"] for e in own})
+    return {"zone_id": zone_id, "day_kind": day_kind, "source": tt.source, "ref_date": tt.ref_dates.get(day_kind),
+            "lines": own, "nearby_lines": near}

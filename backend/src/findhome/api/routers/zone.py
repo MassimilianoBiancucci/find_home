@@ -29,6 +29,23 @@ def _sets(b, sets: str | None) -> list[str]:
         raise HTTPException(422, str(exc)) from exc
 
 
+@router.get("/at")
+async def zone_at(lat: float, lon: float):
+    """The zone under a point (the map's right-click menu); null outside every zone."""
+    return {"zone": za.zone_at(_zones_or_404(), lat, lon)}
+
+
+@router.get("/{zone_id}/lines")
+async def zone_lines(zone_id: str, day_kind: Literal["weekday", "saturday", "sunday"] = "weekday"):
+    b, zones = bundle(), _zones_or_404()
+    if zone_id not in zones.zones:
+        raise HTTPException(404, "unknown zone")
+    try:
+        return za.lines(b, zones, zone_id, day_kind)
+    except za.MissingData as exc:
+        raise HTTPException(409, str(exc)) from exc
+
+
 @router.get("/{zone_id}")
 async def zone_facts(zone_id: str):
     b, zones = bundle(), _zones_or_404()
