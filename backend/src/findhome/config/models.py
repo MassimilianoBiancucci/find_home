@@ -221,6 +221,7 @@ class ZoneConfig(_Base):
     target_sets: dict[str, TargetSet]
     homes: dict[str, Any] = Field(default_factory=dict)
     indices: dict[str, Any] = Field(default_factory=dict)
+    centroids: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── sites ───────────────────────────────────────────────────

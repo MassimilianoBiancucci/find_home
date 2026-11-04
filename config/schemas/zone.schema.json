@@ -219,6 +219,57 @@
         "services"
       ],
       "additionalProperties": false
+    },
+    "centroids": {
+      "type": "object",
+      "properties": {
+        "walk_min": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "max_walk_min": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "coverage": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1
+        },
+        "min_gain": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "metro",
+                "commuter_rail",
+                "local_rail",
+                "tram",
+                "train",
+                "bus",
+                "ferry"
+              ]
+            }
+          }
+        },
+        "reference": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "walk_min",
+        "max_walk_min",
+        "coverage",
+        "min_gain",
+        "groups"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

@@ -43,3 +43,16 @@ indices:
     zero: 20                      # minutes: median walk to the nearest of each set, averaged
     full: 5
     weight: 0.3
+# Connectivity centroids: the stations a zone's commutes start from (Map → Connectivity, `findhome zone centroids`).
+# One greedy cover per group over the zone's homes: the fewest stations that put `coverage` of the homes within
+# `walk_min`; a station joins only while it adds `min_gain` of the homes. Both groups are kept, so the matrix can
+# compare a rail start with a bus start for the same homes.
+centroids:
+  walk_min: 5                     # ≈ 400 m at walking speed
+  max_walk_min: 20                # walk times kept per home and centroid (longer walks are not a centroid's homes)
+  coverage: 0.9
+  min_gain: 0.03
+  reference: true                 # a group with no station near enough keeps its best one within max_walk_min
+  groups:
+    rail: [metro, commuter_rail, local_rail, tram, train, ferry]
+    bus: [bus]
