@@ -251,7 +251,7 @@ flowchart LR
   R[OSM route relations, raw transit answers] -. no GTFS key .-> TB
   NB --> NF[network/kommun.json.gz: nodes + edges, EPSG:3006]
   TB --> SF[timetable/stops.json: lines per stop]
-  TB --> DF[timetable/departures.json: per stop, day kind and hour]
+  TB --> DF[timetable/departures.json: per stop, line, day kind and hour]
   NF --> NL[load_network: networkx graph per mode]
   SF --> TL[load_timetable: TimetableIndex]
   DF --> TL
@@ -315,7 +315,8 @@ sequenceDiagram
 | homes: residential buildings weighted by floors (`geo fetch buildings`) | [`homes_from_elements()`](../../backend/src/findhome/geo/build_buildings.py#L44), [`load_homes()`](../../backend/src/findhome/zone/homes.py#L13) |
 | one Dijkstra per set from a virtual source, cutoff, segment times, summary | [`compute()`](../../backend/src/findhome/zone/heatmap.py#L67) |
 | cache key: datasets' meta, zone.yaml, POI file times | [`version()`](../../backend/src/findhome/zone/analysis.py#L47) |
-| endpoints: facts, targets, heatmap | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py#L32) |
+| endpoints: zone at a point, facts, lines, targets, heatmap | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py#L33) |
+| lines at the zone's stops (and the neighbours') with departures per hour | [`lines()`](../../backend/src/findhome/zone/analysis.py#L171) |
 
 [`compute()`](../../backend/src/findhome/zone/heatmap.py#L67) works on the network inside the search area. Every target snaps to its nearest
 node (at most `snap_max_m`), and the snap walk is the weight of its edge from the virtual source. Edge time is

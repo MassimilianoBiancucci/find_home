@@ -98,7 +98,7 @@ the page is destroyed. Box widths and collapsed bubbles persist in localStorage;
 
 The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one MapLibre instance owned by
 `MapShell` and shared through [`MapStateService`](../../frontend/src/app/pages/map/map-state.service.ts) with
-the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`). Modes add named layer
+the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`, `/map/zone`). Modes add named layer
 groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The base style is
 `map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
 the style and re-applies every group. A style that cannot load falls back to a blank background. In dark mode
@@ -109,7 +109,7 @@ Every marker is a round **blip** (category colour, white glyph, dark outline, gl
 [`components/map-icons.ts`](../../frontend/src/app/components/map-icons.ts) and added on demand through
 MapLibre's `styleimagemissing` (`blip:<glyph>:<rrggbb>`), so blips survive style reloads.
 [`PoiLayersService`](../../frontend/src/app/pages/map/poi-layers.service.ts) adds one layer per POI category, loaded
-the first time it is switched on. The **test point** (right-click, or the Test point button) lives in
+the first time it is switched on. The **test point** (right-click → Set test point here, or the Test point button) lives in
 [`ProbeService`](../../frontend/src/app/pages/map/probe.service.ts): it survives mode switches, calls
 `/api/probe`, and draws the pin, straight lines to the nearest places and the legs of the selected itinerary;
 [`probe-panel.ts`](../../frontend/src/app/pages/map/probe-panel.ts) shows it in the inspector of every mode, plus
@@ -126,6 +126,38 @@ holds the pause decision dialog and the route list (filter by status, point, zon
 can show a light tint of
 the same colours; hovering a zone shows its minutes over the map; the test point shows its zone's matrix value
 next to its own itinerary.
+
+**Zone mode** (`/map/zone`, `/map/zone/:id`, [`zone-mode.ts`](../../frontend/src/app/pages/map/zone-mode.ts#L116)) studies one zone.
+Without an id it is a picker: every zone is outlined, hover highlights one, a click opens it.
+[`ZoneService`](../../frontend/src/app/pages/map/zone.service.ts#L19) owns the state and the layer groups:
+
+```mermaid
+stateDiagram-v2
+  [*] --> picking: /map/zone
+  [*] --> focusing: /map/zone/:id, right-click "Open zone view", Connectivity panel link
+  picking --> focusing: click a zone
+  focusing --> focused: fly-to 1.5 s, pitch 55°
+  focused --> focused: targets, walk / bike, neighbours → heatmap reload
+  focused --> picking: Pick another zone
+  focused --> [*]: leave the mode (camera restored)
+```
+
+| Step | Code |
+|---|---|
+| picker: outline, hover, click | [`installPicker()`](../../frontend/src/app/pages/map/zone.service.ts#L44) |
+| load facts and lines, then heatmap and targets | [`select()`](../../frontend/src/app/pages/map/zone.service.ts#L78) |
+| neon outline (three blurred lines), dimmed outside, 3D buildings at distance 0 from the zone | [`drawFocus()`](../../frontend/src/app/pages/map/zone.service.ts#L157) |
+| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L191) |
+| camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L217) |
+
+The right panel shows KPI tiles first (median walk per target set, share of homes within 5 and 10 minutes, lines
+at the zone's stops), then collapsed sections: metro lines, bus lines, other transit (stops served and the peak
+departures per hour at the zone's stops), services in the zone, and nearby zones' extra lines.
+
+The map's **right-click menu** ([`ContextMenuService`](../../frontend/src/app/pages/map/context-menu.service.ts#L16),
+[`map-context-menu.ts`](../../frontend/src/app/pages/map/map-context-menu.ts)) opens at the click and shows the zone under it
+(`GET /api/zone/at`). The shell registers "Set test point here" and "Open zone view"; modes can
+[`register()`](../../frontend/src/app/pages/map/context-menu.service.ts#L21) more entries while they are active.
 
 ## Main flows
 
