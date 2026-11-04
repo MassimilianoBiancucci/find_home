@@ -27,10 +27,11 @@ from findhome.config.models import GeoConfig, TransitColours
 from findhome.core.paths import data_dir
 from findhome.core.settings import secret
 from findhome.geo.crs import point_metric, to_metric, to_wgs84
+from findhome.geo.overpass import area as _area
+from findhome.geo.overpass import overpass as _overpass
 from findhome.providers.osm import USER_AGENT
 
 log = logging.getLogger(__name__)
-OVERPASS = "https://overpass-api.de/api/interpreter"
 MODES = ("metro", "commuter_rail", "local_rail", "tram", "train", "bus", "ferry")
 RAILISH = {"metro", "commuter_rail", "local_rail", "tram", "train"}
 GLYPH = {"metro": "metro", "commuter_rail": "train", "local_rail": "train", "train": "train", "tram": "tram",
@@ -165,22 +166,6 @@ def _osm_colour(tag: str | None) -> str | None:
         return None
     tag = tag.strip().lower()
     return tag if re.fullmatch(r"#[0-9a-f]{6}", tag) else _NAMED_COLOURS.get(tag)
-
-
-def _overpass(client: httpx.Client, query: str, waits: tuple[int, ...] = (30, 60)) -> dict:
-    resp = client.post(OVERPASS, data={"data": query})
-    for wait in waits:
-        if resp.status_code not in (429, 502, 503, 504):
-            break
-        log.warning("overpass %s, retrying in %s s", resp.status_code, wait)
-        time.sleep(wait)
-        resp = client.post(OVERPASS, data={"data": query})
-    resp.raise_for_status()
-    return resp.json()
-
-
-def _area(codes: list[str]) -> str:
-    return f'area["boundary"="administrative"]["admin_level"="7"]["ref:scb"~"^({"|".join(codes)})$"]->.k;'
 
 
 def osm_lines(elements: list[dict], today: str | None = None) -> list[dict]:
