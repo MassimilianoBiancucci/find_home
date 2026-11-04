@@ -143,17 +143,36 @@ export interface SavedProbe { id: string; name: string; lat: number; lon: number
 export interface TransitMode { mode: string; label: string; color: string; count: number; }
 export interface TransitMeta { built: boolean; source?: 'gtfs' | 'osm'; built_at?: string; stations?: number; modes: TransitMode[]; }
 export interface TransitLine { mode: string; ref: string; colour: string | null; length_km: number; stations: string[]; }
+export type ConnectivityScope = 'missing' | 'estimates' | 'failed' | 'stale' | 'all';
 export interface ConnectivityJob {
-  running: boolean; inputs_hash: string | null; total: number; done: number; calls: number; cached: number; estimated: number;
-  skipped: number; errors: number; last_error: string | null; provider: string | null; eta_s: number | null; stopped: string | null;
+  running: boolean; state: 'idle' | 'running' | 'paused' | 'done' | 'stopped'; inputs_hash: string | null; scope: string[];
+  policy: string; estimating: boolean; total: number; done: number; calls: number; cached: number; estimated: number;
+  skipped: number; failed: number; errors: number; last_error: string | null; pause_reason: string | null;
+  failed_coords: { zone_id: string; lat: number; lon: number; code: string }[];
+  provider: string | null; eta_s: number | null; stopped: 'budget' | 'cancelled' | 'decision' | 'error' | null;
+}
+export type RouteStatus = 'cached' | 'stale' | 'estimated' | 'failed' | 'missing' | 'pending';
+export type RouteCounts = Record<RouteStatus, number> & { planned: number; evaluated: number };
+export interface ConnectivityRoute {
+  zone_id: string; zone: string; district: string; point_id: string; point: string; direction: string; day_type: string;
+  window_label: string; status: RouteStatus; minutes: number | null; provider: string | null; error: string | null;
+  fetched_at: string | null; lat: number; lon: number;
+}
+export interface ConnectivityRoutes { total: number; offset: number; limit: number; items: ConnectivityRoute[]; }
+export interface ConnectivityPlan {
+  scope: string[]; provider: string; calls: number; calls_over_budget: number; cached: number; failed_skipped: number;
+  estimates: number; skipped: number; eta_s: number | null; max_calls: number;
 }
 export interface ConnectivityMatrix {
-  inputs_hash: string; covered: number; zone_count: number; stale_rows: number; job: ConnectivityJob;
+  inputs_hash: string; covered: number; zone_count: number; failed_zones: string[]; stale_rows: number; counts: RouteCounts;
+  job: ConnectivityJob;
   points: { id: string; label: string; color: string | null; icon: string | null; weight: number }[];
-  zones: Record<string, { by_point: Record<string, number>; weighted: number | null; estimate: boolean }>;
+  zones: Record<string, ZoneMinutes>;
+  zones_real: Record<string, ZoneMinutes>;          // the same without estimates ("exclude estimates")
 }
+export interface ZoneMinutes { by_point: Record<string, number>; weighted: number | null; estimate: boolean; }
 export interface ZoneCommute {
   zone: { id: string; name: string; district: string; kommun: string }; origin: [number, number];
   rows: { point_id: string; direction: string; day_type: string; window_label: string; window_weight: number; provider: string;
-    minutes: number | null; estimate: boolean }[];
+    minutes: number | null; estimate: boolean; status: string; error: string | null }[];
 }

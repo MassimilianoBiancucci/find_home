@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
   AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
+  ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, Listing, ListingDetail,
   PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta, ZoneCommute,
 } from '../models';
@@ -89,7 +90,21 @@ export class ApiService {
   connectivity() { return this.http.get<ConnectivityMatrix>('/api/connectivity'); }
   connectivityZone(id: string) { return this.http.get<ZoneCommute>(`/api/connectivity/zone/${encodeURIComponent(id)}`); }
   connectivityStatus() { return this.http.get<ConnectivityJob>('/api/connectivity/status'); }
-  connectivityRefresh() { return this.http.post<ConnectivityJob>('/api/connectivity/refresh', {}); }
+  connectivityRefresh(scope?: ConnectivityScope[]) { return this.http.post<ConnectivityJob>('/api/connectivity/refresh', scope ? { scope } : {}); }
+  connectivityPlan(scope: ConnectivityScope[]) {
+    return this.http.get<ConnectivityPlan>('/api/connectivity/plan', { params: new HttpParams().set('scope', scope.join(',')) });
+  }
+  connectivityRoutes(f: { status?: string[]; zone?: string; point?: string; q?: string; offset?: number; limit?: number }) {
+    let p = new HttpParams().set('offset', String(f.offset ?? 0)).set('limit', String(f.limit ?? 100));
+    if (f.status?.length) p = p.set('status', f.status.join(','));
+    if (f.zone) p = p.set('zone', f.zone);
+    if (f.point) p = p.set('point', f.point);
+    if (f.q) p = p.set('q', f.q);
+    return this.http.get<ConnectivityRoutes>('/api/connectivity/routes', { params: p });
+  }
+  connectivityDecide(action: 'continue' | 'estimate' | 'stop', remember: boolean) {
+    return this.http.post<ConnectivityJob>('/api/connectivity/decision', { action, remember });
+  }
   connectivityCancel() { return this.http.post<{ cancelled: boolean }>('/api/connectivity/cancel', {}); }
 }
 
