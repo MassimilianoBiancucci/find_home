@@ -84,7 +84,8 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
           @for (s of c.centroids; track s.key + s.group) {
             <div class="fh-line-row"><span class="fh-badge" [style.background]="groupColour(s.group)">{{ s.group }}</span>
               <span class="fh-grow">{{ s.name }}</span>
-              <span class="small text-body-secondary" title="share of the zone's homes within {{ c.walk_min }} min walk of this station">{{ s.share_within_walk * 100 | number: '1.0-0' }}%</span></div>
+              @if (s.stops != null) { <span class="small text-body-secondary" title="stops inside this centroid's {{ c.range_m }} m circle">{{ s.stops }} stops</span> }
+              @else { <span class="small text-body-secondary" title="share of the zone's homes within {{ c.walk_min }} min walk of this station">{{ s.share_within_walk * 100 | number: '1.0-0' }}%</span> }</div>
           }
           @if (patternRows().length) {
             @for (p of patternRows(); track p.key) {
