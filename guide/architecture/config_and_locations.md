@@ -157,13 +157,20 @@ chooses the origins:
 Nothing here changes scores.
 
 **Connectivity centroids** ([`zone/centroids.py`](../../backend/src/findhome/zone/centroids.py), built by
-[`build_centroids()`](../../backend/src/findhome/zone/centroid_build.py#L63) into `data/geo/centroids/`). Candidates are the timetable
-stations in and around a zone, split by `zone.yaml` `centroids.groups` (rail, bus). Per group,
-[`cover()`](../../backend/src/findhome/zone/centroids.py#L50) greedily picks the fewest stations that put `coverage` of the zone's homes
-within `walk_min` of walking along the network. Each pick adds at least `min_gain` of the homes, and more lines win
-near ties. A group with no station near enough keeps one reference station: the one most homes reach within
-`max_walk_min` ([`select()`](../../backend/src/findhome/zone/centroids.py#L75)). Both groups are kept, so a bus start can be compared with a
-farther metro start for the same homes. Every home keeps its walk time to each centroid.
+[`build_centroids()`](../../backend/src/findhome/zone/centroid_build.py#L119) into `data/geo/centroids/`). `zone.yaml`
+`centroids.strategy` chooses how:
+
+- `stops` (default): [`stop_cover()`](../../backend/src/findhome/zone/centroids.py#L94) places the fewest free circles
+  of `range_m` (radius) so that every bus, tram, train, metro and ferry stop of the region lies in one; no stop is left
+  out. Candidate centres are every stop and the two centres of the circles through each pair of nearby stops; a greedy
+  pass takes the most uncovered stops, then each circle is re-centred on the smallest circle around its stops. A
+  circle is `rail` when one of its stops has a rail line, else `bus`. A zone uses every circle within `walk_min` of it.
+  With `range_m: 200` that is 1,201 centroids for the 4,576 stops.
+- `homes`: per zone and group (rail, bus), [`cover()`](../../backend/src/findhome/zone/centroids.py#L50) picks the
+  fewest stations that put `coverage` of the zone's homes within `walk_min`, each adding at least `min_gain`; a group
+  with nothing near keeps one reference station ([`select()`](../../backend/src/findhome/zone/centroids.py#L75)).
+
+Every home keeps its walk time to each of its zone's centroids (up to `max_walk_min`).
 
 ```mermaid
 flowchart LR

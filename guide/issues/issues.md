@@ -13,3 +13,13 @@ author emails are real, and `tasks/` and some code comments name a private emplo
 **Fix direction:** publish from a fresh history (a new repository seeded with the current tree) or rewrite history
 with `git filter-repo` into a new remote; decide first what to do with the author email and the employer references.
 Check with `git log -p --all -S"<term>"`.
+
+## Connectivity matrix
+
+### Walks to a free-placed centroid are counted twice
+**Impact: low.** With `centroids.strategy: stops` a centroid is a free point, not a stop. The comparison pass
+([`derive()`](../../backend/src/findhome/domain/connectivity_derive.py#L36)) adds the home's walk to that point and
+ResRobot's trip from it, which starts with its own walk to the boarding stop. A zone's minutes are therefore too high
+by up to two circle radii (2 × `range_m`), the same for every zone.
+**Fix direction:** keep the trip's first walk leg and boarding stop (`TravelResult.raw`), subtract that walk, and add
+the home's network walk to the boarding stop instead.
