@@ -326,6 +326,41 @@ Each home snaps to the network and adds its snap walk: median, p90, share within
 Without the buildings dataset, every network node inside the focus counts once (`homes_source: network`).
 `findhome zone heatmap <zone id> --sets rail,bus` prints the summary.
 
+### Mobility indices
+
+Every zone has two indices from 0 to 100, per time window and as a window-weighted average (the main value):
+**transport** and **transport + services** (`transport × (1 − w) + services × w`, `w` = `indices.services.weight`).
+Each component maps a measured value linearly from its `zero` to its `full` threshold (`zone.yaml` `indices`), so a
+zone's value does not depend on the other zones. The map colours zones by percentile among the computed zones. The
+indices are display only and never change scores.
+
+```mermaid
+flowchart LR
+  EG[ExtentGraph: zone network + homes] --> HT[heatmap: rail, bus] --> A[rail access, bus access, coverage]
+  EG --> HS[heatmap: services sets] --> S[services]
+  EG --> R[reach search from homes, access_min] --> ST[stops within reach]
+  ST --> W[per window: lines with a departure, departures/h at the 3 busiest stops]
+  A --> I[transport per window]
+  W --> I
+  I --> AV[window-weighted average]
+  S --> IS[transport + services]
+  AV --> IS
+```
+
+| Component | Measured as | Code |
+|---|---|---|
+| `rail_access`, `bus_access` | home-weighted median walk (minutes) to the set | [`measure()`](../../backend/src/findhome/zone/measure.py#L54) |
+| `coverage` | share of homes within 5 min of any stop | [`measure()`](../../backend/src/findhome/zone/measure.py#L54) |
+| `lines`, `frequency` | per window, at the stops within `access_min` of a home; rail lines count 3 | [`reachable_stops()`](../../backend/src/findhome/zone/measure.py#L18), [`window_counts()`](../../backend/src/findhome/zone/measure.py#L32) |
+| services | median walk per services set, scored and averaged | [`services_score()`](../../backend/src/findhome/zone/indices.py#L46) |
+| scoring and weights | missing components are left out and weights renormalise | [`score()`](../../backend/src/findhome/zone/indices.py#L16), [`indices()`](../../backend/src/findhome/zone/indices.py#L53) |
+
+Without GTFS departures, `frequency` is missing and `lines` counts every line at the reachable stops.
+`GET /api/zone/{id}/indices` computes a zone once per inputs version (a few seconds) and stores it in `zone_index`.
+`GET /api/zone/indices?window=` returns every stored zone with percentiles
+([`all_indices()`](../../backend/src/findhome/api/routers/zone.py#L39), [`percentiles()`](../../backend/src/findhome/zone/analysis.py#L210)). `findhome zone indices --all`
+fills the cache.
+
 ## Scoring
 
 [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) `score_listing`:

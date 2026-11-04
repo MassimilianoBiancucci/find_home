@@ -43,6 +43,7 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 [`004_connectivity_status.sql`](../../backend/migrations/004_connectivity_status.sql) adds its route status and
 `provider_failure` (zone points a provider cannot route).
 [`005_zone_cache.sql`](../../backend/migrations/005_zone_cache.sql) adds `zone_heatmap` (zone analysis cache).
+[`006_zone_index.sql`](../../backend/migrations/006_zone_index.sql) adds `zone_index` (mobility indices).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -120,7 +121,7 @@ stations in order or the lines serving a station.
 [`ConnectivityService`](../../frontend/src/app/pages/map/connectivity.service.ts) holds the zone × point matrix:
 the Connectivity mode ([`connectivity-mode.ts`](../../frontend/src/app/pages/map/connectivity-mode.ts)) fills the zones
 by minutes for one point or the weighted mix (grey: only failed routes, or only estimates while "exclude estimates"
-is on). Its Matrix bubble shows the route counts per status and the refresh actions with their cost in calls
+is on), or by a mobility index percentile (transport, transport + services; average or one time window). Its Matrix bubble shows the route counts per status and the refresh actions with their cost in calls
 (Refresh, Retry failed, Update stale); [`connectivity-dialogs.ts`](../../frontend/src/app/pages/map/connectivity-dialogs.ts)
 holds the pause decision dialog and the route list (filter by status, point, zone; a row flies to the zone). Explore
 can show a light tint of
@@ -150,7 +151,8 @@ stateDiagram-v2
 | streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L191) |
 | camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L217) |
 
-The right panel shows KPI tiles first (median walk per target set, share of homes within 5 and 10 minutes, lines
+The right panel shows the two mobility indices first (value, percentile, component bars, a one-line insight), then
+KPI tiles (median walk per target set, share of homes within 5 and 10 minutes, lines
 at the zone's stops), then collapsed sections: metro lines, bus lines, other transit (stops served and the peak
 departures per hour at the zone's stops), services in the zone, and nearby zones' extra lines.
 
