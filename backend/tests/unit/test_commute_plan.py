@@ -84,7 +84,8 @@ def test_resrobot_plan_sets_rate_and_429_is_retried():
         return httpx.Response(429 if len(calls) == 1 else 200, json={"Trip": []}, headers={"Retry-After": "0"})
 
     p = _resrobot({"plan": "bronze", "max_calls_per_minute": 6000}, handler)
-    assert abs(_resrobot({"plan": "bronze"}, handler).limiter.interval - 60 / 45) < 1e-9
+    assert abs(_resrobot({"plan": "bronze"}, handler).limiter.interval - 60 / (45 * 0.9)) < 1e-9     # 10 % margin
+    assert abs(_resrobot({"plan": "bronze", "rate_margin": 1}, handler).limiter.interval - 60 / 45) < 1e-9
     asyncio.run(p.travel(LatLon(59.4, 18.0), LatLon(59.3, 18.0), "transit", datetime(2026, 11, 3, 8, 30), "depart_at"))
     assert len(calls) == 2
 
@@ -110,3 +111,37 @@ def test_resrobot_errors_are_typed():
         raise AssertionError("expected ProviderError")
     except ProviderError as exc:
         assert exc.code == "INT_ERR" and not isinstance(exc, LocationNotFound)
+
+
+def test_resrobot_minute_quota_waits_and_records_the_first_ride(monkeypatch):
+    from findhome.providers import resrobot as rr
+
+    waits = []
+
+    async def no_sleep(s):
+        waits.append(s)
+
+    monkeypatch.setattr(rr.asyncio, "sleep", no_sleep)
+    calls = []
+    trip = {"Trip": [{"duration": "PT20M", "LegList": {"Leg": [
+        {"type": "WALK", "Origin": {"time": "08:00:00"}, "Destination": {"time": "08:04:00"}},
+        {"type": "JNY", "Product": [{"catCode": "5"}], "Origin": {"time": "08:04:00"}, "Destination": {"time": "08:20:00"}}]}}]}
+
+    def handler(req):
+        calls.append(1)
+        if len(calls) == 1:
+            return httpx.Response(400, json={"errorCode": "API_QUOTA", "errorText": "quota exceeded on tripSearch(QuotaStatus("
+                                             "type=HARD_QUOTA_EXCEEDED, timeUnit=MINUTE, hardQuota=45))"})
+        return httpx.Response(200, json=trip)
+
+    p = _resrobot({"max_calls_per_minute": 6000}, handler)
+    res = asyncio.run(p.travel(LatLon(59.4, 18.0), LatLon(59.3, 18.0), "transit", datetime(2026, 11, 3, 8, 30), "depart_at"))
+    assert len(calls) == 2 and 1 <= waits[0] <= 61 and res.raw["first_mode"] == res.raw["last_mode"] == "metro"
+
+    month = [httpx.Response(400, json={"errorCode": "API_QUOTA", "errorText": "QuotaStatus(timeUnit=MONTH)"})]
+    p2 = _resrobot({"max_calls_per_minute": 6000}, lambda req: month[0])
+    try:
+        asyncio.run(p2.travel(LatLon(59.4, 18.0), LatLon(59.3, 18.0), "transit", datetime(2026, 11, 3, 8, 30), "depart_at"))
+        raise AssertionError("expected ProviderError")
+    except rr.ProviderError as exc:
+        assert exc.code == "API_QUOTA"

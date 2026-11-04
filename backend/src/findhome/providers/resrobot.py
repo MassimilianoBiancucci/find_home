@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+import time
 from datetime import datetime
 
 import httpx
@@ -60,7 +61,8 @@ class ResRobotProvider:
         if plan not in PLAN_CALLS_PER_MINUTE:
             raise ProviderUnavailable(f"resrobot: unknown plan {plan!r} (use {', '.join(PLAN_CALLS_PER_MINUTE)})")
         per_minute = cfg.get("max_calls_per_minute") or PLAN_CALLS_PER_MINUTE[plan]
-        self.limiter = RateLimiter(per_minute=per_minute)
+        # ResRobot counts calls per clock minute: stay 10 % under the level, or a burst at a minute edge is refused
+        self.limiter = RateLimiter(per_minute=per_minute * float(cfg.get("rate_margin", 0.9)))
         self.retry_delay_s = float(cfg.get("retry_delay_s", 5))
         self.client = client or httpx.AsyncClient(timeout=30)
 
@@ -81,14 +83,15 @@ class ResRobotProvider:
         return parse_trip_response(resp.json(), when_is)
 
     async def _get(self, params: dict) -> httpx.Response:
-        """GET /trip under the rate limit; on 429 wait (Retry-After or retry_delay_s, growing) and retry."""
+        """GET /trip under the rate limit. A 429, or ResRobot's own per-minute API_QUOTA answer, waits (Retry-After,
+        else until the next clock minute) and retries; a monthly quota is not retried."""
         for attempt in range(MAX_RETRIES + 1):
             await self.limiter.wait()
             resp = await self.client.get(f"{self.base}/trip", params=params)
-            if resp.status_code != 429 or attempt == MAX_RETRIES:
+            wait = _retry_wait(resp, self.retry_delay_s * (attempt + 1))
+            if wait is None or attempt == MAX_RETRIES:
                 break
-            retry_after = resp.headers.get("Retry-After", "")
-            await asyncio.sleep(float(retry_after) if retry_after.isdigit() else self.retry_delay_s * (attempt + 1))
+            await asyncio.sleep(wait)
         if resp.is_error:
             raise _error(resp)
         return resp
@@ -104,6 +107,18 @@ class ResRobotProvider:
         }
         resp = await self._get(params)
         return parse_itinerary(resp.json(), when_is)
+
+
+def _retry_wait(resp: httpx.Response, fallback: float) -> float | None:
+    """Seconds to wait before retrying a rate-limited answer, or None when it is not one (or not worth retrying)."""
+    if resp.status_code == 429:
+        ra = resp.headers.get("Retry-After", "")
+        return float(ra) if ra.isdigit() else fallback
+    if resp.status_code == 400 and "API_QUOTA" in resp.text:
+        if "timeUnit=MINUTE" not in resp.text:
+            return None                                    # a monthly quota: waiting a minute will not help
+        return max(61 - time.time() % 60, 1.0)             # the per-minute window restarts on the clock minute
+    return None
 
 
 def _error(resp: httpx.Response) -> ProviderError:
@@ -192,5 +207,7 @@ def parse_trip_response(data: dict, when_is: WhenIs) -> TravelResult | None:
         depart=_hhmm(legs[0]["Origin"].get("time")) if legs else None,
         arrive=_hhmm(legs[-1]["Destination"].get("time")) if legs else None,
         transfers=max(len(rides) - 1, 0) if rides else None,
-        raw={"legs": len(legs)},
+        # the first and last rides' modes: a trip from a bus stop may walk on to the metro
+        raw={"legs": len(legs), "first_mode": _leg_mode(rides[0]) if rides else "walk",
+             "last_mode": _leg_mode(rides[-1]) if rides else "walk"},
     )
