@@ -1,6 +1,6 @@
 # Google Maps Platform: costs and API keys
 
-> **Re-check prices before enabling billing.** Figures below are third-party snapshots (Sep–Oct 2026), not Google's official pricing page. Google is **off by default** in [`config/providers.yaml`](../config/providers.yaml).
+> **Re-check prices before enabling billing.** Figures below are third-party snapshots (Sep–Oct 2026), not Google's official pricing page. Google is **off by default** in [`config/providers.yaml`](../../config/providers.yaml).
 
 ## Free tier and prices (per 1,000 billable events, first volume band 0-100k/month)
 Since 1 March 2025 there is no pooled $200 credit; each SKU has its own free monthly cap. New Google Cloud

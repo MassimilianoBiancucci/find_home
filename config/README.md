@@ -11,7 +11,7 @@ fresh clone works and your data never reaches git. Rule: [guide/principles/perso
 | `locations.yaml` | `locations.example.yaml` | your points: workplace(s), partner, other places, with trips and time windows. Use `coords: [lat, lon]` when you can; an `address` is geocoded on first use |
 | `profile.yaml` | `profile.example.yaml` | budget (`max_rent_sek`), size, rooms, move-in dates, areas, preference weights. `TODO(user)` marks the values to fill |
 | `search_area.yaml` | `search_area.example.yaml` | the area you want to live in. Edited in the app: Map → Area → Save. Starts empty |
-| `providers.env` | `providers.env.example` | API keys (ResRobot, GTFS, OpenRouteService, Google) and a contact email. All optional, see [docs/providers.md](../docs/providers.md) |
+| `providers.env` | `providers.env.example` | API keys (ResRobot, GTFS, OpenRouteService, Google) and a contact email. All optional, see [providers](../guide/documentation/providers.md) |
 | `backend.env` | `backend.env.example` | database URL, API host and port. The defaults work with `docker-compose.yml` |
 
 ## Setup

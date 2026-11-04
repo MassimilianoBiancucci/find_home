@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=./schemas/providers.schema.json
 # ─────────────────────────────────────────────────────────────
 #  External providers. Keys live in config/providers.env (gitignored).
-#  Paid providers are off by default. See docs/providers.md and docs/google-apis.md.
+#  Paid providers are off by default. See guide/documentation/providers.md and google-apis.md.
 # ─────────────────────────────────────────────────────────────
 routing:
   haversine:

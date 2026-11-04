@@ -1,12 +1,14 @@
 # Setting up the provider keys
 
-How to get and configure the credentials of the three external services that route and geocode for find_home:
-Trafiklab ResRobot, Google Maps Platform and Nominatim. Every key is optional: without one, the matching feature
-falls back to a free or estimated answer (see [what each provider does](../../docs/providers.md)).
+How to get and configure the credentials of the external services that route, geocode and feed the map for find_home:
+Trafiklab (ResRobot and GTFS), OpenRouteService, Google Maps Platform and Nominatim. Every key is optional: without one, the matching feature
+falls back to a free or estimated answer (see [what each provider does](providers.md)).
 
 | Variable | Service | Costs | Without it |
 |---|---|---|---|
 | `TRAFIKLAB_RESROBOT_KEY` | Trafiklab ResRobot v2.1: public transport times | free | straight-line estimates, marked `~` |
+| `TRAFIKLAB_GTFS_KEY` | Trafiklab GTFS Regional Static data: SL lines, stops and timetables for the map | free | lines and stations built from OpenStreetMap routes |
+| `ORS_API_KEY` | OpenRouteService: walking minutes and address suggestions | free | straight-line walking estimates marked `~`; Photon suggests addresses |
 | `GOOGLE_MAPS_SERVER_KEY` | Google Routes API: transit and traffic-aware driving | paid beyond a monthly free cap; **off by default** | ResRobot and OSM answer instead |
 | `GOOGLE_MAPS_BROWSER_KEY` | Google Maps JavaScript API in the browser | paid beyond a monthly free cap | no code reads it today |
 | `NOMINATIM_EMAIL` | OpenStreetMap Nominatim: address to coordinates | free, no key | geocoding still works, the request just carries no contact email |
@@ -16,6 +18,8 @@ falls back to a free or estimated answer (see [what each provider does](../../do
 | Service | Sign up / log in | Get the key | Docs |
 |---|---|---|---|
 | Trafiklab ResRobot | [Register](https://developer.trafiklab.se/register) · [Log in](https://developer.trafiklab.se) | [Your projects and keys](https://developer.trafiklab.se/project/list) | [Using Trafiklab](https://www.trafiklab.se/docs/getting-started/using-trafiklab/) · [ResRobot route planner](https://www.trafiklab.se/api/our-apis/resrobot-v21/route-planner/) · [Error codes](https://www.trafiklab.se/api/our-apis/resrobot-v21/error-codes/) |
+| Trafiklab GTFS | same account and project as ResRobot | [Your projects and keys](https://developer.trafiklab.se/project/list) → add **GTFS Regional Static data** | [Trafiklab data sets](https://www.trafiklab.se/api/) |
+| OpenRouteService | [Sign up](https://account.heigit.org/signup) · [Log in](https://openrouteservice.org/dev/#/login) | [Dashboard → Request a token](https://openrouteservice.org/dev/#/home) | [API docs](https://openrouteservice.org/dev/#/api-docs) |
 | Google Maps Platform | [Google Cloud console](https://console.cloud.google.com) (sign in with a Google account) · [Create a project](https://console.cloud.google.com/projectcreate) | [Enable billing](https://console.cloud.google.com/projectselector/billing) · [Enable Routes API](https://console.cloud.google.com/apis/library/routes.googleapis.com) · [API keys](https://console.cloud.google.com/projectselector/google/maps-apis/credentials) | [Routes API setup](https://developers.google.com/maps/documentation/routes/cloud-setup) · [Get an API key](https://developers.google.com/maps/documentation/javascript/get-api-key) · [Budgets and alerts](https://console.cloud.google.com/billing/budgets) |
 | Nominatim | none: no account and no key | none: only your contact email in `NOMINATIM_EMAIL` | [Usage policy](https://operations.osmfoundation.org/policies/nominatim/) |
 
@@ -27,6 +31,8 @@ by the `FH: Dev Prereqs` task) copies it to `providers.env` when that file is mi
 
 ```dotenv
 TRAFIKLAB_RESROBOT_KEY=<your key>
+TRAFIKLAB_GTFS_KEY=
+ORS_API_KEY=
 GOOGLE_MAPS_SERVER_KEY=
 GOOGLE_MAPS_BROWSER_KEY=
 NOMINATIM_EMAIL=you@example.com
@@ -67,7 +73,7 @@ Do **not** choose these for `TRAFIKLAB_RESROBOT_KEY`, even though the names look
 | ResRobot Stop lookup, Nearby stops | covered by the same ResRobot v2.1 key | no, no second key |
 | Trafiklab Realtime APIs | live departures, stop lookup | no |
 | SL Journey planner, SL Transport | SL's own APIs, a different request format the app does not call | no |
-| GTFS Regional Static data | SL's lines and stations for the map | only for the optional `TRAFIKLAB_GTFS_KEY`, a separate key (see [providers](../../docs/providers.md)) |
+| GTFS Regional Static data | SL's lines and stations for the map | only for the optional `TRAFIKLAB_GTFS_KEY`, a separate key (see [providers](providers.md)) |
 
 ### Steps
 
@@ -112,6 +118,58 @@ curl -s "https://api.resrobot.se/v2.1/trip?format=json&originCoordLat=59.3300&or
 A JSON body with `Trip` entries means the key works. An `errorCode` such as `API_AUTH` means the key is wrong,
 not added to the ResRobot API, or not active yet.
 
+## Trafiklab GTFS (`TRAFIKLAB_GTFS_KEY`)
+
+Optional. `findhome geo fetch transit` builds the map's lines and stations from SL's GTFS feed when this key is set,
+from OpenStreetMap routes otherwise ([providers](providers.md)). GTFS also carries the timetables (`stop_times`)
+that give departures per hour at a stop.
+
+**Which API to add:** **GTFS Regional Static data**, in the same Trafiklab project as ResRobot, as a second key.
+It is the feed behind `datasets.transit.gtfs_url` in [`config/geo.yaml`](../../config/geo.yaml)
+(`opendata.samtrafiken.se/gtfs/sl/sl.zip`).
+
+| Entry in the dropdown | Needed here? |
+|---|---|
+| GTFS Regional Static data | **yes**: this key |
+| GTFS Regional Realtime, Trafiklab Realtime APIs, Oxyfi, SIRI | no: live delays and vehicle positions |
+| GTFS Sweden 3 Static data / Realtime, GTFS Sverige 2 | no: all of Sweden, much larger, not what the app downloads |
+| NeTEx Regional / Sweden Static data | no: the same data in another format |
+| Stops data | no: stops without timetables |
+| Kollektivtrafikens Datalabb (KoDa), Samtrafiken sales data | no |
+
+Bronze allows 50 downloads a month; the build downloads at most once per `refresh_days` (7), so one key is plenty.
+
+**Check it.** This sends the key and reads only the response headers, so it does not use a download:
+
+```bash
+set -a; . config/providers.env; set +a
+curl -s -D - -o /dev/null -r 0-0 "https://opendata.samtrafiken.se/gtfs/sl/sl.zip?key=$TRAFIKLAB_GTFS_KEY" | head -5
+```
+
+`HTTP/2 200` and `content-type: application/zip` mean it works; 401 or 403 means the key is for another API or not
+active yet.
+
+## OpenRouteService (`ORS_API_KEY`)
+
+Optional. Gives real walking minutes (the map's test point and commute runs, `routing.ors`) and address suggestions
+while you type in Locations (Nominatim forbids autocomplete). Without it, walking minutes are straight-line
+estimates (×1.3 detour) marked `~` and suggestions come from Photon.
+
+1. [Sign up](https://account.heigit.org/signup) at HeiGIT (the OpenRouteService account) and confirm the email.
+2. Open the [dashboard](https://openrouteservice.org/dev/#/home) and **Request a token**: type **Free**, a name such
+   as `find_home`. Copy it into `ORS_API_KEY`.
+3. Restart the API.
+
+Free limits: matrix 500 requests a day, directions 2,000 a day, 40 per minute. The app spaces calls at 40 per minute
+(`routing.ors.max_calls_per_minute`) and caches every answer in `routing_cache`.
+
+**Check it.** Run a command and read the response; a good key answers JSON with `routes`:
+
+```bash
+set -a; . config/providers.env; set +a
+curl -s -H "Authorization: $ORS_API_KEY" "https://api.openrouteservice.org/v2/directions/foot-walking?start=18.0583,59.3300&end=18.0722,59.3195" | head -c 300
+```
+
 ## Nominatim (`NOMINATIM_EMAIL`)
 
 Nominatim is OpenStreetMap's public geocoder. It has **no key and no account**. The usage policy asks every client
@@ -128,7 +186,7 @@ What the policy requires, and how the app complies:
 |---|---|
 | At most 1 request per second | `geocoding.nominatim.max_requests_per_s: 1` |
 | Identify the application (default library user agents are refused) | fixed `User-Agent` plus the email |
-| No autocomplete | address suggestions use OpenRouteService or Photon instead ([providers](../../docs/providers.md)) |
+| No autocomplete | address suggestions use OpenRouteService or Photon instead ([providers](providers.md)) |
 | Cache results, no bulk geocoding | answers are cached in Postgres; listings are geocoded one at a time |
 
 **Check it.** `./scripts/findhome geocode "Stockholms centralstation"` returns coordinates and a display name. Add
@@ -138,7 +196,7 @@ What the policy requires, and how the app complies:
 
 Google is **off by default** (`routing.google.enabled: false`). Use it only if you want Google's transit or
 traffic-aware driving times on top of ResRobot and OSM. It needs a Google Cloud project with **billing enabled**,
-and each API has its own free monthly cap and then a price. Read [docs/google-apis.md](../../docs/google-apis.md)
+and each API has its own free monthly cap and then a price. Read [google-apis.md](google-apis.md)
 (prices, the cost estimate for this project, the cheapest field mask) before you turn it on.
 
 What the code uses today:
@@ -187,6 +245,8 @@ The first line of the output shows the budget used and which provider answered.
 |---|---|
 | Times in digests and the map carry `~` | the provider has no key, hit its limit, or failed three times in a row in this run; the app fell back to a straight-line estimate |
 | The key is in `providers.env` but nothing changed | the API was not restarted, or the same variable is already set in the shell and wins over the file |
+| ResRobot answers 400 `SVC_LOC` (no stops near the address) for some zones | the coordinate is more than about 500 m from a stop; it is not a rate limit, and a wider walking radius does not help ([known issue](../issues/issues.md)) |
+| ResRobot answers 429 | the key's level allows fewer calls per minute than `routing.resrobot.plan`; set `max_calls_per_minute` lower |
 | ResRobot answers `API_AUTH` | the key belongs to another Trafiklab API, or was copied with a space |
 | Nominatim answers 403 or 429 | too many requests, or the contact email is missing; wait and keep `max_requests_per_s: 1` |
 | Google answers `PERMISSION_DENIED` or 403 | billing is off, Routes API is not enabled, or the key's API or IP restriction excludes this call |

@@ -105,7 +105,8 @@ Sampled times use a reference date per day type: the next date on the preferred 
 
 Providers: [`haversine.py`](../../backend/src/findhome/providers/haversine.py) (straight line × detour ÷ speed, +5
 min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (OSRM drive, Nominatim geocoding,
-1 req/s), [`resrobot.py`](../../backend/src/findhome/providers/resrobot.py) (transit),
+1 req/s), [`resrobot.py`](../../backend/src/findhome/providers/resrobot.py) (transit; spaced by `routing.resrobot.plan` or
+`max_calls_per_minute`, a 429 is retried after its `Retry-After`),
 [`google.py`](../../backend/src/findhome/providers/google.py) (Routes API, minimal field mask),
 [`ors.py`](../../backend/src/findhome/providers/ors.py) (OpenRouteService walking: directions and matrix).
 

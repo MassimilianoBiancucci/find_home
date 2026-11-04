@@ -16,7 +16,7 @@
 #  │  pgAdmin    5052       DB admin UI           │
 #  └──────────────────────────────────────────────┘
 #  Ports chosen not to clash with Interactions_analytics (5433/5051)
-#  and the Debug UI stack (5432/5050). See docs/ports.md.
+#  and the Debug UI stack (5432/5050). See guide/documentation/ports.md.
 # ════════════════════════════════════════════════════════════
 name: findhome
 

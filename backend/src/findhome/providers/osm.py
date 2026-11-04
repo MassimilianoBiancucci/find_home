@@ -1,7 +1,7 @@
 """OpenStreetMap services: OSRM routing (walk/bike/drive) and Nominatim geocoding.
 
 The public OSRM demo server reliably serves only the car profile; foot/bike profiles need a
-self-hosted OSRM or OpenRouteService (see docs/providers.md). No public transport here.
+self-hosted OSRM or OpenRouteService (see guide/documentation/providers.md). No public transport here.
 """
 from __future__ import annotations
 

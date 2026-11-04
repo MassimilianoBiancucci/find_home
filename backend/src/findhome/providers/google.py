@@ -1,4 +1,4 @@
-"""Google Routes API (computeRoutes). OFF by default; see docs/google-apis.md for costs.
+"""Google Routes API (computeRoutes). OFF by default; see guide/documentation/google-apis.md for costs.
 
 The field mask is pinned to the minimum so calls stay in the cheapest SKU the request type
 allows (the SKU is decided by the requested fields). TO VERIFY: transit tier and arrivalTime

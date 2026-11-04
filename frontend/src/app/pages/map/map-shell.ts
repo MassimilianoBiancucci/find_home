@@ -17,7 +17,7 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
 /**
  * Map page: one MapLibre instance (MapStateService) shared by the modes under /map (child routes).
  * The shell owns the base layers (listings, your points, 3D buildings) and swaps the base style with the colour mode.
- * The map provider sits behind this page only, so a Google adapter can replace it later (docs/google-apis.md).
+ * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
 @Component({
   selector: 'fh-map-shell',

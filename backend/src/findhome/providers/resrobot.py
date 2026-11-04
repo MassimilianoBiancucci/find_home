@@ -15,7 +15,7 @@ import httpx
 
 from findhome.providers.base import LatLon, Mode, ProviderUnavailable, RateLimiter, TravelResult, WhenIs
 
-# Trafiklab key levels: calls per minute (docs/providers.md). A new key starts on a "default" level that may be
+# Trafiklab key levels: calls per minute (guide/documentation/providers.md). A new key starts on a "default" level that may be
 # lower than bronze; set `plan` or `max_calls_per_minute` in providers.yaml to what your key allows.
 PLAN_CALLS_PER_MINUTE = {"bronze": 45, "silver": 60, "gold": 200}
 MAX_RETRIES = 3

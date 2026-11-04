@@ -29,7 +29,7 @@ profiles:
     #    so ANTHROPIC_API_KEY is deliberately NOT passed through here.
     #  - qasa.com allowed in the extension's site permissions; only one browser connected
     # It may only use the listed browser tools and write files under inbox/ (reads are allowed by
-    # default); anything else is refused instead of prompting (dontAsk). See docs/agent-permissions.md.
+    # default); anything else is refused instead of prompting (dontAsk). See guide/documentation/agent-permissions.md.
     label: Claude in Chrome (Haiku) - scan Qasa
     command: claude
     args:

@@ -22,7 +22,7 @@ Code-level documentation lives in [`guide/`](guide/overview.md). Planning histor
 | Poetry | ≥ 1.8 | `pipx install poetry`; venv is created in `backend/.venv` |
 | Node.js | 20+ | Angular dev server |
 | Claude Code or Codex CLI | optional | for agent runs |
-| Trafiklab / Google keys | optional | see [docs/providers.md](docs/providers.md) |
+| Trafiklab / Google keys | optional | see [providers](guide/documentation/providers.md) |
 
 ## Install and run
 
@@ -64,4 +64,4 @@ findhome digest history           # what has been seen, liked, rejected
 findhome commute L-7Q2K --dry-run # how many routing calls a commute matrix would cost
 ```
 
-Ports and how they avoid the other local stacks: [docs/ports.md](docs/ports.md).
+Ports and how they avoid the other local stacks: [ports](guide/documentation/ports.md).

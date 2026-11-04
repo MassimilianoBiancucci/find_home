@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────
 #  Nearby-service categories. OSM tags use key=value (value may be a|b alternatives), key~regex or key!=value;
 #  '&' joins conditions on the same element. icon/color draw the map blips (icons: see Map → Legend).
-#  provider: overpass (free, default) | google_places (needs a key, see docs/google-apis.md)
+#  provider: overpass (free, default) | google_places (needs a key, see guide/documentation/google-apis.md)
 #  Fetched region-wide by `findhome geo fetch poi` into data/geo/poi/ (refresh every fetch.refresh_days).
 # ─────────────────────────────────────────────────────────────
 fetch: {refresh_days: 7}

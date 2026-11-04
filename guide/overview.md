@@ -1,7 +1,7 @@
 # Guide
 
 This guide describes find_home as it is today: what it does, how it is built, the principles every change
-follows and the known limits. It wins over older notes in the repo (`tasks/`, `docs/`, READMEs). Keep it true in
+follows and the known limits. It wins over older notes in the repo (`tasks/`, READMEs). Keep it true in
 the same commit as the code it describes; the [guide skill](../.agents/skills/guide/SKILL.md) says how.
 
 Read [architecture/introduction.md](architecture/introduction.md) before any code change. Read
@@ -10,7 +10,8 @@ shape, the commute matrix or scoring. Read [architecture/agent_contract.md](arch
 changing the CLI, the ingest/digest endpoints or the `find-home` skill. Read
 [principles/personal_data.md](principles/personal_data.md) before adding or renaming a config or env file, and
 before writing test data, docs or notes: personal data is never committed.
-Read [documentation/api_keys.md](documentation/api_keys.md) to set up or debug provider keys.
+Read [documentation/api_keys.md](documentation/api_keys.md) to set up or debug provider keys, and
+[documentation/providers.md](documentation/providers.md) for what each provider does.
 
 ## What the application is
 
@@ -51,8 +52,7 @@ an OSM-based vector map style.
 | [`scripts/`](../scripts/install.sh) | install, smoke check, free ports, skill sync, `findhome` wrapper |
 | [`.vscode/`](../.vscode/launch.json) | debug configurations and tasks (`FH:` prefix) |
 | [`docker-compose.yml`](../docker-compose.yml) | Postgres :5434 and pgAdmin :5052 |
-| [`guide/documentation/`](documentation/api_keys.md) | how-to pages for the user, such as provider key setup |
-| [`docs/`](../docs/providers.md) | providers, Google costs, ports, agent permissions |
+| [`guide/documentation/`](documentation/api_keys.md) | how-to and reference pages for the user: provider keys, what each provider does, Google costs, ports, agent permissions |
 | [`tasks/`](../tasks/README.md) | planning history and backlog (not current state) |
 | [`runs/`](../runs/README.md) | agent run folders (gitignored) |
 
@@ -62,5 +62,9 @@ an OSM-based vector map style.
 - [architecture/config_and_locations.md](architecture/config_and_locations.md): config files, points, trips and windows, config hash, commute matrix, zones and the search area, scoring.
 - [architecture/agent_contract.md](architecture/agent_contract.md): how the agent reads and writes through the CLI and API.
 - [principles/personal_data.md](principles/personal_data.md): personal files are gitignored, dummy examples are committed, tests and docs use fictional data.
-- [documentation/api_keys.md](documentation/api_keys.md): how to get and configure the Trafiklab ResRobot, Google Maps Platform and Nominatim credentials.
+- [documentation/api_keys.md](documentation/api_keys.md): how to get and configure the Trafiklab (ResRobot, GTFS), OpenRouteService, Google Maps Platform and Nominatim credentials.
+- [documentation/providers.md](documentation/providers.md): what each provider does, limits and cache behaviour.
+- [documentation/google-apis.md](documentation/google-apis.md): Google prices, free caps and the cheapest field mask.
+- [documentation/ports.md](documentation/ports.md): find_home ports next to the other local stacks.
+- [documentation/agent-permissions.md](documentation/agent-permissions.md): permission settings for the external agent.
 - [issues/issues.md](issues/issues.md): known limits.

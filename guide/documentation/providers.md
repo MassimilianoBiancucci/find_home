@@ -1,8 +1,8 @@
 # External providers
 
 All providers sit behind adapters in `backend/src/findhome/providers/` and are switched on in
-[`config/providers.yaml`](../config/providers.yaml). Keys live in the gitignored `config/providers.env`
-(template: [`config/providers.env.example`](../config/providers.env.example)). Results are cached in Postgres,
+[`config/providers.yaml`](../../config/providers.yaml). Keys live in the gitignored `config/providers.env`
+(template: [`config/providers.env.example`](../../config/providers.env.example)). Results are cached in Postgres,
 so the same origin, destination, mode and time slot is never requested twice within the cache TTL.
 
 ## haversine (built in)
@@ -46,7 +46,7 @@ Sweden-wide journey planner on official timetables (SL included).
 uses SL's GTFS (`sl.zip`, downloaded at most every `refresh_days`). Without a key it uses OpenStreetMap route
 relations from Overpass (three requests, raw answers kept in `data/geo/raw/` for `refresh_days`). SL lines without a
 number or with a future `start_date` (the yellow metro line under construction) are skipped. GTFS has no line
-colours: they come from [`config/transit_colours.yaml`](../config/transit_colours.yaml) (approximate, **to verify**
+colours: they come from [`config/transit_colours.yaml`](../../config/transit_colours.yaml) (approximate, **to verify**
 against SL's network map), then from OSM's `colour` tag.
 
 ## Google Maps Platform (optional, off)
@@ -56,7 +56,7 @@ so calls stay in the cheapest SKU.
 
 ## OSM Overpass (points of interest)
 Free, no key. Used for SATS, groceries, stations, parks, vets and the other categories in
-[`config/poi.yaml`](../config/poi.yaml). `findhome geo fetch poi` fetches every category for the whole region in
+[`config/poi.yaml`](../../config/poi.yaml). `findhome geo fetch poi` fetches every category for the whole region in
 one request per category (Overpass usage policy: scheduled region-wide fetches, never one query per listing) into
 `data/geo/poi/`. Run it again every `fetch.refresh_days` (7); busy instances (429/502/503/504) are retried with
 back-off.
