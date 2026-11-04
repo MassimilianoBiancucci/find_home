@@ -279,6 +279,52 @@ is the first Tuesday with service from today; Saturday and Sunday likewise. Depa
 into hour 1. Without `TRAFIKLAB_GTFS_KEY` the stops come from the OSM route relations: they have lines, but no
 names and no departures (`departures_at()` returns `None`).
 
+## Zone analysis
+
+The zone analysis studies one zone up close. [`config/zone.yaml`](../../config/zone.yaml) holds the walking and
+cycling speeds, per-highway speed factors (stairs), the cutoff, the legend bins and the **target sets**: what a
+heatmap measures the walk to, as stops by transit mode (timetable) and/or POI categories (`poi.yaml`, checked by the
+loader). It is not in the config hash: nothing here changes scores.
+
+```mermaid
+sequenceDiagram
+  participant C as client (UI, CLI)
+  participant R as GET /api/zone/{id}/heatmap
+  participant DB as zone_heatmap
+  participant A as zone/analysis.py
+  participant H as zone/heatmap.py
+  C->>R: sets=rail,bus mode=walk neighbours=0
+  R->>DB: payload for (zone, mode, sets, neighbours, version)?
+  alt cached
+    DB-->>R: payload
+  else
+    R->>A: heatmap() in a worker thread
+    A->>A: extent, network, targets, homes
+    A->>H: compute(network, extent, targets, params, homes)
+    H-->>A: seconds per segment and set, summary
+    A-->>R: GeoJSON segments + summary
+    R->>DB: store
+  end
+  R-->>C: payload (cached: true/false)
+```
+
+| Step | Code |
+|---|---|
+| focus (zone, optional neighbours) and search area (focus + reach) | [`extent()`](../../backend/src/findhome/zone/extent.py#L29), [`neighbours()`](../../backend/src/findhome/zone/extent.py#L22) |
+| target points per set | [`target_points()`](../../backend/src/findhome/zone/targets.py#L17) |
+| homes: residential buildings weighted by floors (`geo fetch buildings`) | [`homes_from_elements()`](../../backend/src/findhome/geo/build_buildings.py#L44), [`load_homes()`](../../backend/src/findhome/zone/homes.py#L13) |
+| one Dijkstra per set from a virtual source, cutoff, segment times, summary | [`compute()`](../../backend/src/findhome/zone/heatmap.py#L67) |
+| cache key: datasets' meta, zone.yaml, POI file times | [`version()`](../../backend/src/findhome/zone/analysis.py#L47) |
+| endpoints: facts, targets, heatmap | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py#L32) |
+
+[`compute()`](../../backend/src/findhome/zone/heatmap.py#L67) works on the network inside the search area. Every target snaps to its nearest
+node (at most `snap_max_m`), and the snap walk is the weight of its edge from the virtual source. Edge time is
+`length / (speed × factor)`. A segment's time is the mean of its two end nodes, and is missing when an end is
+beyond the cutoff. The summary per set (and `any`, the nearest of all sets) is weighted by homes inside the focus.
+Each home snaps to the network and adds its snap walk: median, p90, share within 5 and 10 minutes, share reached.
+Without the buildings dataset, every network node inside the focus counts once (`homes_source: network`).
+`findhome zone heatmap <zone id> --sets rail,bus` prints the summary.
+
 ## Scoring
 
 [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) `score_listing`:
@@ -308,6 +354,8 @@ names and no departures (`departures_at()` returns `None`).
 | Commute matrix | [`domain/commute.py`](../../backend/src/findhome/domain/commute.py) |
 | Scoring | [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) |
 | Zones, search area, area function | [`geo/`](../../backend/src/findhome/geo/area.py), [`api/routers/geo.py`](../../backend/src/findhome/api/routers/geo.py) |
+| Walking network, timetable, buildings | [`geo/build_network.py`](../../backend/src/findhome/geo/build_network.py), [`geo/build_timetable.py`](../../backend/src/findhome/geo/build_timetable.py), [`geo/build_buildings.py`](../../backend/src/findhome/geo/build_buildings.py) |
+| Zone analysis (heatmaps) | [`zone/`](../../backend/src/findhome/zone/heatmap.py), [`config/zone.yaml`](../../config/zone.yaml) |
 | Area editor (UI) | [`pages/map/area-mode.ts`](../../frontend/src/app/pages/map/area-mode.ts) |
 | Locations editor (UI) | [`pages/locations.ts`](../../frontend/src/app/pages/locations.ts) |
 | Tests | [`tests/config/test_config.py`](../../backend/tests/config/test_config.py), [`tests/unit/test_commute_plan.py`](../../backend/tests/unit/test_commute_plan.py), [`tests/unit/test_scoring.py`](../../backend/tests/unit/test_scoring.py), [`tests/unit/test_area.py`](../../backend/tests/unit/test_area.py) |

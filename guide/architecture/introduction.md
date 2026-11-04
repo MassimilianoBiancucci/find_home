@@ -42,6 +42,7 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 [`003_zone_commute.sql`](../../backend/migrations/003_zone_commute.sql) adds `zone_commute` (the Connectivity matrix);
 [`004_connectivity_status.sql`](../../backend/migrations/004_connectivity_status.sql) adds its route status and
 `provider_failure` (zone points a provider cannot route).
+[`005_zone_cache.sql`](../../backend/migrations/005_zone_cache.sql) adds `zone_heatmap` (zone analysis cache).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -170,4 +171,5 @@ flowchart LR
 | Zones, search area, brush | [`api/routers/geo.py`](../../backend/src/findhome/api/routers/geo.py) |
 | POIs, test point, saved test points | [`api/routers/probe.py`](../../backend/src/findhome/api/routers/probe.py) |
 | Connectivity matrix and refresh | [`api/routers/connectivity.py`](../../backend/src/findhome/api/routers/connectivity.py) |
+| Zone analysis: facts, targets, heatmaps | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py), [`zone/`](../../backend/src/findhome/zone/analysis.py) |
 | SQL | [`db/repo.py`](../../backend/src/findhome/db/repo.py) |

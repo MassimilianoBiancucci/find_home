@@ -38,7 +38,7 @@ an OSM-based vector map style.
 | [`backend/src/findhome/domain/`](../backend/src/findhome/domain/models.py) | API contract models, normalisation and dedupe keys, commute matrix, scoring |
 | [`backend/src/findhome/providers/`](../backend/src/findhome/providers/registry.py) | routing, geocoding and POI adapters and their registry |
 | [`backend/src/findhome/geo/`](../backend/src/findhome/geo/area.py) | zones, the search area function, geodata builders (`data/geo/`, gitignored) |
-| [`backend/src/findhome/zone/`](../backend/src/findhome/zone/network.py) | zone analysis: walking / cycling network (heatmaps, indices and centroids build on it) |
+| [`backend/src/findhome/zone/`](../backend/src/findhome/zone/network.py) | zone analysis: walking / cycling network, target sets, heatmap engine (`zone.yaml`) |
 | [`backend/src/findhome/scanning/`](../backend/src/findhome/scanning/runner.py) | scripted site scans and the onboarding probe |
 | [`backend/src/findhome/digest/`](../backend/src/findhome/digest/history.py) | history and listing digests for agents |
 | [`backend/src/findhome/agentrun/`](../backend/src/findhome/agentrun/launcher.py) | run folders and the external agent launcher |
@@ -60,7 +60,7 @@ an OSM-based vector map style.
 ## Guide index
 
 - [architecture/introduction.md](architecture/introduction.md): components and the main flows.
-- [architecture/config_and_locations.md](architecture/config_and_locations.md): config files, points, trips and windows, config hash, commute matrix, zones and the search area, walking network and timetable data, scoring.
+- [architecture/config_and_locations.md](architecture/config_and_locations.md): config files, points, trips and windows, config hash, commute matrix, zones and the search area, walking network and timetable data, zone analysis (heatmaps), scoring.
 - [architecture/agent_contract.md](architecture/agent_contract.md): how the agent reads and writes through the CLI and API.
 - [principles/personal_data.md](principles/personal_data.md): personal files are gitignored, dummy examples are committed, tests and docs use fictional data.
 - [documentation/api_keys.md](documentation/api_keys.md): how to get and configure the Trafiklab (ResRobot, GTFS), OpenRouteService, Google Maps Platform and Nominatim credentials.
