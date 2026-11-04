@@ -79,6 +79,29 @@ Research comprehensively. Start with high-level searches before reading specific
 - Save extracted data and summaries in `{target_folder}/notes/`.
 - If you run target code (e.g. to reproduce a bug), document observations in a note file.
 
+## Explaining visually
+
+Every artifact you write (notes, the R sections of the QA, plans, sub-plans, the chat summary when it explains a mechanism) explains with diagrams and clickable code references, as much as possible. A reader must be able to see the flow and jump to the line that implements each step.
+
+**Diagrams (mermaid).** Draw every flow, interaction, race, decision or state change you explain:
+
+| Draw | When |
+|---|---|
+| `sequenceDiagram` | who calls whom and in what order: requests, callbacks, async or concurrent runs, an external service, a bug's timeline (use `par` for concurrency, `Note over` for the failing step) |
+| `flowchart` | decisions, branches, pipelines, data flow, before/after of a fix |
+| `stateDiagram-v2` | a lifecycle or status changes |
+| a table | a comparison of options or values |
+
+One idea per diagram, about 15 nodes at most, arrows labelled with the call or the data. Prefer two small diagrams (current vs proposed) to one large one.
+
+**Clickable code references, down to the line.** Link the symbol, not just the file: ``[`build()`](../../src/core/builder.py#L90)``, or a range `#L90-L104`.
+- Paths are relative to the markdown file, so the link opens in the editor and on GitHub.
+- Take the line from the file you read (`grep -n`, the read tool's line numbers), never from memory.
+- Code outside the repo (an installed library, another repo of the workspace): link its local copy with a relative path when one exists; otherwise name it as `package/module.py:L42`.
+- Notes and plans describe a point in time: state the commit they refer to (`git rev-parse --short HEAD`) so the line numbers can be read against it.
+
+**Links stay out of the diagram** (renderers differ in how they handle clicks in mermaid): under a diagram, a short table maps each step to its code link.
+
 ## QA process
 
 A structured feedback loop that runs after initial research and drives planning toward precision.
@@ -111,7 +134,7 @@ Format for each topic block:
 <answer of the user/developer>
 
 ## R1:
-<answer-related reasoning, outcomes of further analysis triggered by the answer>
+<answer-related reasoning, outcomes of further analysis triggered by the answer; diagrams and line links when it explains a mechanism>
 
 ## Q2:
 <follow-up question if the topic needs further clarification>
@@ -173,8 +196,11 @@ Produce an easy-to-read, concise, focused plan. Add dynamic sections (e.g. "Data
 
 {Brief TL;DR of the plan: the what, how and why. (50-200 words)}
 
+### Flow
+{A mermaid diagram of the flow the plan changes (current and/or proposed), and a table mapping each step to its [`symbol`](path#L<n>). See Explaining visually.}
+
 ### Steps {4-8 steps, 10-30 words each}
-1. {Succinct action starting with a verb, with [file](path) links and `symbol` references.}
+1. {Succinct action starting with a verb, with clickable [`symbol`](path#L<n>) references.}
 2. {Next concrete step.}
 3. {Another short actionable step.}
 4. {...}
@@ -184,13 +210,14 @@ Produce an easy-to-read, concise, focused plan. Add dynamic sections (e.g. "Data
 
 Sub-plans follow the standard template but are **richer in detail**:
 - **Code snippets**: short illustrative blocks showing key changes or patterns.
-- **Mermaid diagrams**: flows, sequences, architecture or state transitions when they aid understanding.
+- **Mermaid diagrams**: every flow, sequence, race, architecture or state transition the sub-plan touches (see Explaining visually).
 - **Phases**: break steps into phases when there is a natural progression.
 - **Detailed explanations**: the *why* behind each step: rationale, trade-offs, alternatives considered.
 
 Rules:
-- **Simple mode:** no code blocks; describe changes and link to relevant files and symbols.
-- **Advanced sub-plans:** code snippets, mermaid diagrams and detailed explanations are encouraged.
+- **Simple mode:** no code snippets; describe changes and link to the symbols and lines. Mermaid diagrams are expected.
+- **Advanced sub-plans:** code snippets, mermaid diagrams and detailed explanations are expected.
+- In both modes, every code reference is a clickable link with a line anchor (see Explaining visually).
 - No manual testing/validation sections unless explicitly requested.
 - Add task-specific sections BETWEEN the TL;DR and Steps when they provide essential context.
 
@@ -220,7 +247,7 @@ For tasks too complex for a single plan, or when the user requests it. Produces 
 | 2  | [subplan_02_<name>](plans/subplan_02_<name>.md) | {Brief description} | Depends on #1 |
 
 ## Implementation Order
-{Recommended execution sequence, noting which sub-plans can run in parallel and which have strict ordering. Use a mermaid diagram if it helps.}
+{Recommended execution sequence, noting which sub-plans can run in parallel and which have strict ordering, with a mermaid flowchart of the dependencies.}
 
 ## Interconnections
 {How sub-plans relate: shared interfaces, data flows, files modified by multiple sub-plans, etc.}

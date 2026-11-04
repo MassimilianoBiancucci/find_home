@@ -63,14 +63,27 @@ Two or three paragraphs: purpose, users, main flows, main external systems.
 One paragraph: what this part does and when it runs. Link to the introduction.
 
 ## <Component or step>
-What it does, where the code is ([`file`](../../src/...)), what it reads and writes.
+What it does, where the code is ([`symbol()`](../../src/...py#L<n>)), what it reads and writes.
 
-(Optional) a mermaid diagram of the flow.
+```mermaid
+sequenceDiagram
+    participant A as <Caller>
+    participant B as <Component>
+    A->>B: <call or data>
+    B-->>A: <result>
+```
+
+| Step | Code |
+|---|---|
+| <call or data> | [`symbol()`](../../src/...py#L<n>) |
 
 ## Where the code lives
-| Concern | File |
+| Concern | Code |
 |---|---|
+| <concern> | [`symbol()`](../../src/...py#L<n>) |
 ```
+
+Every flow on the page has a diagram: `sequenceDiagram` for interactions in order, `flowchart` for decisions and data flow. Code links name the symbol and point to its line (`#L<n>` or `#L<n>-L<m>`).
 
 Describe the code as it is. No "will", no "now", no history.
 
@@ -98,7 +111,7 @@ Examples of areas worth a principle: one telemetry path for all agents (no per-a
 
 ```markdown
 ### <Short title> ([#<id>](<GitHub issue link>), if one exists)
-**Impact: high | medium | low.** What goes wrong, and when ([`file`](../../src/...)).
+**Impact: high | medium | low.** What goes wrong, and when ([`symbol()`](../../src/...py#L<n>)).
 **Fix direction:** one or two sentences.
 ```
 

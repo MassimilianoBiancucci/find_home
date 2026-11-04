@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Check that every relative link in the guide points to an existing file.
+"""Check that every relative link in the guide points to an existing file, and to an existing line.
+
+A line anchor (`file.py#L42` or `file.py#L42-L58`) must point inside the file: a line past its end, or a range
+that ends before it starts, is broken. Whether the line still shows the symbol the link names is not checked
+here; the Updating pass of the skill does that.
 
 Standard library only, so it runs anywhere (local shell, Copilot, Claude).
 
@@ -8,6 +12,7 @@ Usage:
 
 Exit code 0 when all links resolve, 1 when some are broken.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,6 +25,28 @@ LINK = re.compile(r"!?\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 FENCE = re.compile(r"^\s*(```|~~~)")
 CODE_SPAN = re.compile(r"`[^`]*`")
 SKIP_PREFIXES = ("http://", "https://", "mailto:", "tel:", "#")
+LINE_ANCHOR = re.compile(r"^L(\d+)(?:-L(\d+))?$")
+
+
+def line_anchor_error(path: Path, fragment: str) -> str | None:
+    """The reason a `#L<n>` / `#L<n>-L<m>` anchor is broken, or None when it is fine or is not a line anchor."""
+    match = LINE_ANCHOR.match(fragment)
+    if not match or not path.is_file():
+        return None
+    start = int(match.group(1))
+    end = int(match.group(2) or start)
+    if start < 1 or end < start:
+        return f"bad line range L{start}-L{end}"
+    with path.open(encoding="utf-8", errors="replace") as f:
+        total = sum(1 for _ in f)
+    if end > total:
+        return f"line {end} is past the end of the file ({total} lines)"
+    return None
+
+
+def _scrub(line: str) -> str:
+    """Drop the code spans of a line, except those that are link text: [`src/x.py`](../src/x.py)."""
+    return CODE_SPAN.sub(lambda m: m.group(0) if line[max(0, m.start() - 1)] == "[" else "", line)
 
 
 def links_in(md: Path):
@@ -30,10 +57,7 @@ def links_in(md: Path):
             continue
         if in_fence:
             continue
-        # A link whose text is a code span, e.g. [`src/x.py`](../src/x.py), must still be checked,
-        # so only drop code spans that are not link text.
-        scrubbed = CODE_SPAN.sub(lambda m: m.group(0) if line[max(0, m.start() - 1)] == "[" else "", line)
-        for match in LINK.finditer(scrubbed):
+        for match in LINK.finditer(_scrub(line)):
             yield lineno, match.group(1)
 
 
@@ -53,13 +77,15 @@ def main() -> int:
         for lineno, target in links_in(md):
             if target.startswith(SKIP_PREFIXES):
                 continue
-            path_part = target.split("#", 1)[0]
+            path_part, _, fragment = target.partition("#")
             if not path_part:
                 continue
             checked += 1
             resolved = (md.parent / path_part).resolve()
             if not resolved.exists():
                 broken.append(f"{md}:{lineno}: broken link -> {target}")
+            elif error := line_anchor_error(resolved, fragment):
+                broken.append(f"{md}:{lineno}: broken line anchor -> {target} ({error})")
 
     for line in broken:
         print(line)

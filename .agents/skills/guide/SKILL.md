@@ -47,7 +47,7 @@ Do this pass when the code change is complete: before committing or opening the 
 
 1. List what changed: `git diff --name-only <base>...HEAD` plus `git status --short` for uncommitted work. `<base>` is the target branch (ask if unclear; default `main`).
 2. For each changed file, find guide pages that mention it, its folder or its main names: `grep -rln "<path, module or class>" guide/`. Also check pages whose topic covers the change even without a direct link.
-3. Rewrite what the change made untrue: text, diagrams, directory map, links, names. Describe the result ("X does Y"), never the change ("X now does Y since #123").
+3. Rewrite what the change made untrue: text, diagrams, directory map, links, names. Describe the result ("X does Y"), never the change ("X now does Y since #123"). A link with a line anchor (`#L42`) into a changed file: check that the line still shows the named symbol, and move the anchor if it does not. A flow the change altered: redraw its diagram.
 4. A new component, flow, agent or integration: extend the matching architecture page (or add one) and the overview index.
 5. Issues: a known issue fixed by the change, delete its entry (the PR records the fix). Something left imperfect on purpose, a pending fix, or a new known limit: add a short entry (see Logging an issue), so it is not forgotten.
 6. A principle affected: stop and follow **Changing a principle**.
@@ -92,5 +92,13 @@ Follow [references/bootstrap.md](references/bootstrap.md). In short: create the 
 
 - Short, plain sentences. One definition per concept.
 - Link code with relative paths from the page (`../../src/core/config.py`), so the link check can verify them.
+- **Explain flows with diagrams.** Every flow, interaction or decision a page describes gets a mermaid diagram:
+  - `sequenceDiagram` for who calls whom and in what order (requests, callbacks, concurrent runs, an external service);
+  - `flowchart` for decisions, branches, pipelines and data flow;
+  - `stateDiagram-v2` for a lifecycle; a table for a comparison.
+
+  One idea per diagram, about 15 nodes at most, arrows labelled with the call or the data. Diagrams are drawn from the code as it is, like the text.
+- **Make code references clickable, down to the line.** Link the symbol the text is about, with its line: ``[`build()`](../../src/core/builder.py#L90)``, or a range `#L90-L104`. The link text names the symbol, so a reader can still find it after the lines move. Take the line from the file (`grep -n`), never from memory. The link check fails when an anchor points past the end of the file; the Updating pass keeps anchors on the right line.
+- Keep links out of the diagram (renderers differ in how they handle clicks in mermaid): under a diagram, a short table maps each step to its code link.
 - No dates or narratives. The only history allowed is a commit hash in a principle's Bad example.
 - Split a page into a subfolder when it passes about 400 lines or covers two topics, and update the overview index.
