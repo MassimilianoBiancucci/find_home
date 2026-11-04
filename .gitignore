@@ -22,7 +22,7 @@ frontend/node_modules/
 frontend/dist/
 frontend/.angular/
 
-# Runtime data (caches, raw snapshots, exports)
+# Runtime data (Postgres files, local backups, caches, raw snapshots, exports)
 data/
 # Agent run folders (scratchpads, logs, state); keep the README
 runs/*
@@ -40,3 +40,5 @@ Thumbs.db
 
 # Task scratch backups
 tasks/**/scripts/.*.md
+
+tasks/*
