@@ -89,3 +89,58 @@ def select(walk: list[dict[int, float]], weights: list[float], cands: list[Candi
         chosen += picked
         shares[group] = share
     return {"chosen": chosen, "coverage": shares}
+
+
+def stop_cover(stops: list[tuple[float, float]], radius: float) -> list[tuple[float, float, list[int]]]:
+    """Fewest circles of `radius` (metres, EPSG:3006) whose union covers every stop; centres are free points.
+
+    Candidates are every stop and, for each pair of stops closer than 2 × radius, the two centres of the circles
+    through both (an optimal circle can be moved until two stops sit on its edge, or it sits on one). A greedy pass
+    takes the candidate covering most uncovered stops (lazy heap); each circle is then re-centred on the minimum
+    enclosing circle of the stops it took. Returns (x, y, stop indices) per circle; every stop is in exactly one.
+    """
+    import heapq
+
+    import numpy as np
+    import shapely
+    from shapely import STRtree
+
+    if not stops:
+        return []
+    xy = np.asarray(stops, dtype=float)
+    pts = shapely.points(xy)
+    tree = STRtree(pts)
+    a, b = tree.query(pts, predicate="dwithin", distance=2 * radius)
+    keep = a < b
+    a, b = a[keep], b[keep]
+    mid = (xy[a] + xy[b]) / 2
+    d = np.linalg.norm(xy[b] - xy[a], axis=1)
+    h = np.sqrt(np.maximum(radius ** 2 - (d / 2) ** 2, 0))
+    perp = np.stack([-(xy[b] - xy[a])[:, 1], (xy[b] - xy[a])[:, 0]], axis=1) / np.maximum(d, 1e-9)[:, None]
+    cand = np.vstack([xy, mid + perp * h[:, None], mid - perp * h[:, None]])
+    ci, si = STRtree(pts).query(shapely.points(cand), predicate="dwithin", distance=radius + 1e-6)
+    order = np.argsort(ci, kind="stable")
+    ci, si = ci[order], si[order]
+    starts = np.searchsorted(ci, np.arange(len(cand)))
+    ends = np.searchsorted(ci, np.arange(len(cand)), side="right")
+    members = [si[s:e] for s, e in zip(starts, ends, strict=True)]
+    covered = np.zeros(len(xy), dtype=bool)
+    heap = [(-len(m), j) for j, m in enumerate(members) if len(m)]
+    heapq.heapify(heap)
+    chosen: list[tuple[int, np.ndarray]] = []
+    while heap and not covered.all():
+        neg, j = heapq.heappop(heap)
+        gain = members[j][~covered[members[j]]]
+        if len(gain) < -neg:                                  # stale count: push back with the current one
+            if len(gain):
+                heapq.heappush(heap, (-len(gain), j))
+            continue
+        covered[gain] = True
+        chosen.append((j, gain))
+    out = []
+    for j, got in chosen:
+        circle = shapely.minimum_bounding_circle(shapely.multipoints(xy[got]))
+        c = circle.centroid if not circle.is_empty and shapely.minimum_bounding_radius(shapely.multipoints(xy[got])) <= radius else None
+        x, y = (c.x, c.y) if c is not None else (float(cand[j][0]), float(cand[j][1]))
+        out.append((round(x, 1), round(y, 1), [int(i) for i in got]))
+    return out

@@ -264,6 +264,12 @@
         "range_m": {
           "type": "number",
           "exclusiveMinimum": 0
+        },
+        "strategy": {
+          "enum": [
+            "stops",
+            "homes"
+          ]
         }
       },
       "required": [
