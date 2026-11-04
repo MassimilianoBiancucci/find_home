@@ -4,7 +4,7 @@ import { forkJoin } from 'rxjs';
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
-import { blipExpr, installBlip, installPin } from '../../components/map-icons';
+import { blipExpr, installBlip, installObject, installPin } from '../../components/map-icons';
 import { applyDarkWater } from './dark-style';
 import { MapLib, MapStateService } from './map-state.service';
 import { ProbeService } from './probe.service';
@@ -139,7 +139,7 @@ export class MapShell {
           if (this.theme.theme() === 'dark') applyDarkWater(map);
           this.state.reapply();
         });
-        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); });
+        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); });
         map.on('click', (e) => {
           if (!this.probe.picking()) return;
           this.probe.picking.set(false);

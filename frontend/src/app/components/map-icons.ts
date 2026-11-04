@@ -216,3 +216,246 @@ export function pinUrl(glyph: string, bg: string, fg = '#ffffff'): string {
   return pinUrls.get(id)!;
 }
 
+
+// ── 3D objects ──────────────────────────────────────────────
+/**
+ * Standalone 3D-looking objects for targets that read better as a thing than as a pin: a sitting black cat (vet),
+ * an extruded green cross (pharmacy), a dumbbell (gym) and a shopping cart (groceries). Each stands on a soft ground
+ * shadow; used with `icon-anchor: bottom`. Image id: `obj3d:<object>`. Drawn on a 72 × 72 canvas (36 css px).
+ */
+export const OBJECT_PREFIX = 'obj3d:';
+export const OBJECTS = ['cat', 'cross', 'dumbbell', 'cart'] as const;
+export type ObjectKind = (typeof OBJECTS)[number];
+const OBJ = 72;
+
+export function objectId(kind: ObjectKind): string { return `${OBJECT_PREFIX}${kind}`; }
+
+function groundShadow(g: CanvasRenderingContext2D, w = 24): void {
+  g.beginPath();
+  g.ellipse(OBJ / 2, OBJ - 7, w, 5.5, 0, 0, Math.PI * 2);
+  const grad = g.createRadialGradient(OBJ / 2, OBJ - 7, 1, OBJ / 2, OBJ - 7, w);
+  grad.addColorStop(0, 'rgba(0,0,0,.45)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fill();
+}
+
+function drawCat(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 20);
+  // a faint light halo on every dark part, so the black cat stays visible on the dark map style
+  g.shadowColor = 'rgba(225,225,255,.75)';
+  g.shadowBlur = 4;
+  const fur = (x: number, y: number, r: number) => {
+    const grad = g.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r);
+    grad.addColorStop(0, '#4a4a58');
+    grad.addColorStop(0.6, '#17171d');
+    grad.addColorStop(1, '#050507');
+    return grad;
+  };
+  g.lineCap = 'round';
+  g.strokeStyle = '#0b0b0f';                                          // tail curling round the front
+  g.lineWidth = 6;
+  g.beginPath();
+  g.moveTo(48, 58);
+  g.bezierCurveTo(62, 56, 62, 40, 54, 36);
+  g.stroke();
+  g.beginPath();                                                      // body
+  g.ellipse(36, 50, 15, 15, 0, 0, Math.PI * 2);
+  g.fillStyle = fur(36, 50, 15);
+  g.fill();
+  g.beginPath();                                                      // ears
+  g.moveTo(25, 26); g.lineTo(27, 10); g.lineTo(34, 21); g.closePath();
+  g.moveTo(47, 26); g.lineTo(45, 10); g.lineTo(38, 21); g.closePath();
+  g.fillStyle = '#101015';
+  g.fill();
+  g.beginPath();
+  g.moveTo(28, 22); g.lineTo(28.5, 15); g.lineTo(32, 20.5); g.closePath();
+  g.moveTo(44, 22); g.lineTo(43.5, 15); g.lineTo(40, 20.5); g.closePath();
+  g.fillStyle = '#5b3a4a';
+  g.fill();
+  g.beginPath();                                                      // head
+  g.ellipse(36, 28, 12, 10.5, 0, 0, Math.PI * 2);
+  g.fillStyle = fur(36, 28, 12);
+  g.fill();
+  g.shadowColor = 'transparent';
+  g.strokeStyle = 'rgba(255,255,255,.28)';                            // rim light
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.arc(36, 28, 11, Math.PI * 1.1, Math.PI * 1.6);
+  g.stroke();
+  for (const ex of [31.5, 40.5]) {                                    // yellow eyes with slit pupils
+    g.beginPath();
+    g.ellipse(ex, 27.5, 2.8, 3.2, 0, 0, Math.PI * 2);
+    g.fillStyle = '#ffd43b';
+    g.fill();
+    g.beginPath();
+    g.ellipse(ex, 27.5, 0.8, 2.6, 0, 0, Math.PI * 2);
+    g.fillStyle = '#111';
+    g.fill();
+  }
+  g.beginPath();                                                      // nose
+  g.moveTo(34.6, 32); g.lineTo(37.4, 32); g.lineTo(36, 33.6); g.closePath();
+  g.fillStyle = '#c97b8f';
+  g.fill();
+}
+
+function drawCross(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 22);
+  const arm = 9, half = 22, cx = 34, cy = 32, depth = 5;
+  const pts: [number, number][] = [
+    [-arm, -half], [arm, -half], [arm, -arm], [half, -arm], [half, arm], [arm, arm],
+    [arm, half], [-arm, half], [-arm, arm], [-half, arm], [-half, -arm], [-arm, -arm]];
+  const path = (dx: number, dy: number) => {
+    g.beginPath();
+    pts.forEach(([x, y], i) => (i ? g.lineTo(cx + x + dx, cy + y + dy) : g.moveTo(cx + x + dx, cy + y + dy)));
+    g.closePath();
+  };
+  for (let d = depth; d > 0; d--) {                                   // extrusion: stacked darker layers
+    path(d, d);
+    g.fillStyle = d === depth ? '#063d1b' : '#0b5e2a';
+    g.fill();
+  }
+  path(0, 0);
+  const grad = g.createLinearGradient(cx - half, cy - half, cx + half, cy + half);
+  grad.addColorStop(0, '#6cf08f');
+  grad.addColorStop(0.5, '#1fb556');
+  grad.addColorStop(1, '#128a3e');
+  g.fillStyle = grad;
+  g.fill();
+  g.lineWidth = 1.6;
+  g.strokeStyle = 'rgba(255,255,255,.75)';
+  g.stroke();
+  g.beginPath();                                                      // glint on the top arm
+  g.moveTo(cx - arm + 2.5, cy - half + 3);
+  g.lineTo(cx - arm + 2.5, cy - arm - 1);
+  g.strokeStyle = 'rgba(255,255,255,.6)';
+  g.lineWidth = 2;
+  g.lineCap = 'round';
+  g.stroke();
+}
+
+function drawDumbbell(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 26);
+  const y = 44;
+  const bar = g.createLinearGradient(0, y - 3, 0, y + 3);             // chrome bar
+  bar.addColorStop(0, '#f1f3f5');
+  bar.addColorStop(0.5, '#868e96');
+  bar.addColorStop(1, '#343a40');
+  g.fillStyle = bar;
+  g.fillRect(14, y - 3, 44, 6);
+  const plate = (x: number, w: number, h: number) => {                // a plate: cylinder side + lit face
+    const side = g.createLinearGradient(0, y - h, 0, y + h);
+    side.addColorStop(0, '#ff922b');
+    side.addColorStop(0.45, '#e8590c');
+    side.addColorStop(1, '#7a2e05');
+    g.fillStyle = side;
+    g.beginPath();
+    g.ellipse(x + w, y, 4, h, 0, -Math.PI / 2, Math.PI / 2);
+    g.lineTo(x, y + h);
+    g.ellipse(x, y, 4, h, 0, Math.PI / 2, -Math.PI / 2, true);
+    g.closePath();
+    g.fill();
+    g.beginPath();
+    g.ellipse(x, y, 4, h, 0, 0, Math.PI * 2);
+    g.fillStyle = '#ffa94d';
+    g.fill();
+    g.strokeStyle = '#1b1b1f';
+    g.lineWidth = 1.2;
+    g.stroke();
+  };
+  plate(8, 6, 15);
+  plate(15, 4, 11);
+  plate(53, 6, 15);
+  plate(49, 4, 11);
+  g.beginPath();                                                      // highlight along the bar
+  g.moveTo(24, y - 1.6);
+  g.lineTo(46, y - 1.6);
+  g.strokeStyle = 'rgba(255,255,255,.8)';
+  g.lineWidth = 1;
+  g.stroke();
+}
+
+function drawCart(g: CanvasRenderingContext2D): void {
+  groundShadow(g, 24);
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  const basket: [number, number][] = [[18, 22], [58, 22], [53, 44], [23, 44]];
+  g.beginPath();                                                      // basket back face (depth)
+  basket.forEach(([x, y], i) => (i ? g.lineTo(x + 4, y - 4) : g.moveTo(x + 4, y - 4)));
+  g.closePath();
+  g.fillStyle = 'rgba(28,110,55,.55)';
+  g.fill();
+  g.beginPath();                                                      // basket front face
+  basket.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
+  g.closePath();
+  const grad = g.createLinearGradient(0, 22, 0, 44);
+  grad.addColorStop(0, '#69db7c');
+  grad.addColorStop(1, '#2b8a3e');
+  g.fillStyle = grad;
+  g.fill();
+  g.strokeStyle = '#1b1b1f';
+  g.lineWidth = 2.2;
+  g.stroke();
+  g.strokeStyle = 'rgba(255,255,255,.55)';                            // wire grid
+  g.lineWidth = 1.1;
+  for (const t of [0.25, 0.5, 0.75]) {
+    g.beginPath();
+    g.moveTo(18 + 40 * t, 22);
+    g.lineTo(23 + 30 * t, 44);
+    g.stroke();
+  }
+  g.beginPath();
+  g.moveTo(20.5, 33);
+  g.lineTo(55.5, 33);
+  g.stroke();
+  g.strokeStyle = '#343a40';                                          // frame, handle, base
+  g.lineWidth = 3;
+  g.beginPath();
+  g.moveTo(8, 14);
+  g.lineTo(14, 14);
+  g.lineTo(18, 22);
+  g.moveTo(23, 44);
+  g.lineTo(25, 52);
+  g.lineTo(54, 52);
+  g.stroke();
+  for (const wx of [28, 50]) {                                        // wheels
+    g.beginPath();
+    g.arc(wx, 57, 4, 0, Math.PI * 2);
+    g.fillStyle = '#111';
+    g.fill();
+    g.beginPath();
+    g.arc(wx - 1, 56, 1.3, 0, Math.PI * 2);
+    g.fillStyle = 'rgba(255,255,255,.6)';
+    g.fill();
+  }
+}
+
+const OBJECT_DRAW: Record<ObjectKind, (g: CanvasRenderingContext2D) => void> = {
+  cat: drawCat, cross: drawCross, dumbbell: drawDumbbell, cart: drawCart,
+};
+
+function drawObject(kind: ObjectKind): HTMLCanvasElement | null {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = OBJ;
+  const g = canvas.getContext('2d');
+  if (!g) return null;
+  OBJECT_DRAW[kind](g);
+  return canvas;
+}
+
+/** Add a missing 3D object image synchronously (styleimagemissing); ignores other ids. */
+export function installObject(map: MlMap, id: string): void {
+  const kind = id.startsWith(OBJECT_PREFIX) ? (id.slice(OBJECT_PREFIX.length) as ObjectKind) : null;
+  if (!kind || !OBJECTS.includes(kind) || map.hasImage(id)) return;
+  const canvas = drawObject(kind);
+  const ctx = canvas?.getContext('2d');
+  if (!canvas || !ctx) return;
+  map.addImage(id, ctx.getImageData(0, 0, canvas.width, canvas.height), { pixelRatio: 2 });
+}
+
+const objectUrls = new Map<ObjectKind, string>();
+
+export function objectUrl(kind: ObjectKind): string {
+  if (!objectUrls.has(kind)) objectUrls.set(kind, drawObject(kind)?.toDataURL() ?? '');
+  return objectUrls.get(kind)!;
+}

@@ -1,26 +1,28 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Map as MlMap } from 'maplibre-gl';
 import { GeoCollection, IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines } from '../../models';
-import { pinId, pinUrl } from '../../components/map-icons';
+import { ObjectKind, objectId, objectUrl, pinId, pinUrl } from '../../components/map-icons';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
 import { MapStateService } from './map-state.service';
 
 /** Connectivity centroid colour per group. */
 export const GROUP_COLOURS: Record<string, string> = { rail: '#0089ca', bus: '#d71d24' };
-/** The 3D pin of each target set: glyph, badge colour and glyph colour (the vet is a black cat on a light badge). */
-export const TARGET_PINS: Record<string, { glyph: string; bg: string; fg?: string }> = {
-  rail: { glyph: 'metro', bg: '#0089ca' }, bus: { glyph: 'bus', bg: '#d71d24' }, ferry: { glyph: 'ferry', bg: '#00a5ac' },
-  grocery: { glyph: 'cart', bg: '#2f9e44' }, pharmacy: { glyph: 'pill', bg: '#1c7ed6' }, gym: { glyph: 'dumbbell', bg: '#e8590c' },
-  park: { glyph: 'tree', bg: '#5c940d' }, vet: { glyph: 'cat', bg: '#f3e8ff', fg: '#111111' },
+/** How each target set is drawn: a standing 3D pin (glyph, badge, glyph colour) or a standalone 3D object. */
+export type TargetIcon = { pin: { glyph: string; bg: string; fg?: string } } | { object: ObjectKind };
+export const TARGET_ICONS: Record<string, TargetIcon> = {
+  rail: { pin: { glyph: 'metro', bg: '#0089ca' } }, bus: { pin: { glyph: 'bus', bg: '#d71d24' } },
+  ferry: { pin: { glyph: 'ferry', bg: '#00a5ac' } }, park: { pin: { glyph: 'tree', bg: '#5c940d' } },
+  grocery: { object: 'cart' }, pharmacy: { object: 'cross' }, gym: { object: 'dumbbell' }, vet: { object: 'cat' },
 };
-export function targetPinId(set: string): string {
-  const p = TARGET_PINS[set] ?? { glyph: 'dot', bg: '#8a8aa0' };
-  return pinId(p.glyph, p.bg, p.fg);
+const FALLBACK: TargetIcon = { pin: { glyph: 'dot', bg: '#8a8aa0' } };
+export function targetIconId(set: string): string {
+  const t = TARGET_ICONS[set] ?? FALLBACK;
+  return 'object' in t ? objectId(t.object) : pinId(t.pin.glyph, t.pin.bg, t.pin.fg);
 }
-export function targetPinUrl(set: string): string {
-  const p = TARGET_PINS[set] ?? { glyph: 'dot', bg: '#8a8aa0' };
-  return pinUrl(p.glyph, p.bg, p.fg);
+export function targetIconUrl(set: string): string {
+  const t = TARGET_ICONS[set] ?? FALLBACK;
+  return 'object' in t ? objectUrl(t.object) : pinUrl(t.pin.glyph, t.pin.bg, t.pin.fg);
 }
 const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 /** Heatmap colours from near to far, one per legend bin (zone.yaml bins_min) plus "beyond the last bin". */
@@ -227,17 +229,17 @@ export class ZoneService {
     if (map?.getLayer('zone-heat-line')) map.setPaintProperty('zone-heat-line', 'line-color', this.heatColour(this.colourBy()) as any);
   }
 
-  /** Targets as small standing 3D pins: anchored at the spot, upright when the map is tilted, drawn above the
+  /** Targets as standing 3D pins or 3D objects (TARGET_ICONS): anchored at the spot, upright when the map is tilted, drawn above the
    *  buildings and the heatmap; nearer pins cover farther ones. */
   private drawTargets(fc: GeoCollection): void {
-    const icon: any = ['match', ['get', 'set'], ...Object.keys(TARGET_PINS).flatMap((k) => [k, targetPinId(k)]), targetPinId('')];
+    const icon: any = ['match', ['get', 'set'], ...Object.keys(TARGET_ICONS).flatMap((k) => [k, targetIconId(k)]), targetIconId('')];
     this.state.addGroup({
       id: 'zone-targets',
       sources: { 'zone-targets': { type: 'geojson', data: EMPTY as any } },
       layers: [{ id: 'zone-targets-pin', type: 'symbol', source: 'zone-targets',
         layout: { 'icon-image': icon, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
           'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport', 'symbol-z-order': 'viewport-y',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 14, 0.62, 17, 0.85] } }] as any,
+          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.55, 14, 0.85, 17, 1.15] } }] as any,
     });
     this.state.setData('zone-targets', fc);
     const map = this.state.map();

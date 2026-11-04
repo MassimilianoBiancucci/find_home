@@ -6,7 +6,7 @@ import { HeatSummary, ZoneLine } from '../../models';
 import { LayoutService } from '../../services/layout.service';
 import { MapStateService } from './map-state.service';
 import { IDX_RAMP } from './connectivity.service';
-import { BEYOND, GROUP_COLOURS, SET_COLOURS, ZoneService, targetPinUrl } from './zone.service';
+import { BEYOND, GROUP_COLOURS, SET_COLOURS, ZoneService, targetIconUrl } from './zone.service';
 
 const RAILISH = new Set(['metro', 'commuter_rail', 'local_rail', 'tram', 'train']);
 const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Commuter rail', local_rail: 'Local rail', tram: 'Tram',
@@ -38,10 +38,15 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
 
   <ng-template #targetsTpl>
     @if (zone.facts(); as f) {
+      <div class="d-flex gap-1 mb-1">
+        <button class="btn btn-sm btn-outline-primary" [disabled]="allOn()" (click)="zone.setSets(setIds())"
+          title="Show every target set and compute the heatmap for all of them">All targets</button>
+        <button class="btn btn-sm btn-outline-secondary" (click)="zone.setSets(['rail', 'bus'])">Rail + bus</button>
+      </div>
       @for (s of setIds(); track s) {
         <label class="fh-row">
           <input type="checkbox" class="form-check-input" [checked]="zone.sets().includes(s)" (change)="toggleSet(s)" />
-          <img [src]="pin(s)" width="18" height="23" alt="" /><span class="fh-grow">{{ f.target_sets[s] }}</span>
+          <img [src]="pin(s)" width="22" height="22" alt="" class="fh-ico" /><span class="fh-grow">{{ f.target_sets[s] }}</span>
           @if (summary(s); as m) { <span class="small text-body-secondary">{{ minutes(m.median_s) }}</span> }
         </label>
       }
@@ -140,6 +145,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
   </ng-template>`,
   styles: [`
     .fh-grow { flex: 1; min-width: 0; }
+    .fh-ico { object-fit: contain; }
     .fh-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     .fh-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; span:not(.small) { font-size: .7rem; color: #111; padding: 0 5px; border-radius: 3px; } }
     .fh-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
@@ -170,6 +176,7 @@ export class ZoneMode {
   protected readonly beyond = BEYOND;
   private stopPicker: (() => void) | null = null;
   protected setIds = computed(() => Object.keys(this.zone.facts()?.target_sets ?? {}));
+  protected allOn = computed(() => this.setIds().every((s) => this.zone.sets().includes(s)));
   private params = toSignal(this.route.paramMap);
 
   constructor() {
@@ -198,7 +205,7 @@ export class ZoneMode {
     if (next.length) this.zone.setSets(next);
   }
   protected setColour(s: string): string { return SET_COLOURS[s] ?? '#8a8aa0'; }
-  protected pin(s: string): string { return targetPinUrl(s); }
+  protected pin(s: string): string { return targetIconUrl(s); }
   protected summary(s: string): HeatSummary | null { return this.zone.heatmap()?.summary[s] ?? null; }
   protected minutes(s: number | null): string { return s == null ? 'beyond cutoff' : `${Math.round(s / 60)} min`; }
   protected short(d: string): string { return d.replace(/ stadsdelsområde$/, ''); }
