@@ -206,6 +206,22 @@ class TransitColours(_Base):
         return m.lines.get(line or "", m.default)
 
 
+class TargetSet(_Base):
+    label: str
+    stops: list[str] = Field(default_factory=list)      # transit modes, matched on the lines serving a stop
+    poi: list[str] = Field(default_factory=list)        # POI categories (data/geo/poi/<category>.geojson)
+
+
+class ZoneConfig(_Base):
+    speeds_mps: dict[str, float]
+    factors: dict[str, float] = Field(default_factory=dict)
+    cutoff_min: float
+    bins_min: list[float]
+    snap_max_m: float = 300
+    target_sets: dict[str, TargetSet]
+    homes: dict[str, Any] = Field(default_factory=dict)
+
+
 # ── sites ───────────────────────────────────────────────────
 class SiteConfig(_Base):
     slug: str

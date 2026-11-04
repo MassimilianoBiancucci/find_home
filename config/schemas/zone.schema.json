@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/zone.schema.json",
+  "title": "Zone analysis",
+  "type": "object",
+  "properties": {
+    "speeds_mps": {
+      "type": "object",
+      "properties": {"walk": {"type": "number", "exclusiveMinimum": 0}, "bike": {"type": "number", "exclusiveMinimum": 0}},
+      "required": ["walk", "bike"],
+      "additionalProperties": false
+    },
+    "factors": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}},
+    "cutoff_min": {"type": "number", "exclusiveMinimum": 0, "maximum": 60},
+    "bins_min": {"type": "array", "items": {"type": "number", "exclusiveMinimum": 0}, "minItems": 2},
+    "snap_max_m": {"type": "number", "exclusiveMinimum": 0},
+    "target_sets": {
+      "type": "object",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"},
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "label": {"type": "string"},
+          "stops": {"type": "array", "items": {"enum": ["metro", "commuter_rail", "local_rail", "tram", "train", "bus", "ferry"]}},
+          "poi": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["label"],
+        "anyOf": [{"required": ["stops"]}, {"required": ["poi"]}],
+        "additionalProperties": false
+      }
+    },
+    "homes": {
+      "type": "object",
+      "properties": {
+        "buildings": {"type": "array", "items": {"type": "string"}},
+        "default_levels": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["speeds_mps", "cutoff_min", "bins_min", "target_sets"],
+  "additionalProperties": false
+}

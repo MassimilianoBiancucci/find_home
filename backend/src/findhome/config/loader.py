@@ -35,6 +35,7 @@ CONFIG_FILES: dict[str, type[m._Base]] = {
     "search_area": m.SearchArea,
     "area_aliases": m.AreaAliases,
     "transit_colours": m.TransitColours,
+    "zone": m.ZoneConfig,
 }
 # files whose content changes scores; their canonical JSON makes the config hash
 SCORING_FILES = ("profile", "locations", "time_model", "poi", "tags", "search_area")
@@ -60,6 +61,7 @@ class ConfigBundle:
     search_area: m.SearchArea
     area_aliases: m.AreaAliases
     transit_colours: m.TransitColours
+    zone: m.ZoneConfig
     sites: dict[str, m.SiteConfig]
     raw: dict[str, Any] = field(repr=False)
     config_hash: str = ""
@@ -135,6 +137,11 @@ def _cross_checks(raw: dict[str, Any], sites: dict[str, Any]) -> list[str]:
         for n in names:
             if n not in routing:
                 errors.append(f"providers.yaml: mode_priority/{mode}: unknown provider '{n}'")
+    poi_cats = set((raw["poi"] or {}).get("categories", {}))
+    for sid, ts in ((raw.get("zone") or {}).get("target_sets") or {}).items():
+        for cat in ts.get("poi", []):
+            if cat not in poi_cats:
+                errors.append(f"zone.yaml: target_sets/{sid}/poi: '{cat}' not in poi.yaml categories")
     for slug, site in sites.items():
         for key in site.get("filter_map", {}):
             if key not in catalog:

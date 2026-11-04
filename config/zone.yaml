@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=./schemas/zone.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Zone analysis (Map → Zone): walking / cycling heatmaps along the street network.
+#  Data: `findhome geo fetch network`, `timetable`, `poi`, `buildings`. Nothing here changes scores.
+# ─────────────────────────────────────────────────────────────
+speeds_mps: {walk: 1.3, bike: 4.2}   # 1.3 m/s ≈ 4.7 km/h; 4.2 m/s ≈ 15 km/h
+factors:                          # speed multiplier per OSM highway class (stairs are slow)
+  steps: 0.5
+cutoff_min: 20                    # times above this are not computed (the segment is left grey)
+bins_min: [2, 5, 8, 12, 16, 20]   # colour steps of the heatmap legend
+snap_max_m: 300                   # a target or a home farther than this from any way is ignored
+# A target set is what the heatmap measures the walk to: stops by transit mode (timetable) and/or POI categories.
+target_sets:
+  rail: {label: "Metro, train and tram", stops: [metro, commuter_rail, local_rail, tram, train]}
+  bus: {label: Bus stops, stops: [bus]}
+  ferry: {label: Ferry, stops: [ferry]}
+  grocery: {label: Groceries, poi: [grocery]}
+  pharmacy: {label: Pharmacies, poi: [pharmacy]}
+  gym: {label: Gyms, poi: [gym, sats]}
+  park: {label: Parks, poi: [park]}
+  vet: {label: Vets, poi: [vet]}
+# Homes weight the summary statistics ("typical home"): residential buildings, weighted by floors.
+homes:
+  buildings: [apartments, residential, house, detached, semidetached_house, terrace, dormitory]
+  default_levels: {apartments: 4, residential: 3, dormitory: 3, terrace: 2}   # when building:levels is missing; else 1
