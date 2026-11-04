@@ -27,6 +27,9 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
       </div>
       <label class="form-check form-switch small"><input type="checkbox" class="form-check-input" [checked]="zone.neighbours()" (change)="zone.setNeighbours(!zone.neighbours())" />
         <span class="form-check-label">Include the {{ f.neighbours.length }} touching zones</span></label>
+      <label class="form-check form-switch small" title="Connectivity centroids: the stations the zone's commutes start from, with their range">
+        <input type="checkbox" class="form-check-input" [checked]="zone.showCentroids()" (change)="zone.setShowCentroids(!zone.showCentroids())" />
+        <span class="form-check-label">Show centroids@if (zone.centroids(); as c) { ({{ c.centroids.length }}, {{ c.range_m }} m range) }</span></label>
     } @else if (zone.selected()) { <div class="small text-body-secondary">Loading…</div> }
     @else { <div class="small">Hover a zone and click it, or right-click the map → <i>Open zone view</i>.</div>
       @if (zone.hoverName()) { <div class="small text-body-secondary mt-1">{{ zone.hoverName() }}</div> } }
@@ -81,7 +84,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
           @for (s of c.centroids; track s.key + s.group) {
             <div class="fh-line-row"><span class="fh-badge" [style.background]="groupColour(s.group)">{{ s.group }}</span>
               <span class="fh-grow">{{ s.name }}</span>
-              <span class="small text-body-secondary" title="share of the zone's homes within {{ c.walk_min }} min walk">{{ s.share_within_walk * 100 | number: '1.0-0' }}%</span></div>
+              <span class="small text-body-secondary" title="share of the zone's homes within {{ c.walk_min }} min walk of this station">{{ s.share_within_walk * 100 | number: '1.0-0' }}%</span></div>
           }
           @if (patternRows().length) {
             @for (p of patternRows(); track p.key) {

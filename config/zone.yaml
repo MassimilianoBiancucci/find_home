@@ -52,6 +52,7 @@ centroids:
   max_walk_min: 20                # walk times kept per home and centroid (longer walks are not a centroid's homes)
   coverage: 0.9
   min_gain: 0.03
+  range_m: 400                    # circle drawn around each centroid in the zone view (display only)
   reference: true                 # a group with no station near enough keeps its best one within max_walk_min
   groups:
     rail: [metro, commuter_rail, local_rail, tram, train, ferry]

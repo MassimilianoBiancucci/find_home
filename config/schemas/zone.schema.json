@@ -260,6 +260,10 @@
         },
         "reference": {
           "type": "boolean"
+        },
+        "range_m": {
+          "type": "number",
+          "exclusiveMinimum": 0
         }
       },
       "required": [

@@ -97,7 +97,8 @@ async def zone_centroids(zone_id: str, conn=Depends(get_conn)):
         near = sum(w for w, walks in z["homes"] if walks.get(str(i), 1e9) <= limit)
         out.append({**c, **st, "share_within_walk": round(near / total, 3)})
     patterns = await read_patterns(conn, inputs_hash(b), zone_id)
-    return {"zone_id": zone_id, "walk_min": limit / 60, "coverage": z["coverage"], "homes": len(z["homes"]),
+    return {"zone_id": zone_id, "walk_min": limit / 60, "range_m": b.zone.centroids.get("range_m", 400),
+            "coverage": z["coverage"], "homes": len(z["homes"]),
             "centroids": out, "patterns": patterns}
 
 

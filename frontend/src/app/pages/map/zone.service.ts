@@ -224,25 +224,38 @@ export class ZoneService {
     this.state.setData('zone-targets', fc);
   }
 
-  /** The zone's connectivity centroids: rings in the group colour, sized by the share of homes within the walk. */
+  /** Show or hide the centroid layer (hidden by default; the choice persists like the other map layers). */
+  readonly showCentroids = computed(() => this.state.isVisible('zone-centroids', false));
+  setShowCentroids(on: boolean): void { this.state.setVisible('zone-centroids', on); }
+
+  /** The zone's connectivity centroids: a dot in the group colour and the range circle (centroids.range_m) around
+   *  it, drawn as a polygon in metres so it keeps its true size when the map is tilted. */
   private drawCentroids(c: ZoneCentroids | null): void {
-    const fc = { type: 'FeatureCollection', features: (c?.centroids ?? []).map((s) => ({
-      type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
-      properties: { name: s.name, group: s.group, share: s.share_within_walk } })) };
+    if (this.state.visible()['zone-centroids'] === undefined) this.state.setVisible('zone-centroids', false);
+    const items = c?.centroids ?? [];
+    const range = c?.range_m ?? 400;
+    const props = (s: ZoneCentroids['centroids'][number]) => ({ name: s.name, group: s.group, share: s.share_within_walk });
+    const dots = { type: 'FeatureCollection', features: items.map((s) => ({
+      type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] }, properties: props(s) })) };
+    const rings = { type: 'FeatureCollection', features: items.map((s) => ({
+      type: 'Feature', geometry: { type: 'Polygon', coordinates: [circle(s.lon, s.lat, range)] }, properties: props(s) })) };
     const colour: any = ['match', ['get', 'group'], ...Object.entries(GROUP_COLOURS).flat(), '#8a8aa0'];
     this.state.addGroup({
       id: 'zone-centroids',
-      sources: { 'zone-centroids': { type: 'geojson', data: EMPTY as any } },
+      sources: { 'zone-centroids': { type: 'geojson', data: EMPTY as any }, 'zone-centroid-range': { type: 'geojson', data: EMPTY as any } },
       layers: [
-        { id: 'zone-centroids-ring', type: 'circle', source: 'zone-centroids',
-          paint: { 'circle-radius': ['+', 9, ['*', 28, ['get', 'share']]], 'circle-color': colour, 'circle-opacity': 0.15,
-            'circle-stroke-color': colour, 'circle-stroke-width': 2.5 } },
+        { id: 'zone-centroids-range-fill', type: 'fill', source: 'zone-centroid-range', paint: { 'fill-color': colour, 'fill-opacity': 0.08 } },
+        { id: 'zone-centroids-range-line', type: 'line', source: 'zone-centroid-range',
+          paint: { 'line-color': colour, 'line-width': 1.5, 'line-opacity': 0.85, 'line-dasharray': [2, 2] } },
+        { id: 'zone-centroids-dot', type: 'circle', source: 'zone-centroids',
+          paint: { 'circle-radius': 5, 'circle-color': colour, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1.5 } },
         ...(this.state.map()?.getStyle()?.glyphs ? [{ id: 'zone-centroids-label', type: 'symbol', source: 'zone-centroids',
-          layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.6], 'text-anchor': 'top' },
+          layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.2], 'text-anchor': 'top' },
           paint: { 'text-color': '#fff', 'text-halo-color': '#101014', 'text-halo-width': 1.3 } }] : []),
       ] as any,
     });
-    this.state.setData('zone-centroids', fc);
+    this.state.setData('zone-centroids', dots);
+    this.state.setData('zone-centroid-range', rings);
   }
 
   private flyTo(f: ZoneFacts): void {
@@ -258,4 +271,14 @@ export class ZoneService {
     if (!cam) return;
     map.flyTo({ ...cam, zoom: (cam.zoom ?? 14) - 0.3, pitch: 55, bearing: -20, duration: 1500, essential: true });
   }
+}
+
+/** A circle of `metres` around [lon, lat] as a closed ring (64 points; local flat-earth offsets, exact enough at a few km). */
+export function circle(lon: number, lat: number, metres: number, steps = 64): number[][] {
+  const dLat = metres / 111_320, dLon = metres / (111_320 * Math.cos((lat * Math.PI) / 180));
+  const ring = Array.from({ length: steps }, (_, i) => {
+    const a = (2 * Math.PI * i) / steps;
+    return [+(lon + dLon * Math.cos(a)).toFixed(6), +(lat + dLat * Math.sin(a)).toFixed(6)];
+  });
+  return [...ring, ring[0]];
 }

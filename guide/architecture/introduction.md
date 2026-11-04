@@ -151,12 +151,13 @@ stateDiagram-v2
 | load facts and lines, then heatmap and targets | [`select()`](../../frontend/src/app/pages/map/zone.service.ts#L83) |
 | neon outline (three blurred lines), dimmed outside, 3D buildings at distance 0 from the zone | [`drawFocus()`](../../frontend/src/app/pages/map/zone.service.ts#L167) |
 | streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L201) |
-| camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L248) |
+| camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L261) |
 
 The right panel shows, in order:
 - the two mobility indices (value, percentile, component bars, a one-line insight);
-- "Where the best trips start": the zone's connectivity centroids (rings on the map) and, per route, the share of
-  homes whose best trip starts at a rail or a bus station;
+- "Where the best trips start": the zone's connectivity centroids and, per route, the rail vs bus share of the ride
+  near the zone. The Zone bubble's **Show centroids** switch (off by default, remembered like other layers) draws
+  each centroid with its `centroids.range_m` circle, a polygon in metres so it keeps its size when tilted;
 - KPI tiles (median walk per target set, share of homes within 5 and 10 minutes, lines at the zone's stops);
 - collapsed sections: metro lines, bus lines, other transit (stops served and the peak departures per hour at the
   zone's stops), services in the zone, and nearby zones' extra lines.
