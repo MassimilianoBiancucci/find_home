@@ -7,7 +7,7 @@ import {
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, Listing, ListingDetail,
   PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta, ZoneCommute,
-  IndicesMap, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef,
+  IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef,
 } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -118,6 +118,7 @@ export class ApiService {
   zoneLines(id: string, dayKind = 'weekday') {
     return this.http.get<ZoneLines>(`/api/zone/${encodeURIComponent(id)}/lines`, { params: new HttpParams().set('day_kind', dayKind) });
   }
+  zoneCentroids(id: string) { return this.http.get<ZoneCentroids>(`/api/zone/${encodeURIComponent(id)}/centroids`); }
   zoneIndices(id: string) { return this.http.get<ZoneIndices>(`/api/zone/${encodeURIComponent(id)}/indices`); }
   allIndices(window?: string) {
     return this.http.get<IndicesMap>('/api/zone/indices', { params: window ? new HttpParams().set('window', window) : undefined });

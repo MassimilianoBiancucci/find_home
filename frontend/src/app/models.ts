@@ -208,3 +208,10 @@ export interface IndicesMap {
   version: string; window: string | null; windows: string[]; count: number; zone_count: number;
   zones: Record<string, { transport: IndexValue; transport_services: IndexValue }>;
 }
+export interface ZoneCentroid { key: string; group: string; name: string; lat: number; lon: number; lines_w: number; share_within_walk: number; }
+export interface ZonePattern {
+  point_id: string; direction: string; day_type: string; window_label: string;
+  payload: { minutes: number | null; reached: number; median?: number | null; walk_median?: number | null; transit_median?: number | null;
+    groups?: Record<string, number>; winners?: Record<string, number> };
+}
+export interface ZoneCentroids { zone_id: string; walk_min: number; coverage: Record<string, number>; homes: number; centroids: ZoneCentroid[]; patterns: ZonePattern[]; }

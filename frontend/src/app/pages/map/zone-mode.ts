@@ -6,7 +6,7 @@ import { HeatSummary, ZoneLine } from '../../models';
 import { LayoutService } from '../../services/layout.service';
 import { MapStateService } from './map-state.service';
 import { IDX_RAMP } from './connectivity.service';
-import { BEYOND, SET_COLOURS, ZoneService } from './zone.service';
+import { BEYOND, GROUP_COLOURS, SET_COLOURS, ZoneService } from './zone.service';
 
 const RAILISH = new Set(['metro', 'commuter_rail', 'local_rail', 'tram', 'train']);
 const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Commuter rail', local_rail: 'Local rail', tram: 'Tram',
@@ -76,6 +76,22 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
           <div class="small text-body-secondary mt-1">Thresholds and weights: <code>config/zone.yaml</code> indices.</div>
         </details>
       }
+      @if (zone.centroids(); as c) {
+        <details class="fh-sec mt-0 mb-2" open><summary>Where the best trips start <span>{{ c.centroids.length }} stations</span></summary>
+          @for (s of c.centroids; track s.key + s.group) {
+            <div class="fh-line-row"><span class="fh-badge" [style.background]="groupColour(s.group)">{{ s.group }}</span>
+              <span class="fh-grow">{{ s.name }}</span>
+              <span class="small text-body-secondary" title="share of the zone's homes within {{ c.walk_min }} min walk">{{ s.share_within_walk * 100 | number: '1.0-0' }}%</span></div>
+          }
+          @if (patternRows().length) {
+            @for (p of patternRows(); track p.key) {
+              <div class="fh-pat"><div class="small"><b>{{ p.label }}</b> · {{ p.minutes }} min ({{ p.walk }} walk + {{ p.transit }} transit)</div>
+                <div class="fh-split"><i class="rail" [style.width.%]="p.rail * 100"></i><i class="bus" [style.width.%]="p.bus * 100"></i></div>
+                <div class="small text-body-secondary">best start: {{ p.best }} · rail {{ p.rail * 100 | number: '1.0-0' }}% · bus {{ p.bus * 100 | number: '1.0-0' }}% of homes</div></div>
+            }
+          } @else { <div class="small text-body-secondary mt-1">No station refresh yet: Map → Connectivity → Refresh.</div> }
+        </details>
+      }
       @if (zone.heatmap(); as h) {
         <div class="fh-tiles">
           @for (t of tiles(); track t.key) {
@@ -132,6 +148,9 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
     .fh-bar-l { width: 105px; } .fh-bar-v { width: 72px; text-align: right; color: var(--bs-secondary-color); }
     .fh-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--fh-sub); overflow: hidden;
       i { display: block; height: 100%; background: var(--fh-accent-fill); } }
+    .fh-pat { margin: 6px 0; }
+    .fh-split { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--fh-sub); margin: 2px 0;
+      .rail { background: #0089ca; } .bus { background: #d71d24; } }
     .fh-badge { min-width: 30px; text-align: center; border-radius: 4px; color: #fff; font-weight: 700; font-size: .75rem; padding: 0 4px; }
   `],
 })
@@ -199,6 +218,22 @@ export class ZoneMode {
       out.push({ key: 'lines', colour: '#0089ca', value: String(l.lines.length), label: 'lines at the zone\'s stops', note: `${rail} rail / metro / tram` });
     }
     return out;
+  });
+
+  protected groupColour(g: string): string { return GROUP_COLOURS[g] ?? '#8a8aa0'; }
+
+  /** Per point and trip: minutes (home-weighted), walk + transit medians, and where the homes' best trips start. */
+  protected patternRows = computed(() => {
+    const c = this.zone.centroids();
+    const names = new Map((c?.centroids ?? []).map((s) => [s.key, s.name]));
+    return (c?.patterns ?? []).filter((p) => p.payload.minutes != null).map((p) => {
+      const g = p.payload.groups ?? {};
+      const best = Object.keys(p.payload.winners ?? {})[0];
+      return { key: `${p.point_id}|${p.direction}|${p.window_label}`, minutes: Math.round(p.payload.minutes!),
+        label: `${p.point_id} · ${p.direction === 'to_point' ? 'there' : 'back'} · ${p.window_label}`,
+        walk: Math.round(p.payload.walk_median ?? 0), transit: Math.round(p.payload.transit_median ?? 0),
+        rail: g['rail'] ?? 0, bus: g['bus'] ?? 0, best: best ? names.get(best) ?? best : '–' };
+    });
   });
 
   protected pct(key: 'transport' | 'transport_services'): number | null {

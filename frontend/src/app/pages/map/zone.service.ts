@@ -1,10 +1,12 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Map as MlMap } from 'maplibre-gl';
-import { GeoCollection, IndicesMap, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines } from '../../models';
+import { GeoCollection, IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines } from '../../models';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
 import { MapStateService } from './map-state.service';
 
+/** Connectivity centroid colour per group. */
+export const GROUP_COLOURS: Record<string, string> = { rail: '#0089ca', bus: '#d71d24' };
 const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 /** Heatmap colours from near to far, one per legend bin (zone.yaml bins_min) plus "beyond the last bin". */
 export const HEAT_COLOURS = ['#1a9850', '#66bd63', '#a6d96a', '#fee08b', '#fdae61', '#f46d43', '#d73027'];
@@ -25,6 +27,7 @@ export class ZoneService {
   readonly lines = signal<ZoneLines | null>(null);
   readonly heatmap = signal<ZoneHeatmap | null>(null);
   readonly indices = signal<ZoneIndices | null>(null);
+  readonly centroids = signal<ZoneCentroids | null>(null);
   readonly allIndices = signal<IndicesMap | null>(null);   // every zone's indices, for the percentile
   readonly sets = signal<string[]>(['rail', 'bus']);
   readonly mode = signal<'walk' | 'bike'>('walk');
@@ -89,6 +92,8 @@ export class ZoneService {
       error: (e) => this.error.set(apiError(e)),
     });
     this.api.zoneLines(id).subscribe({ next: (l) => this.lines.set(l), error: () => this.lines.set(null) });
+    this.centroids.set(null);
+    this.api.zoneCentroids(id).subscribe({ next: (c) => { this.centroids.set(c); this.drawCentroids(c); }, error: () => this.drawCentroids(null) });
     this.indices.set(null);
     this.api.zoneIndices(id).subscribe({ next: (i) => this.indices.set(i), error: () => this.indices.set(null) });
     if (!this.allIndices()) this.api.allIndices().subscribe({ next: (a) => this.allIndices.set(a), error: () => undefined });
@@ -113,7 +118,7 @@ export class ZoneService {
 
   /** Leave the mode: drop the layers and put the camera back where it was before the first fly-to. */
   leave(): void {
-    for (const g of ['zone-focus', 'zone-heat', 'zone-targets', 'zone-3d']) this.state.removeGroup(g);
+    for (const g of ['zone-focus', 'zone-heat', 'zone-targets', 'zone-3d', 'zone-centroids']) this.state.removeGroup(g);
     const map = this.state.map();
     if (map && this.camera) map.easeTo({ ...this.camera, duration: 600 });
     this.camera = null;
@@ -217,6 +222,27 @@ export class ZoneService {
           'circle-stroke-color': '#fff', 'circle-stroke-width': 1.2 } }] as any,
     });
     this.state.setData('zone-targets', fc);
+  }
+
+  /** The zone's connectivity centroids: rings in the group colour, sized by the share of homes within the walk. */
+  private drawCentroids(c: ZoneCentroids | null): void {
+    const fc = { type: 'FeatureCollection', features: (c?.centroids ?? []).map((s) => ({
+      type: 'Feature', geometry: { type: 'Point', coordinates: [s.lon, s.lat] },
+      properties: { name: s.name, group: s.group, share: s.share_within_walk } })) };
+    const colour: any = ['match', ['get', 'group'], ...Object.entries(GROUP_COLOURS).flat(), '#8a8aa0'];
+    this.state.addGroup({
+      id: 'zone-centroids',
+      sources: { 'zone-centroids': { type: 'geojson', data: EMPTY as any } },
+      layers: [
+        { id: 'zone-centroids-ring', type: 'circle', source: 'zone-centroids',
+          paint: { 'circle-radius': ['+', 9, ['*', 28, ['get', 'share']]], 'circle-color': colour, 'circle-opacity': 0.15,
+            'circle-stroke-color': colour, 'circle-stroke-width': 2.5 } },
+        ...(this.state.map()?.getStyle()?.glyphs ? [{ id: 'zone-centroids-label', type: 'symbol', source: 'zone-centroids',
+          layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-offset': [0, 1.6], 'text-anchor': 'top' },
+          paint: { 'text-color': '#fff', 'text-halo-color': '#101014', 'text-halo-width': 1.3 } }] : []),
+      ] as any,
+    });
+    this.state.setData('zone-centroids', fc);
   }
 
   private flyTo(f: ZoneFacts): void {
