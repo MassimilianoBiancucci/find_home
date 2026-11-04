@@ -45,12 +45,13 @@ def _middle(slots: list[Slot]) -> Slot:
     return slots[len(slots) // 2]
 
 
-def plan(bundle: ConfigBundle, zones: ZoneSet, point_coords: dict[str, LatLon],
-         zone_ids: list[str] | None = None) -> list[tuple[str, Request]]:
+def plan_origins(bundle: ConfigBundle, origins: list[tuple[str, LatLon]],
+                 point_coords: dict[str, LatLon]) -> list[tuple[str, Request]]:
+    """One transit request per origin × enabled point × trip direction × window (its middle slot, the trip's first
+    day type). An origin is a zone (its inside point) or a connectivity centroid (a station)."""
     out: list[tuple[str, Request]] = []
     points = [p for p in bundle.locations.points if p.enabled and p.id in point_coords]
-    for zid in zone_ids or list(zones.zones):
-        origin = zone_origin(zones.zones[zid])
+    for uid, origin in origins:
         for p in points:
             dest = point_coords[p.id]
             for trip in p.trips:
@@ -66,8 +67,22 @@ def plan(bundle: ConfigBundle, zones: ZoneSet, point_coords: dict[str, LatLon],
                     a, b = (origin, dest) if d == "to_point" else (dest, origin)
                     for slots in windows:
                         s = _middle(slots)
-                        out.append((zid, Request(p.id, d, day, s.window_label, s.weight, MODE, s, a, b)))
+                        out.append((uid, Request(p.id, d, day, s.window_label, s.weight, MODE, s, a, b)))
     return out
+
+
+def plan(bundle: ConfigBundle, zones: ZoneSet, point_coords: dict[str, LatLon],
+         zone_ids: list[str] | None = None) -> list[tuple[str, Request]]:
+    """Origin = one point inside each zone (connectivity.origin: zone)."""
+    return plan_origins(bundle, [(z, zone_origin(zones.zones[z])) for z in zone_ids or list(zones.zones)], point_coords)
+
+
+def plan_stations(bundle: ConfigBundle, stations: dict[str, dict[str, Any]],
+                  point_coords: dict[str, LatLon]) -> list[tuple[str, Request]]:
+    """Origin = every connectivity centroid (station) once, shared by the zones that use it (connectivity.origin:
+    stations). Routed from the station's own coordinate, so the provider always finds a stop."""
+    return plan_origins(bundle, [(k, LatLon(round(v["lat"], 5), round(v["lon"], 5))) for k, v in sorted(stations.items())],
+                        point_coords)
 
 
 SCOPES = ("missing", "estimates", "failed", "stale")
@@ -185,7 +200,7 @@ JOB = JobState()
 
 async def run(store: ConnectivityStore, registry, bundle: ConfigBundle, zones: ZoneSet,
               point_coords: dict[str, LatLon], max_calls: int, scope: list[str] | str | None = None,
-              policy: str = "ask", today=None) -> None:
+              policy: str = "ask", today=None, reqs: list[tuple[str, Request]] | None = None) -> None:
     """Background job; one at a time (the caller checks JOB.running). Every route is written as soon as it is known.
 
     A coordinate the provider cannot route is remembered and its other routes are marked failed without a call.
@@ -194,7 +209,7 @@ async def run(store: ConnectivityStore, registry, bundle: ConfigBundle, zones: Z
     """
     h = inputs_hash(bundle)
     sc = parse_scope(scope)
-    reqs = plan(bundle, zones, point_coords)
+    reqs = reqs if reqs is not None else plan(bundle, zones, point_coords)
     tz = ZoneInfo(bundle.time_model.timezone)
     today = today or datetime.now(tz).date()
     skip = set(bundle.time_model.skip_dates)

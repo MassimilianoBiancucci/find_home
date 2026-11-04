@@ -11,7 +11,9 @@ from typing import Protocol
 
 from psycopg.types.json import Jsonb
 
-PairKey = tuple[str, str, str, str, str]            # zone_id, point_id, direction, day_type, window_label
+PairKey = tuple[str, str, str, str, str]            # origin (zone or station), point_id, direction, day_type, window
+# origin kind → (table, origin column): zone origins (one point per zone) or stations (connectivity centroids)
+TABLES = {"zone": ("zone_commute", "zone_id"), "stations": ("centroid_commute", "station_key")}
 
 
 @dataclass(frozen=True)
@@ -51,8 +53,8 @@ class ConnectivityStore(Protocol):
     async def write(self, row: RowWrite) -> None: ...
 
 
-_ROWS = """SELECT zone_id, point_id, direction, day_type, window_label, status, provider, minutes, error, fetched_at
-           FROM zone_commute WHERE inputs_hash = %s"""
+_ROWS = """SELECT {col} AS origin, point_id, direction, day_type, window_label, status, provider, minutes, error, fetched_at
+           FROM {table} WHERE inputs_hash = %s"""
 
 
 def stored_row(r: dict) -> StoredRow:
@@ -60,9 +62,10 @@ def stored_row(r: dict) -> StoredRow:
                      r["fetched_at"])
 
 
-async def read_rows(conn, inputs_hash: str) -> dict[PairKey, StoredRow]:
-    rows = await (await conn.execute(_ROWS, (inputs_hash,))).fetchall()
-    return {(r["zone_id"], r["point_id"], r["direction"], r["day_type"], r["window_label"]): stored_row(r) for r in rows}
+async def read_rows(conn, inputs_hash: str, kind: str = "zone") -> dict[PairKey, StoredRow]:
+    table, col = TABLES[kind]
+    rows = await (await conn.execute(_ROWS.format(table=table, col=col), (inputs_hash,))).fetchall()
+    return {(r["origin"], r["point_id"], r["direction"], r["day_type"], r["window_label"]): stored_row(r) for r in rows}
 
 
 async def cache_ages(conn, keys: list[str]) -> dict[str, datetime]:
@@ -80,12 +83,14 @@ async def read_failures(conn, provider: str) -> dict[str, str]:
 
 
 class PgConnectivityStore:
-    def __init__(self, pool):
+    def __init__(self, pool, kind: str = "zone"):
         self.pool = pool
+        self.kind = kind
+        self.table, self.col = TABLES[kind]
 
     async def rows(self, inputs_hash: str) -> dict[PairKey, StoredRow]:
         async with self.pool.connection() as conn:
-            return await read_rows(conn, inputs_hash)
+            return await read_rows(conn, inputs_hash, self.kind)
 
     async def failures(self, provider: str) -> dict[str, str]:
         async with self.pool.connection() as conn:
@@ -128,13 +133,38 @@ class PgConnectivityStore:
         zid, pid, direction, day, window = row.key
         async with self.pool.connection() as conn:
             await conn.execute(
-                """INSERT INTO zone_commute (inputs_hash, zone_id, point_id, direction, day_type, window_label,
+                f"""INSERT INTO {self.table} (inputs_hash, {self.col}, point_id, direction, day_type, window_label,
                      window_weight, provider, minutes, estimate, status, error, fetched_at)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                   ON CONFLICT (inputs_hash, zone_id, point_id, direction, day_type, window_label) DO UPDATE SET
+                   ON CONFLICT (inputs_hash, {self.col}, point_id, direction, day_type, window_label) DO UPDATE SET
                      minutes = EXCLUDED.minutes, provider = EXCLUDED.provider, estimate = EXCLUDED.estimate,
                      status = EXCLUDED.status, error = EXCLUDED.error, fetched_at = EXCLUDED.fetched_at,
                      computed_at = now()""",
                 (row.inputs_hash, zid, pid, direction, day, window, row.window_weight, row.provider,
                  None if row.minutes is None else round(row.minutes, 1), row.status == "estimated", row.status,
                  row.error, row.fetched_at))
+
+
+async def write_derived(pool, inputs_hash: str, results) -> None:
+    """Zone rows and patterns derived from station commutes (domain/connectivity_derive.py), in one transaction."""
+    async with pool.connection() as conn, conn.cursor() as cur:
+        await cur.executemany(
+            """INSERT INTO zone_commute (inputs_hash, zone_id, point_id, direction, day_type, window_label, window_weight,
+                 provider, minutes, estimate, status, error, fetched_at) VALUES (%s,%s,%s,%s,%s,%s,%s,'stations',%s,%s,%s,%s,now())
+               ON CONFLICT (inputs_hash, zone_id, point_id, direction, day_type, window_label) DO UPDATE SET
+                 minutes = EXCLUDED.minutes, provider = EXCLUDED.provider, estimate = EXCLUDED.estimate,
+                 status = EXCLUDED.status, error = EXCLUDED.error, fetched_at = EXCLUDED.fetched_at, computed_at = now()""",
+            [(inputs_hash, r.zone_id, *r.route, r.window_weight, r.minutes, r.status == "estimated", r.status, r.error)
+             for r in results])
+        await cur.executemany(
+            """INSERT INTO zone_pattern (inputs_hash, zone_id, point_id, direction, day_type, window_label, payload)
+               VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (inputs_hash, zone_id, point_id, direction, day_type, window_label)
+               DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()""",
+            [(inputs_hash, r.zone_id, *r.route, Jsonb(r.pattern)) for r in results])
+
+
+async def read_patterns(conn, inputs_hash: str, zone_id: str) -> list[dict]:
+    return await (await conn.execute(
+        """SELECT point_id, direction, day_type, window_label, payload FROM zone_pattern
+           WHERE inputs_hash = %s AND zone_id = %s ORDER BY point_id, direction, window_label""",
+        (inputs_hash, zone_id))).fetchall()

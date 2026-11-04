@@ -42,16 +42,16 @@ def counts(reqs: list[tuple[str, Request]], rows: dict[PairKey, StoredRow], ttl_
     return out
 
 
-def route_items(reqs: list[tuple[str, Request]], rows: dict[PairKey, StoredRow], zones, labels: dict[str, str],
-                ttl_days: int, now: datetime, running: bool = False) -> list[dict[str, Any]]:
-    """One entry per planned route, in plan order (zone by zone)."""
+def route_items(reqs: list[tuple[str, Request]], rows: dict[PairKey, StoredRow], names: dict[str, tuple[str, str]],
+                labels: dict[str, str], ttl_days: int, now: datetime, running: bool = False) -> list[dict[str, Any]]:
+    """One entry per planned route, in plan order (origin by origin). names: origin id → (name, district)."""
     out = []
     for zid, r in reqs:
         row = rows.get(pair_key(zid, r))
-        z = zones.zones.get(zid)
+        name, district = names.get(zid, (zid, ""))
         at = zone_side(r)
         out.append({
-            "zone_id": zid, "zone": z.name if z else zid, "district": z.district if z else "",
+            "zone_id": zid, "zone": name, "district": district,
             "point_id": r.point_id, "point": labels.get(r.point_id, r.point_id), "direction": r.direction,
             "day_type": r.day_type, "window_label": r.window_label,
             "status": route_status(row, ttl_days, now, running),

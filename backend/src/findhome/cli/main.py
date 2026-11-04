@@ -577,5 +577,21 @@ def zone_indices_cmd(zone_id: Optional[str] = typer.Argument(None, help="one zon
     _out({"zones": len(ids)}, f"indices ready for {len(ids)} zones")
 
 
+@zone_app.command("centroids")
+def zone_centroids_cmd():
+    """Build every zone's connectivity centroids (stations within a short walk of its homes; runs locally)."""
+    from findhome.config.loader import load_all
+    from findhome.geo.store import load_zones
+    from findhome.zone.centroid_build import build_centroids
+
+    zones = load_zones()
+    if zones is None:
+        typer.secho("zones not built yet: findhome geo fetch zones", fg="red", err=True)
+        raise typer.Exit(2)
+    meta = build_centroids(load_all(), zones, progress=lambda n, t, z: typer.echo(f"{n}/{t} {z}", err=True) if n % 25 == 0 else None)
+    _out(meta, f"centroids: {meta['centroids']} in {meta['zones']} zones ({meta['groups']}), {meta['stations']} unique stations,"
+               f" max {meta['max_per_zone']} per zone")
+
+
 if __name__ == "__main__":
     app()

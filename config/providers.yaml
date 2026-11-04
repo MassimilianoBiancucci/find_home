@@ -68,8 +68,12 @@ poi:
     key_env: GOOGLE_MAPS_SERVER_KEY
 budget:
   max_routing_calls_per_run: 500
-connectivity:                            # Map → Connectivity refresh (zones × points × windows, ResRobot)
-  max_calls_per_run: 2500
+connectivity:                            # Map → Connectivity refresh (origins × points × windows, ResRobot)
+  # stations: each zone's connectivity centroids (stations within a 5 min walk of its homes, `findhome zone centroids`),
+  #           each station routed once, zone values derived per home (best walk + transit); ~9,500 calls per full run
+  # zone:     one point inside each zone (~2,100 calls; some zone points have no stop nearby)
+  origin: stations
+  max_calls_per_run: 10000               # a full station refresh fits in one run; Bronze allows 25,000 a month
   # When ResRobot fails 3 times in a row (outage, quota, bad key); a zone point it cannot route is never a reason:
   #   ask      pause the refresh and ask in the UI (the CLI stops instead)
   #   continue keep calling; failed routes stay failed and are retried only with "Retry failed"

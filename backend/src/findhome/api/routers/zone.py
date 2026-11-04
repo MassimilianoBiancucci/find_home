@@ -76,6 +76,31 @@ async def zone_indices(zone_id: str, conn=Depends(get_conn)):
     return {**payload, "cached": False}
 
 
+@router.get("/{zone_id}/centroids")
+async def zone_centroids(zone_id: str, conn=Depends(get_conn)):
+    """The zone's connectivity centroids (stations), the share of its homes within the walk limit of each, and the
+    patterns of the latest station refresh: which stations and groups the homes' best routes start from."""
+    from findhome.db.connectivity_repo import read_patterns
+    from findhome.domain.connectivity import inputs_hash
+    from findhome.zone.centroid_build import load_centroids
+
+    b = bundle()
+    doc = load_centroids()
+    if doc is None or zone_id not in doc["zones"]:
+        raise HTTPException(409, "no centroids yet: run `findhome zone centroids`")
+    z = doc["zones"][zone_id]
+    limit = b.zone.centroids.get("walk_min", 5) * 60
+    total = sum(w for w, _ in z["homes"]) or 1.0
+    out = []
+    for i, c in enumerate(z["centroids"]):
+        st = doc["stations"][c["key"]]
+        near = sum(w for w, walks in z["homes"] if walks.get(str(i), 1e9) <= limit)
+        out.append({**c, **st, "share_within_walk": round(near / total, 3)})
+    patterns = await read_patterns(conn, inputs_hash(b), zone_id)
+    return {"zone_id": zone_id, "walk_min": limit / 60, "coverage": z["coverage"], "homes": len(z["homes"]),
+            "centroids": out, "patterns": patterns}
+
+
 @router.get("/{zone_id}/lines")
 async def zone_lines(zone_id: str, day_kind: Literal["weekday", "saturday", "sunday"] = "weekday"):
     b, zones = bundle(), _zones_or_404()

@@ -253,3 +253,36 @@ def test_counts_sum_to_the_plan(bundle):
     c = cs.counts(reqs, rows, 30, datetime.now(UTC))
     assert c["cached"] == 1 and c["failed"] == 1 and c["evaluated"] == 2 and c["missing"] == len(reqs) - 2
     assert sum(c[s] for s in cs.STATUSES) == c["planned"] == len(reqs)
+
+
+def test_plan_stations_routes_each_station_once(bundle):
+    coords = _coords(bundle)
+    stations = {"S1": {"lat": 59.30, "lon": 18.00}, "S2": {"lat": 59.31, "lon": 18.02}}
+    reqs = cn.plan_stations(bundle, stations, coords)
+    per_zone = len(cn.plan(bundle, _zones(), coords)) // 3
+    assert len(reqs) == 2 * per_zone and {u for u, _ in reqs} == {"S1", "S2"}
+    to_point = next(r for u, r in reqs if u == "S1" and r.direction == "to_point")
+    assert to_point.origin == LatLon(59.30, 18.00)
+
+
+def test_derive_takes_each_homes_best_start_and_records_the_pattern():
+    from findhome.domain.connectivity_derive import derive
+
+    route = ("work", "to_point", "weekday", "am")
+    centroids = {"zones": {"Z": {
+        "centroids": [{"key": "metro", "group": "rail"}, {"key": "bus", "group": "bus"}],
+        # home 1 near the metro, home 2 near the bus stop; home 3 only reaches the metro; home 4 reaches nothing
+        "homes": [[1.0, {"0": 120, "1": 600}], [3.0, {"0": 900, "1": 60}], [1.0, {"0": 300}], [1.0, {}]]}}}
+    rows = {("metro", *route): StoredRow("ok", "resrobot", 20.0, None, None),
+            ("bus", *route): StoredRow("ok", "resrobot", 15.0, None, None)}
+    (r,) = derive(centroids, rows, {route: 1.0})
+    # bests: 2 + 20 = 22 (metro), 1 + 15 = 16 (bus), 5 + 20 = 25 (metro); weights 1, 3, 1 → (22 + 48 + 25) / 5 = 19
+    assert r.status == "ok" and r.minutes == 19.0
+    assert r.pattern["groups"] == {"rail": 0.4, "bus": 0.6} and r.pattern["reached"] == round(5 / 6, 3)
+    assert list(r.pattern["winners"]) == ["bus", "metro"]
+
+    (none,) = derive(centroids, {}, {route: 1.0})
+    assert none.status == "failed" and none.minutes is None
+    est = {("metro", *route): StoredRow("estimated", "haversine", 30.0, None, None)}
+    (e,) = derive(centroids, est, {route: 1.0})
+    assert e.status == "estimated"

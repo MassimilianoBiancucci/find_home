@@ -117,6 +117,13 @@
         "max_calls_per_run": {
           "type": "integer",
           "minimum": 0
+        },
+        "origin": {
+          "enum": [
+            "stations",
+            "zone"
+          ],
+          "description": "stations: route from each zone's connectivity centroids (findhome zone centroids); zone: from one point inside each zone"
         }
       },
       "additionalProperties": false

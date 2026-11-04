@@ -8,13 +8,15 @@ import pytest
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from findhome.db.connectivity_repo import PgConnectivityStore, RowWrite, cache_ages, read_rows
+from findhome.db.connectivity_repo import (PgConnectivityStore, RowWrite, cache_ages, read_patterns, read_rows,
+                                           write_derived)
+from findhome.domain.connectivity_derive import ZoneRoute
 
 
 @pytest.fixture
 async def store(db_url):
     with psycopg.connect(db_url, autocommit=True) as c:
-        c.execute("TRUNCATE zone_commute, provider_failure, routing_cache")
+        c.execute("TRUNCATE zone_commute, provider_failure, routing_cache, centroid_commute, zone_pattern")
     pool = AsyncConnectionPool(db_url, open=False, kwargs={"row_factory": dict_row})
     await pool.open()
     yield PgConnectivityStore(pool)
@@ -50,3 +52,19 @@ async def test_rows_failures_and_cache_round_trip(store):
         n = await (await conn.execute("SELECT attempts FROM provider_failure")).fetchone()
     assert n["attempts"] == 2
     assert await store.clear_failures("resrobot") == 1 and await store.failures("resrobot") == {}
+
+
+async def test_station_rows_and_derived_zone_rows(store):
+    stations = PgConnectivityStore(store.pool, "stations")
+    key = ("S1", "work", "to_point", "weekday", "am")
+    await stations.write(RowWrite("h1", key, 1.0, "resrobot", 18.0, "ok"))
+    assert (await stations.rows("h1"))[key].minutes == 18.0 and await store.rows("h1") == {}   # separate tables
+    zr = ZoneRoute("Z1", ("work", "to_point", "weekday", "am"), 1.0, 21.5, "ok", None,
+                   {"minutes": 21.5, "groups": {"bus": 1.0}, "winners": {"S1": 1.0}})
+    await write_derived(store.pool, "h1", [zr])
+    await write_derived(store.pool, "h1", [zr])                                 # idempotent upsert
+    rows = await store.rows("h1")
+    assert rows[("Z1", "work", "to_point", "weekday", "am")].provider == "stations"
+    async with store.pool.connection() as conn:
+        pats = await read_patterns(conn, "h1", "Z1")
+    assert len(pats) == 1 and pats[0]["payload"]["winners"] == {"S1": 1.0}
