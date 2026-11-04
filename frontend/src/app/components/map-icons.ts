@@ -335,57 +335,70 @@ function drawCross(g: CanvasRenderingContext2D): void {
 }
 
 function drawDumbbell(g: CanvasRenderingContext2D): void {
-  groundShadow(g, 27);
-  const y = 42;
+  groundShadow(g, 26);
   g.save();
-  g.translate(36, y);
-  g.rotate(-0.14);                                                    // a slight tilt reads as an object, not a sign
-  const bar = g.createLinearGradient(0, -4.5, 0, 4.5);                // chrome bar
-  bar.addColorStop(0, '#f8f9fa');
-  bar.addColorStop(0.5, '#868e96');
-  bar.addColorStop(1, '#212529');
-  g.fillStyle = bar;
+  g.translate(36, 42);
+  g.rotate(-0.14);
+  const handle = g.createLinearGradient(0, -4, 0, 4);                // chrome handle with knurled grip
+  handle.addColorStop(0, '#ffffff');
+  handle.addColorStop(0.45, '#adb5bd');
+  handle.addColorStop(1, '#343a40');
+  g.fillStyle = handle;
   g.strokeStyle = '#111';
-  g.lineWidth = 2;
+  g.lineWidth = 1.6;
   g.beginPath();
-  g.rect(-17, -4.5, 34, 9);
+  g.rect(-14, -4, 28, 8);
   g.fill();
   g.stroke();
-  const plate = (x: number, w: number, h: number) => {                // a plate: cylinder side + lit face, dark outline
-    const side = g.createLinearGradient(0, -h, 0, h);
-    side.addColorStop(0, '#ffa94d');
-    side.addColorStop(0.4, '#f76707');
-    side.addColorStop(1, '#6b2a04');
+  g.strokeStyle = 'rgba(30,30,35,.55)';
+  g.lineWidth = 0.9;
+  for (let x = -9; x <= 9; x += 3) {
     g.beginPath();
-    g.ellipse(x + w, 0, 5, h, 0, -Math.PI / 2, Math.PI / 2);
-    g.lineTo(x, h);
-    g.ellipse(x, 0, 5, h, 0, Math.PI / 2, -Math.PI / 2, true);
-    g.closePath();
+    g.moveTo(x, -3.5);
+    g.lineTo(x + 1.5, 3.5);
+    g.stroke();
+  }
+  const hexHead = (cx: number, dir: number) => {                     // a hexagonal head: neon faces, glowing rim
+    const r = 14, depth = 7;
+    const hex = (ox: number) => {
+      g.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 6 + (i * Math.PI) / 3;
+        const x = ox + Math.cos(a) * r * 0.55, y = Math.sin(a) * r;
+        if (i) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+      g.closePath();
+    };
+    g.shadowColor = '#ff2bd6';
+    g.shadowBlur = 9;
+    const side = g.createLinearGradient(0, -r, 0, r);
+    side.addColorStop(0, '#ff6ff0');
+    side.addColorStop(0.5, '#c2179e');
+    side.addColorStop(1, '#4a0a52');
+    hex(cx + dir * depth);
     g.fillStyle = side;
     g.fill();
-    g.strokeStyle = '#111';
-    g.lineWidth = 2.2;
+    g.shadowBlur = 0;
+    g.fillRect(Math.min(cx, cx + dir * depth), -r * 0.86, depth, r * 1.72);
+    hex(cx);
+    const face = g.createRadialGradient(cx - 2, -5, 1, cx, 0, r);
+    face.addColorStop(0, '#ffe3fb');
+    face.addColorStop(0.35, '#ff4fe1');
+    face.addColorStop(1, '#8f1fd1');
+    g.fillStyle = face;
+    g.fill();
+    g.strokeStyle = '#2b0633';
+    g.lineWidth = 1.8;
     g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.85)';                         // neon rim light
+    g.lineWidth = 1.1;
     g.beginPath();
-    g.ellipse(x, 0, 5, h, 0, 0, Math.PI * 2);
-    g.fillStyle = '#ffc078';
-    g.fill();
+    g.moveTo(cx - r * 0.45, -r * 0.62);
+    g.lineTo(cx + r * 0.1, -r * 0.92);
     g.stroke();
-    g.beginPath();                                                    // hole in the plate face
-    g.ellipse(x, 0, 1.6, 3.4, 0, 0, Math.PI * 2);
-    g.fillStyle = '#343a40';
-    g.fill();
   };
-  plate(-28, 7, 18);
-  plate(-20, 5, 13);
-  plate(21, 7, 18);
-  plate(15, 5, 13);
-  g.beginPath();                                                      // highlight along the bar
-  g.moveTo(-12, -2.3);
-  g.lineTo(12, -2.3);
-  g.strokeStyle = 'rgba(255,255,255,.9)';
-  g.lineWidth = 1.4;
-  g.stroke();
+  hexHead(-19, -1);
+  hexHead(19, 1);
   g.restore();
 }
 
@@ -433,20 +446,22 @@ function drawCart(g: CanvasRenderingContext2D): void {
   g.beginPath();                                                      // basket back face (depth)
   basket.forEach(([x, y], i) => (i ? g.lineTo(x + 4, y - 4) : g.moveTo(x + 4, y - 4)));
   g.closePath();
-  g.fillStyle = 'rgba(28,110,55,.55)';
+  g.fillStyle = 'rgba(90,98,106,.6)';
   g.fill();
   g.beginPath();                                                      // basket front face
   basket.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y)));
   g.closePath();
-  const grad = g.createLinearGradient(0, 22, 0, 44);
-  grad.addColorStop(0, '#69db7c');
-  grad.addColorStop(1, '#2b8a3e');
+  const grad = g.createLinearGradient(18, 22, 50, 46);                // brushed steel
+  grad.addColorStop(0, '#f1f3f5');
+  grad.addColorStop(0.45, '#adb5bd');
+  grad.addColorStop(0.7, '#dee2e6');
+  grad.addColorStop(1, '#6c757d');
   g.fillStyle = grad;
   g.fill();
   g.strokeStyle = '#1b1b1f';
   g.lineWidth = 2.2;
   g.stroke();
-  g.strokeStyle = 'rgba(255,255,255,.55)';                            // wire grid
+  g.strokeStyle = 'rgba(52,58,64,.55)';                               // wire grid
   g.lineWidth = 1.1;
   for (const t of [0.25, 0.5, 0.75]) {
     g.beginPath();

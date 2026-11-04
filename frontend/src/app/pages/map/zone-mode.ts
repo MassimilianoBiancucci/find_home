@@ -6,7 +6,7 @@ import { HeatSummary, ZoneLine } from '../../models';
 import { LayoutService } from '../../services/layout.service';
 import { MapStateService } from './map-state.service';
 import { IDX_RAMP } from './connectivity.service';
-import { BEYOND, GROUP_COLOURS, SET_COLOURS, ZoneService, targetIconUrl } from './zone.service';
+import { BEYOND, GROUP_COLOURS, ICON_SCALE_MAX, ICON_SCALE_MIN, SET_COLOURS, ZoneService, targetIconUrl } from './zone.service';
 
 const RAILISH = new Set(['metro', 'commuter_rail', 'local_rail', 'tram', 'train']);
 const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Commuter rail', local_rail: 'Local rail', tram: 'Tram',
@@ -50,7 +50,10 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
           @if (summary(s); as m) { <span class="small text-body-secondary">{{ minutes(m.median_s) }}</span> }
         </label>
       }
-      <label class="small mt-2 d-block">Colour streets by
+      <label class="small mt-2 d-block">Icon size <span class="text-body-secondary">×{{ zone.iconScale() | number: '1.1-1' }}</span>
+        <input type="range" class="form-range" [min]="scaleMin" [max]="scaleMax" step="0.1" [value]="zone.iconScale()"
+          (input)="zone.setIconScale(+$any($event.target).value)" /></label>
+      <label class="small mt-1 d-block">Colour streets by
         <select class="form-select form-select-sm" [value]="zone.colourBy()" (change)="zone.setColourBy($any($event.target).value)">
           <option value="t">Nearest of the selected</option>
           @for (s of zone.sets(); track s) { <option [value]="'t_' + s">{{ f.target_sets[s] }}</option> }
@@ -174,6 +177,8 @@ export class ZoneMode {
   private targetsTpl = viewChild.required<TemplateRef<unknown>>('targetsTpl');
   private panelTpl = viewChild.required<TemplateRef<unknown>>('panelTpl');
   protected readonly beyond = BEYOND;
+  protected readonly scaleMin = ICON_SCALE_MIN;
+  protected readonly scaleMax = ICON_SCALE_MAX;
   private stopPicker: (() => void) | null = null;
   protected setIds = computed(() => Object.keys(this.zone.facts()?.target_sets ?? {}));
   protected allOn = computed(() => this.setIds().every((s) => this.zone.sets().includes(s)));

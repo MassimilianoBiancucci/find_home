@@ -14,8 +14,8 @@ export type TargetIcon = ({ pin: { glyph: string; bg: string; fg?: string } } | 
 export const TARGET_ICONS: Record<string, TargetIcon> = {
   rail: { pin: { glyph: 'metro', bg: '#0089ca' }, halo: '#1c9bff' }, bus: { pin: { glyph: 'bus', bg: '#d71d24' } },
   ferry: { pin: { glyph: 'ferry', bg: '#00a5ac' }, halo: '#12d6d6' }, park: { object: 'tree' },
-  grocery: { object: 'cart', halo: '#40c057' }, pharmacy: { object: 'cross', halo: '#2ff07a' },
-  gym: { object: 'dumbbell', halo: '#ff7a1a' }, vet: { object: 'cat', halo: '#c77dff' },
+  grocery: { object: 'cart', halo: '#ffc94d' }, pharmacy: { object: 'cross', halo: '#2ff07a' },
+  gym: { object: 'dumbbell', halo: '#ff2bd6' }, vet: { object: 'cat', halo: '#c77dff' },
 };
 const FALLBACK: TargetIcon = { pin: { glyph: 'dot', bg: '#8a8aa0' } };
 export function targetIconId(set: string): string {
@@ -25,6 +25,14 @@ export function targetIconId(set: string): string {
 export function targetIconUrl(set: string): string {
   const t = TARGET_ICONS[set] ?? FALLBACK;
   return 'object' in t ? objectUrl(t.object) : pinUrl(t.pin.glyph, t.pin.bg, t.pin.fg);
+}
+export const ICON_SCALE_MIN = 0.6, ICON_SCALE_MAX = 1.8;
+const ICON_SCALE_KEY = 'fh-zone-icon-scale';
+function readScale(): number {
+  try {
+    const v = Number(localStorage.getItem(ICON_SCALE_KEY));
+    return v >= ICON_SCALE_MIN && v <= ICON_SCALE_MAX ? v : 1;
+  } catch { return 1; }
 }
 const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 /** Heatmap colours from near to far, one per legend bin (zone.yaml bins_min) plus "beyond the last bin". */
@@ -55,6 +63,8 @@ export class ZoneService {
   readonly loading = signal(false);
   readonly error = signal('');
   readonly hoverName = signal<string | null>(null);
+  /** Size multiplier of the target icons and their glow (slider in the Heatmap targets bubble), kept per browser. */
+  readonly iconScale = signal(readScale());
   readonly legend = computed(() => {
     const bins = this.heatmap()?.bins_min ?? [2, 5, 8, 12, 16, 20];
     return bins.map((b, i) => ({ label: `${i ? bins[i - 1] : 0}–${b}`, colour: HEAT_COLOURS[i] ?? HEAT_COLOURS.at(-1)! }));
@@ -243,15 +253,32 @@ export class ZoneService {
       layers: [{ id: 'zone-targets-halo', type: 'circle', source: 'zone-targets',
         filter: ['in', ['get', 'set'], ['literal', halos.map(([k]) => k)]],
         paint: { 'circle-color': haloColour, 'circle-blur': 0.9, 'circle-opacity': 0.55, 'circle-pitch-alignment': 'map',
-          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 9, 14, 18, 17, 30] } },
+          'circle-radius': this.haloRadius() } },
       { id: 'zone-targets-pin', type: 'symbol', source: 'zone-targets',
         layout: { 'icon-image': icon, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
           'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport', 'symbol-z-order': 'viewport-y',
-          'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.7, 14, 1.05, 17, 1.4] } }] as any,
+          'icon-size': this.iconSize() } }] as any,
     });
     this.state.setData('zone-targets', fc);
     const map = this.state.map();
     for (const id of ['zone-targets-halo', 'zone-targets-pin']) if (map?.getLayer(id)) map.moveLayer(id);   // above everything added since
+  }
+
+  setIconScale(v: number): void {
+    const k = Math.min(Math.max(v, ICON_SCALE_MIN), ICON_SCALE_MAX);
+    this.iconScale.set(k);
+    try { localStorage.setItem(ICON_SCALE_KEY, String(k)); } catch { /* storage unavailable */ }
+    const map = this.state.map();
+    if (map?.getLayer('zone-targets-pin')) map.setLayoutProperty('zone-targets-pin', 'icon-size', this.iconSize());
+    if (map?.getLayer('zone-targets-halo')) map.setPaintProperty('zone-targets-halo', 'circle-radius', this.haloRadius());
+  }
+  private iconSize(): any {
+    const k = this.iconScale();
+    return ['interpolate', ['linear'], ['zoom'], 11, 0.7 * k, 14, 1.05 * k, 17, 1.4 * k];
+  }
+  private haloRadius(): any {
+    const k = this.iconScale();
+    return ['interpolate', ['linear'], ['zoom'], 11, 9 * k, 14, 18 * k, 17, 30 * k];
   }
 
   /** Show or hide the centroid layer (hidden by default; the choice persists like the other map layers). */

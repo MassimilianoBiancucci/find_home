@@ -114,12 +114,12 @@ MapLibre's `styleimagemissing` (`blip:<glyph>:<rrggbb>`), so blips survive style
 The zone view's heatmap targets are drawn by the same module, as defined in `TARGET_ICONS`
 ([`zone.service.ts`](../../frontend/src/app/pages/map/zone.service.ts)). Rail, bus and ferry are standing **3D pins**
 (`pin3d:<glyph>:<bg>:<fg>`): a shaded badge on a stem with a ground shadow. Parks, groceries, pharmacies, gyms and vets
-are standalone **3D objects** (`obj3d:<object>`): a tree, a shopping cart, an extruded green pharmacy cross, a
-dumbbell, and a black cat with a light halo, so it shows on the dark style. Every target except bus stops and parks
+are standalone **3D objects** (`obj3d:<object>`): a tree, a steel shopping cart, an extruded green pharmacy cross, a
+neon hexagonal dumbbell, and a black cat with a light halo, so it shows on the dark style. Every target except bus stops and parks
 (too many to highlight) also has a coloured glow lying on the ground under it (`halo`). All of them are anchored at the bottom,
 stand upright when the map is tilted (`icon-pitch-alignment: viewport`), and are moved above every other layer, so
 buildings and the heatmap never cover them. The Heatmap targets bubble has **All targets** and **Rail + bus**
-buttons.
+buttons and an **Icon size** slider (0.6× to 1.8×, kept per browser) that scales the icons and their glow.
 [`PoiLayersService`](../../frontend/src/app/pages/map/poi-layers.service.ts) adds one layer per POI category, loaded
 the first time it is switched on. The **test point** (right-click → Set test point here, or the Test point button) lives in
 [`ProbeService`](../../frontend/src/app/pages/map/probe.service.ts): it survives mode switches, calls
