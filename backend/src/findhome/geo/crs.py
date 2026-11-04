@@ -31,3 +31,9 @@ def points_metric(lons: list[float], lats: list[float]) -> tuple[list[float], li
     """Many lon/lat pairs at once (faster than one call per point)."""
     xs, ys = _tf(WGS84, SWEREF).transform(lons, lats)
     return list(xs), list(ys)
+
+
+def points_wgs84(xs: list[float], ys: list[float]) -> list[list[float]]:
+    """Many EPSG:3006 points to [lon, lat] (6 decimals, about 0.1 m)."""
+    lons, lats = _tf(SWEREF, WGS84).transform(xs, ys)
+    return [[round(lo, 6), round(la, 6)] for lo, la in zip(lons, lats, strict=True)]

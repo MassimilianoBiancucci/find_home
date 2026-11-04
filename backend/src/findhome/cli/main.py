@@ -29,9 +29,10 @@ scores_app = typer.Typer(help="Scores.", no_args_is_help=True)
 geo_app = typer.Typer(help="Build the map's geodata under data/geo/ (zones, POIs, transit).", no_args_is_help=True)
 area_app = typer.Typer(help="The search area (Map → Area): zones, weights, checks.", no_args_is_help=True)
 connectivity_app = typer.Typer(help="Zone × point commute matrix (Map → Connectivity).", no_args_is_help=True)
+zone_app = typer.Typer(help="Zone analysis (Map → Zone): walking / cycling heatmaps.", no_args_is_help=True)
 for name, sub in (("db", db_app), ("config", config_app), ("listings", listings_app), ("digest", digest_app),
                   ("ingest", ingest_app), ("site", site_app), ("run", run_app), ("scores", scores_app),
-                  ("geo", geo_app), ("area", area_app), ("connectivity", connectivity_app)):
+                  ("geo", geo_app), ("area", area_app), ("connectivity", connectivity_app), ("zone", zone_app)):
     app.add_typer(sub, name=name)
 
 STATE = {"json": False, "api": None}
@@ -392,9 +393,9 @@ def geocode(address: str, refresh: bool = typer.Option(False, "--refresh", help=
 
 # ── geo ─────────────────────────────────────────────────────
 @geo_app.command("fetch")
-def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit | network | timetable"),
+def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit | network | timetable | buildings"),
               category: Optional[list[str]] = typer.Option(None, "--category", "-c", help="poi: only these categories"),
-              kommun: Optional[list[str]] = typer.Option(None, "--kommun", "-k", help="network: only these SCB codes"),
+              kommun: Optional[list[str]] = typer.Option(None, "--kommun", "-k", help="network, buildings: only these SCB codes"),
               refresh: bool = typer.Option(False, "--refresh", help="network: query Overpass even if a raw answer is fresh")):
     """Download and build one dataset into data/geo/ (runs locally, no API needed)."""
     from findhome.config.loader import load_all
@@ -418,6 +419,12 @@ def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit | n
         meta = build_network(b.geo, only=kommun, refresh=refresh)
         _out(meta, "network: " + ", ".join(f"{k} {v['edges']} edges" for k, v in meta["kommuner"].items()))
         return
+    if dataset == "buildings":
+        from findhome.geo.build_buildings import build_buildings
+
+        meta = build_buildings(b.geo, b.zone, only=kommun)
+        _out(meta, "buildings: " + ", ".join(f"{k} {v}" for k, v in meta["kommuner"].items()))
+        return
     if dataset == "timetable":
         from findhome.geo.build_timetable import build_timetable
 
@@ -427,7 +434,7 @@ def geo_fetch(dataset: str = typer.Argument(..., help="zones | poi | transit | n
                       if meta["departures"] else ", no departures (no GTFS)"))
         return
     if dataset != "zones":
-        typer.secho(f"unknown dataset '{dataset}' (available: zones, poi, transit, network, timetable)", fg="red", err=True)
+        typer.secho(f"unknown dataset '{dataset}' (available: zones, poi, transit, network, timetable, buildings)", fg="red", err=True)
         raise typer.Exit(2)
     from findhome.config.writer import apply_ops
     from findhome.geo.build_zones import build_zones
@@ -524,6 +531,23 @@ def connectivity_routes(status: Optional[str] = typer.Option(None, "--status", h
         f"{'' if i['minutes'] is None else round(i['minutes'])}{(' · ' + i['error']) if i['error'] else ''}"
         for i in r["items"]]
     _out(r, "\n".join(lines))
+
+
+# ── zone ─────────────────────────────────────────────────────
+@zone_app.command("heatmap")
+def zone_heatmap(zone_id: str, sets: str = typer.Option("rail,bus", "--sets", help="zone.yaml target sets, comma list"),
+                 mode: str = typer.Option("walk", "--mode", help="walk | bike"),
+                 neighbours: bool = typer.Option(False, "--neighbours", help="include the touching zones")):
+    """Minutes from the zone's homes to the nearest target of each set (median, p90, share within 5 / 10 min)."""
+    h = _api().get(f"/api/zone/{zone_id}/heatmap?sets={sets}&mode={mode}&neighbours={str(neighbours).lower()}")
+    lines = [f"{zone_id} · {mode} · {len(h['segments']['features'])} segments · {h['homes']} homes ({h['homes_source']})"
+             + (" · cached" if h.get("cached") else "")]
+    for s, v in h["summary"].items():
+        med = "–" if v["median_s"] is None else f"{v['median_s'] / 60:.1f} min"
+        p90 = "–" if v["p90_s"] is None else f"{v['p90_s'] / 60:.1f} min"
+        lines.append(f"  {s:10} median {med:9} p90 {p90:9} ≤5 min {v['share_le_5min']:.0%} · ≤10 min "
+                     f"{v['share_le_10min']:.0%} · {v['targets']} targets")
+    _out({k: v for k, v in h.items() if k != "segments"}, "\n".join(lines))
 
 
 if __name__ == "__main__":

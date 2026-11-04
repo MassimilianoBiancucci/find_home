@@ -45,12 +45,20 @@ class Network:
             self._graphs[mode] = g
         return self._graphs[mode]
 
-    def nearest_node(self, x: float, y: float, mode: NetMode) -> tuple[int, float] | None:
-        """The closest graph node usable in this mode and its straight-line distance (m)."""
+    def _tree(self, mode: NetMode) -> tuple[STRtree, list[int]]:
         if mode not in self._trees:
             ids = list(self.graph(mode).nodes)
             self._trees[mode] = (STRtree([Point(self.nodes[n]) for n in ids]), ids)
-        tree, ids = self._trees[mode]
+        return self._trees[mode]
+
+    def nodes_within(self, geom, mode: NetMode) -> list[int]:
+        """Graph nodes usable in this mode inside a polygon (EPSG:3006)."""
+        tree, ids = self._tree(mode)
+        return [ids[int(i)] for i in tree.query(geom, predicate="intersects")]
+
+    def nearest_node(self, x: float, y: float, mode: NetMode) -> tuple[int, float] | None:
+        """The closest graph node usable in this mode and its straight-line distance (m)."""
+        tree, ids = self._tree(mode)
         if not ids:
             return None
         p = Point(x, y)
