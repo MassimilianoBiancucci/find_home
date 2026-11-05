@@ -74,8 +74,18 @@ import { TagsStore } from '../services/tags.store';
           <div class="d-flex align-items-center gap-2 mb-2">
             <h2 class="h6 m-0">Commute</h2><fh-info id="listing.commute" />
             <button class="btn btn-sm btn-outline-secondary" (click)="commute(true)">Dry run</button>
-            <button class="btn btn-sm btn-outline-primary" (click)="commute(false)">Compute</button>
+            <button class="btn btn-sm btn-outline-primary" [disabled]="commuteBusy()" (click)="computeCommute(x.listing)">Compute</button>
           </div>
+          @if (commuteAsk(); as a) {
+            <div class="alert alert-warning py-2 small mb-2">
+              This home is outside the analysed zones, so there is no free estimate: computing its commute asks
+              <b>{{ a.calls }} ResRobot call{{ a.calls === 1 ? '' : 's' }}</b> ({{ a.requests }} requests, {{ a.cached }} cached{{ a.estimated ? ', ' + a.estimated + ' estimated' : '' }}).
+              <div class="d-flex gap-2 mt-2">
+                <button class="btn btn-sm btn-warning" (click)="commuteAsk.set(null); commute(false)">Proceed ({{ a.calls }} call{{ a.calls === 1 ? '' : 's' }})</button>
+                <button class="btn btn-sm btn-outline-secondary" (click)="commuteAsk.set(null); info.set('')">Cancel</button>
+              </div>
+            </div>
+          }
           @if (!x.commute.length) { <div class="small text-body-secondary">Not computed for this config yet.</div> }
           @else {
             <div class="table-responsive"><table class="table table-sm small mb-0">
@@ -177,6 +187,9 @@ export class DetailPage {
   protected outside = computed(() => /outside every zone/.test(this.locError()));
   protected travel = inject(HouseTravelStore);
   protected values = inject(ValueScaleStore);
+  /** The dry run's counts, waiting for "Proceed" (homes outside the analysed zones). */
+  protected commuteAsk = signal<{ calls: number; requests: number; cached: number; estimated: number } | null>(null);
+  protected commuteBusy = signal(false);
   protected digest = signal('');
   protected error = signal('');
   protected info = signal('');
@@ -195,6 +208,7 @@ export class DetailPage {
   }
 
   load(id: string): void {
+    this.commuteAsk.set(null);
     this.api.listing(id).subscribe({ next: (x) => { this.d.set(x); this.error.set(''); }, error: (e) => this.error.set(apiError(e)) });
     if (this.loc()?.listing.short_id !== id) { this.loc.set(null); this.locError.set(''); }
     this.api.listingLocation(id).subscribe({ next: (l) => this.loc.set(l), error: (e) => this.locError.set(apiError(e)) });
@@ -219,6 +233,24 @@ export class DetailPage {
       error: (e) => this.error.set(apiError(e)),
     });
   }
+  /** Compute: a home outside the analysed zones first counts the calls (dry run) and asks before spending them. */
+  computeCommute(l: Listing): void {
+    if (l.zone_id || this.commuteAsk()) { this.commuteAsk.set(null); this.commute(false); return; }
+    this.commuteBusy.set(true);
+    this.info.set('Counting calls before computing (outside the analysed zones)…');
+    this.api.computeCommute([this.shortId()], true).subscribe({
+      next: (r) => {
+        this.commuteBusy.set(false);
+        const res: any = Object.values(r.results)[0] ?? {};
+        if (res.error) { this.info.set(res.error); return; }
+        this.info.set('');
+        if (!res.calls) { this.commute(false); return; }                 // everything cached: nothing to ask
+        this.commuteAsk.set({ calls: res.calls, requests: res.requests, cached: res.cached, estimated: res.estimated });
+      },
+      error: (e) => { this.commuteBusy.set(false); this.error.set(apiError(e)); },
+    });
+  }
+
   commute(dry: boolean): void {
     this.info.set(dry ? 'Counting calls…' : 'Computing commute…');
     this.api.computeCommute([this.shortId()], dry).subscribe({

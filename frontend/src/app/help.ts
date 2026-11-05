@@ -101,8 +101,9 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/geo.yaml → zones (findhome geo fetch zones)'],
   },
   'listing.commute': {
-    title: 'Commute table', short: 'The listing\'s own transit times to each of your points, per direction, day type and time window: median, 90th percentile and worst over the sampled departures. Computed on demand (Compute) with the routing providers; estimates are straight-line guesses. It feeds the commute score group.',
+    title: 'Commute table', short: 'The listing\'s own transit times to each of your points, per direction, day type and time window: median, 90th percentile and worst over the sampled departures. Computed on demand (Compute) with the routing providers; estimates are straight-line guesses. It feeds the home transport score (reach) first, and the commute group when transport is off. For a home outside the analysed zones, Compute first counts the calls (dry run) and asks before spending them.',
     config: ['config/locations.yaml (points, trips, windows)', 'config/time_model.yaml', 'config/providers.yaml'],
+    engineer: ['pages/detail.ts computeCommute(): listing.zone_id null → POST /api/commute/compute {dry: true}; calls > 0 → commuteAsk, Proceed sends {dry: false}; calls == 0 → computes at once. Inside a zone → {dry: false} directly (the Connectivity estimate already exists). After a compute: POST /api/scores/recompute for the listing.'],
   },
 
   // ── Right panels ──────────────────────────────────────────────────────────────────────
