@@ -365,7 +365,7 @@ pre.fh-pre {
 }
 .fh-hcard-main { box-shadow: inset 3px 0 0 var(--fh-violet); }
 /* the candidates list: 0-100 indices, and its hover card */
-.fh-idx { font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.fh-idx { font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
 .fh-ltip { position: fixed; z-index: 1080; width: 380px; pointer-events: none; padding: 10px; border-radius: 10px;
   background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
   font-size: 0.82rem; transition: opacity 0.12s; }

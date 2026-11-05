@@ -56,8 +56,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle">
       <thead><tr><th>Id</th><th>Score</th>
-        <th title="The home's transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby">Transport</th>
-        <th title="The home's services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near">Services</th>
+        <th class="text-center" title="The home's transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby">Transport</th>
+        <th class="text-center" title="The home's services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near">Services</th>
         <th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
       <tbody>
         @for (r of rows(); track r.short_id; let i = $index) {
