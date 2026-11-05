@@ -161,8 +161,9 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/locations.yaml'],
   },
   'house.map': {
-    title: 'On the map', short: 'Where the home is. The area the app analyses (its 263 zones) is outlined; everything outside it is grey. Inside: every nearby service and stop as the zone view\'s 3D pin (the nearest of each larger, with its glow), the walking path to the nearest and its minutes in green, yellow or red; chips hide a category. Your points are pinned; after "Compute transit routes" the itineraries are drawn, and "Home, your points and routes" zooms out to all of them. "Full-screen zone view" opens the 3D zone view on this home.',
-    config: ['config/zone.yaml → house (sets, cutoff_min)', 'config/zone.yaml → walk_colours', 'config/providers.yaml → map (style)'],
+    title: 'On the map', short: 'Where the home is. The area the app analyses (its 263 zones) is outlined; everything outside it is grey. Inside: every nearby service and stop as the zone view\'s 3D pin (the nearest of each larger, with its glow), the walking path to the nearest and its minutes in green, yellow or red; chips hide a category. Your points are pinned; after computing the transit routes their itineraries are drawn along the real lines (hover one to bring it to the front), and "Home, your points and routes" zooms out to all of them. "Lines" shows every metro, train, tram, bus or ferry line of the saved network. "Full-screen zone view" opens the 3D zone view on this home.',
+    config: ['config/zone.yaml → house (sets, cutoff_min)', 'config/zone.yaml → walk_colours', 'config/providers.yaml → map (style)',
+      'data/geo/transit (findhome geo fetch transit)'],
   },
   'house.services': {
     title: 'Home services score', short: '0-100: everyday services around this home, from its exact address. Per service set, the walk to the nearest one and how many are within a short walk; the same formula as the zone\'s services index, so the two compare directly.',
@@ -188,12 +189,13 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/locations.yaml (points, trips, windows)', 'config/zone.yaml → centroids'],
   },
   'house.transit': {
-    title: 'Compute transit routes', short: 'Asks ResRobot (Trafiklab) for public-transport itineraries from this home to your points and to the nearest grocery, pharmacy, gym, park and vet. It uses API calls, counted before you click; results are cached (about 100 m around the home) and reused.',
-    config: ['config/providers.yaml → cache.routing_ttl_days', 'config/zone.yaml → house.services_depart'],
+    title: 'Transit routes', short: 'Two buttons ask ResRobot (Trafiklab) for public-transport itineraries from this home: one to your points, one to the nearest grocery, pharmacy, gym, park and vet. Each uses API calls, counted before you click; results are cached (about 100 m around the home) and reused. ResRobot gives each ride as its stops: the map draws it along the saved line through those stops, and the walks along the streets. The services\' routes are drawn only with the switch on (it turns on when you compute them); a service too near for transit shows its walk. Hover a route, here or on the map, to bring it to the front.',
+    config: ['config/providers.yaml → cache.routing_ttl_days', 'config/providers.yaml → routing.resrobot.walk_only_m',
+      'config/zone.yaml → house.services_depart', 'data/geo/transit (findhome geo fetch transit)'],
   },
 
   'house.routes': {
-    title: 'Routes on the map', short: 'Walking paths from the house to the nearest target of each set, drawn in the set\'s colour and labelled with the minutes (green, yellow, red); transit legs of the computed itineraries in their line colours, walking legs dotted. Hover a path for its details.',
+    title: 'Routes on the map', short: 'Walking paths from the house to the nearest target of each set, drawn in the set\'s colour and labelled with the minutes (green, yellow, red); transit legs of the computed itineraries in their line colours along the real track, walking legs dotted along the streets (a walk the street network cannot route is left out rather than drawn straight). Hover a route to bring it to the front with a glow.',
     config: ['config/zone.yaml → walk_colours'],
   },
 

@@ -1,12 +1,13 @@
-import { Component, computed, inject, input } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
+import { Component, computed, effect, inject, input, untracked } from '@angular/core';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ExplainInline } from '../components/explain';
 import { InfoButton } from '../components/info';
 import { toneColor, walkTone } from '../format';
 import { HouseLocation, HouseTrip, IndexKey, TransitResult } from '../models';
 import { setColour } from '../set-colours';
-import { HouseTravelStore } from './house-travel.store';
+import { walkOnly } from '../pages/map/house-layer.service';
+import { HouseTravelStore, TransitWhich } from './house-travel.store';
 
 const INDEX_LABELS: Record<IndexKey, string> = { transport: 'Transport', services: 'Services', combined: 'Combined' };
 const STOP_SETS = new Set(['rail', 'bus']);
@@ -135,7 +136,8 @@ export class HouseZone {
   }
 }
 
-/** "Travel to your points": the free estimate, insights, and the explicit "Compute transit routes". */
+/** "Travel to your points": the free estimate, the insights, and the exact trip once its transit route is computed
+ *  (the buttons are in "Transit routes"). Hovering a row with a route highlights it on the maps. */
 @Component({
   selector: 'fh-house-travel',
   imports: [InfoButton, DecimalPipe],
@@ -145,7 +147,8 @@ export class HouseZone {
     <header><h2>Travel to your points</h2><fh-info id="house.travel" /></header>
     @for (e of l.estimates; track e.point_id) {
       @let t = trip(e.point_id);
-      <div class="fh-trow">
+      <div class="fh-trow" [class.fh-hot-able]="!!t" [class.hot]="!!t && store.hover() === e.point_id"
+        (mouseenter)="t && store.hover.set(e.point_id)" (mouseleave)="t && store.hover.set(null)">
         <div class="d-flex align-items-baseline gap-2">
           <span class="fh-grow">{{ e.label }}</span>
           @if (t && t.minutes != null) {
@@ -172,29 +175,16 @@ export class HouseZone {
       </div>
     }
     @if (!l.estimates.length) { <div class="fh-hnote">No points with trips in config/locations.yaml.</div> }
-    <div class="d-flex align-items-center gap-2 mt-2">
-      <button type="button" class="btn btn-sm btn-primary" [disabled]="store.busy() === id()" (click)="store.compute(id())"
-        (mouseenter)="store.plan(id())" (focus)="store.plan(id())" [title]="buttonTitle()">
-        {{ store.busy() === id() ? 'Computing transit routes…' : 'Compute transit routes' }}
-        @if (plan(); as p) { <span class="fh-calls">{{ p.calls ? p.calls + ' API call' + (p.calls === 1 ? '' : 's') : 'cached' }}</span> }
-      </button>
-      <fh-info id="house.transit" />
-    </div>
-    @if (store.error()) { <div class="small text-danger mt-1">{{ store.error() }}</div> }
+    @if (!store.isDone(id(), 'points')) { <div class="fh-hnote">Exact times: <b>Compute transit routes to your points</b> in Transit routes.</div> }
   </section>`,
 })
 export class HouseTravel {
   readonly loc = input.required<HouseLocation>();
   protected store = inject(HouseTravelStore);
   protected id = computed(() => this.loc().listing.short_id);
-  protected plan = computed(() => this.store.plans()[this.id()] ?? null);
   protected result = computed(() => this.store.results()[this.id()] ?? null);
   protected toneCss = toneColor;
 
-  constructor() {
-    // count the calls up front (no API call: the server only checks its cache)
-    queueMicrotask(() => this.store.plan(this.id()));
-  }
   protected trip(pointId: string): HouseTrip | null { return this.result()?.trips.find((t) => t.kind === 'point' && t.point_id === pointId) ?? null; }
   protected insight(pointId: string) { return this.loc().insights.points.find((i) => i.point_id === pointId) ?? null; }
   protected estimateTitle(e: HouseLocation['estimates'][number]): string {
@@ -204,9 +194,98 @@ export class HouseTravel {
     }
     return e.source === 'zone' ? 'The zone\'s value from the Connectivity matrix (no station data yet)' : '';
   }
-  protected buttonTitle(): string {
-    const p = this.plan();
+}
+
+/**
+ * "Transit routes": two explicit buttons, one for the itineraries to your points and one for the nearest service of
+ * each set (each with its API call count), the switch that draws the services' routes on the map (off by default:
+ * their walks are drawn; on after computing them), and the computed routes. Hovering a route here or on a map
+ * draws it on top with a glow.
+ */
+@Component({
+  selector: 'fh-house-transit',
+  imports: [InfoButton, DecimalPipe, NgTemplateOutlet],
+  template: `
+  <section class="fh-hcard">
+    <header><h2>Transit routes</h2><span class="fh-hsub">ResRobot, from this home</span><fh-info id="house.transit" /></header>
+    <div class="fh-tbtns">
+      @for (b of buttons; track b.which) {
+        <button type="button" class="btn btn-sm" [class.btn-primary]="!store.isDone(id(), b.which)" [class.btn-outline-primary]="store.isDone(id(), b.which)"
+          [disabled]="!!store.busy()" (click)="store.compute(id(), b.which)" (mouseenter)="store.plan(id(), b.which)" (focus)="store.plan(id(), b.which)"
+          [title]="title(b.which)">
+          {{ store.isBusy(id(), b.which) ? 'Computing…' : b.label }}
+          @if (store.planFor(id(), b.which); as p) { <span class="fh-calls">{{ p.calls ? p.calls + ' API call' + (p.calls === 1 ? '' : 's') : 'cached' }}</span> }
+        </button>
+      }
+    </div>
+    <div class="form-check form-switch mt-2 small">
+      <input class="form-check-input" type="checkbox" role="switch" id="fh-svc-transit" [checked]="store.showServices()"
+        (change)="store.showServices.set($any($event.target).checked)" />
+      <label class="form-check-label" for="fh-svc-transit">Show the services' transit routes on the map</label>
+    </div>
+    @if (store.error()) { <div class="small text-danger mt-1">{{ store.error() }}</div> }
+    @if (points().length) {
+      <div class="fh-tgroup">Your points</div>
+      @for (t of points(); track t.point_id) { <ng-container *ngTemplateOutlet="row; context: { $implicit: t }" /> }
+    }
+    @if (services().length) {
+      <div class="fh-tgroup">Nearest services</div>
+      @for (t of services(); track t.point_id) { <ng-container *ngTemplateOutlet="row; context: { $implicit: t }" /> }
+    }
+    @if (!points().length && !services().length) {
+      <div class="fh-hnote">Nothing computed yet. Each button asks ResRobot once per destination; answers are cached, so a second press is free.</div>
+    }
+    <ng-template #row let-t>
+      <div class="fh-trow fh-hot-able" [class.hot]="store.hover() === t.point_id" (mouseenter)="store.hover.set(t.point_id)" (mouseleave)="store.hover.set(null)">
+        <div class="d-flex align-items-baseline gap-2">
+          <span class="fh-grow">{{ t.label }}</span>
+          @if (walkOnly(t)) { <span class="small text-body-secondary" title="Too near for transit: the walk is drawn on the map">walk {{ t.minutes | number: '1.0-0' }} min</span> }
+          @else if (t.minutes != null) { <b>{{ t.minutes | number: '1.0-0' }} min</b> }
+          @else { <span class="small text-body-secondary">{{ t.error || 'no connection' }}</span> }
+          @if (t.kind === 'service' && t.walk_min != null && !walkOnly(t)) {
+            <span class="small" [class.text-success]="t.beats_walk" [class.text-body-secondary]="!t.beats_walk"
+              [title]="'Walking to the same target: ' + t.walk_min + ' min'">{{ t.beats_walk ? 'beats' : 'vs' }} walk {{ t.walk_min | number: '1.0-0' }}′</span>
+          }
+        </div>
+        @if (!walkOnly(t) && t.legs.length) {
+          <div class="fh-legs">
+            @for (g of t.legs; track $index) {
+              <span class="fh-leg" [class.walk]="g.mode === 'walk'" [style.background]="g.mode === 'walk' ? null : (g.color ?? '#607d8b')"
+                [title]="(g.name ?? g.mode) + ': ' + (g.from.name ?? '') + ' → ' + (g.to.name ?? '')">{{ g.mode === 'walk' ? 'walk' : (g.line ?? g.mode) }}{{ g.minutes ? ' ' + g.minutes + '′' : '' }}</span>
+            }
+            @if (t.transfers) { <span class="small text-body-secondary">{{ t.transfers }} change{{ t.transfers === 1 ? '' : 's' }}</span> }
+          </div>
+        }
+      </div>
+    </ng-template>
+  </section>`,
+})
+export class HouseTransit {
+  readonly loc = input.required<HouseLocation>();
+  protected store = inject(HouseTravelStore);
+  protected id = computed(() => this.loc().listing.short_id);
+  protected buttons: { which: TransitWhich; label: string }[] = [
+    { which: 'points', label: 'Compute transit routes to your points' },
+    { which: 'services', label: 'Compute transit routes to nearby services' },
+  ];
+  private result = computed(() => this.store.results()[this.id()] ?? null);
+  protected points = computed(() => (this.result()?.trips ?? []).filter((t) => t.kind === 'point'));
+  protected services = computed(() => (this.result()?.trips ?? []).filter((t) => t.kind === 'service'));
+  protected walkOnly = walkOnly;
+
+  constructor() {
+    // count the calls up front (no API call: the server only checks its cache)
+    effect(() => {
+      const id = this.id();
+      untracked(() => { this.store.plan(id, 'points'); this.store.plan(id, 'services'); });
+    });
+  }
+
+  protected title(which: TransitWhich): string {
+    const p = this.store.planFor(this.id(), which);
     const n = p ? `${p.calls} API call${p.calls === 1 ? '' : 's'} (${p.cached} cached)` : 'some API calls';
-    return `Asks ResRobot for public-transport itineraries from this home to your points and the nearest services: ${n}.`;
+    return which === 'points'
+      ? `Asks ResRobot for the public-transport itinerary from this home to each of your points (config/locations.yaml): ${n}. Drawn on the map along the real lines.`
+      : `Asks ResRobot for the itinerary from this home to the nearest target of each service set (grocery, pharmacy, …): ${n}. Turns on the services' routes on the map.`;
   }
 }

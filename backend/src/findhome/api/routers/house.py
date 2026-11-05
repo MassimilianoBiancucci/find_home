@@ -126,18 +126,28 @@ def _service_destinations(b, house: dict[str, Any]) -> list[Destination]:
     return out
 
 
+WHICH = ("points", "services", "all")
+
+
 @router.post("/{short_id}/transit")
-async def transit(short_id: str, dry: bool = False, conn=Depends(get_conn)):
-    """Itineraries from the house (ResRobot, cached per ~100 m cell for routing_ttl_days). With dry=true: the call
-    count only. Service rows say whether transit beats walking to the same target."""
+async def transit(short_id: str, dry: bool = False, which: str = "all", conn=Depends(get_conn)):
+    """Itineraries from the house (ResRobot, cached per ~100 m cell for routing_ttl_days) to your points, to the
+    nearest target of each service set, or both (`which`). With dry=true: the call count only. Service rows say
+    whether transit beats walking to the same target."""
+    if which not in WHICH:
+        raise HTTPException(422, f"which: one of {', '.join(WHICH)}")
     b, reg = bundle(), registry()
     L = await _listing_with_coords(conn, short_id)
     house = await house_payload(conn, b, L)
-    coords = await resolve_point_coords(conn, reg, b.locations.points, int(b.providers.cache.get("geocode_ttl_days", 365)))
-    dests = point_destinations(b, coords) + _service_destinations(b, house)
+    dests: list[Destination] = []
+    if which in ("points", "all"):
+        coords = await resolve_point_coords(conn, reg, b.locations.points, int(b.providers.cache.get("geocode_ttl_days", 365)))
+        dests += point_destinations(b, coords)
+    if which in ("services", "all"):
+        dests += _service_destinations(b, house)
     origin = LatLon(float(L["lat"]), float(L["lon"]))
     calls = await uncached_trips(conn, origin, dests)
-    summary = {"destinations": len(dests), "calls": calls, "cached": len(dests) - calls,
+    summary = {"which": which, "destinations": len(dests), "calls": calls, "cached": len(dests) - calls,
                "ttl_days": int(b.providers.cache.get("routing_ttl_days", 30)), "provider": "resrobot"}
     if dry:
         return summary

@@ -128,6 +128,8 @@ export interface ProbeLeg {
   color?: string | null;
   from: { name: string; lat: number; lon: number; time: string | null }; to: { name: string; lat: number; lon: number; time: string | null };
   path: [number, number][];
+  /** Transit: drawn along the saved line; walk: along the streets. False: only the stops (or the two ends) are known. */
+  on_track?: boolean; on_street?: boolean;
 }
 export interface ProbeTrip {
   point_id: string; label: string; category: string; direction: 'to_point' | 'from_point'; day_type: string; slot: string; kind: string;
@@ -258,7 +260,7 @@ export interface HouseLocation {
     & { percentiles: Record<IndexKey, number | null> }) | null;
   insights: { sets: Insight[]; points: Insight[] };
 }
-export interface TransitPlan { destinations: number; calls: number; cached: number; ttl_days: number; provider: string; }
+export interface TransitPlan { which?: string; destinations: number; calls: number; cached: number; ttl_days: number; provider: string; }
 export interface HouseTrip extends Omit<ProbeTrip, 'kind'> {
   kind: 'point' | 'service'; when_is: string; walk_min?: number | null; beats_walk?: boolean;
 }

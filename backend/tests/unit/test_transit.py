@@ -98,3 +98,30 @@ def test_leg_path_follows_the_line(tmp_path, monkeypatch):
     assert path[0][0] > path[-1][0] and len(path) >= 2                         # direction of travel kept
     assert idx.leg_path("metro", "14", (18.0, 59.40), (18.02, 59.40)) is None  # too far from the track
     assert idx.leg_path("metro", "99", (18.0, 59.30), (18.02, 59.30)) is None
+
+
+def test_leg_path_crosses_to_the_other_direction_and_keeps_the_stops_order():
+    """OSM keeps each direction as its own track, joined only at the termini: a stop snapped to the other track must
+    not send the path to the end of the line and back; the stops in between are passed in order."""
+    import math
+    from itertools import pairwise
+
+    from shapely.geometry import LineString, MultiLineString
+
+    from findhome.geo.crs import point_metric, points_wgs84
+
+    x0, y0 = point_metric(18.0, 59.3)
+    north = LineString([(x0 + i * 100, y0) for i in range(31)])                  # 3 km, eastbound
+    south = LineString([(x0 + i * 100, y0 + 25) for i in range(30, -1, -1)])      # westbound, 25 m away
+    idx = store.TransitIndex({("metro", "14"): MultiLineString([north, south])}, {}, 0.0)
+
+    def ll(dx, dy):
+        return tuple(points_wgs84([x0 + dx], [y0 + dy])[0])
+
+    path = idx.leg_path("metro", "14", ll(500, 2), ll(1500, 3), [ll(1000, 24)])   # the middle stop on the other track
+    xy = [point_metric(*p) for p in path]
+    length = sum(math.dist(p, q) for p, q in pairwise(xy))
+    assert 950 < length < 1200                                                     # not ~5 km around a terminus
+    assert xy[0][0] < xy[-1][0]
+    assert idx.leg_path("metro", "14", ll(500, 2), ll(1500, 3), [ll(1000, 900)]) is not None   # an off-track stop is skipped
+    assert idx.key_for("metro", "14X") == ("metro", "14") and idx.key_for("bus", "14") is None

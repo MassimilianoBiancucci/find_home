@@ -120,8 +120,8 @@ export class ApiService {
   }
   zoneCentroids(id: string) { return this.http.get<ZoneCentroids>(`/api/zone/${encodeURIComponent(id)}/centroids`); }
   listingLocation(id: string) { return this.http.get<HouseLocation>(`/api/listings/${id}/location`); }
-  listingTransit(id: string, dry: boolean) {
-    return this.http.post<TransitResult>(`/api/listings/${id}/transit`, {}, { params: new HttpParams().set('dry', String(dry)) });
+  listingTransit(id: string, dry: boolean, which: 'points' | 'services' | 'all' = 'all') {
+    return this.http.post<TransitResult>(`/api/listings/${id}/transit`, {}, { params: new HttpParams().set('dry', String(dry)).set('which', which) });
   }
   zoneRegion() { return this.http.get<{ zones: number; outline: any; mask: any }>('/api/zone/region'); }
   zoneStats(filters: Record<string, string | number | null | undefined>) {

@@ -137,9 +137,23 @@ shape per route and direction, parent stations), else OSM route relations. Modes
 local_rail (Roslagsbanan, Saltsjöbanan), tram (incl. Tvärbanan, Lidingö- and Nockebybanan), train (regional),
 bus and ferry; `classify` holds the line-number rules. A station serves the lines that pass within
 `station_snap_m` of it (no timetables needed); platforms with the same name and mode are merged. Colours:
-`transit_colours.yaml` per line, then OSM `colour`, then the mode default. `load_transit`
-([`geo/store.py`](../../backend/src/findhome/geo/store.py)) gives the test point the line shapes, so itinerary legs
-follow the track and carry the line colour. Nothing here changes scores.
+`transit_colours.yaml` per line, then OSM `colour`, then the mode default. Nothing here changes scores.
+
+**Itinerary legs on the track.** ResRobot gives a ride as its stops (`passlist=1`), which drawn as straight lines
+cut across blocks and water. [`dress_legs()`](../../backend/src/findhome/domain/probe.py#L218) maps each leg to the
+saved line ([`TransitIndex.key_for()`](../../backend/src/findhome/geo/store.py#L167): the leg's ref, else without a
+trailing letter) and [`leg_path()`](../../backend/src/findhome/geo/store.py#L176) draws it along that line:
+- the line's way pieces are one graph (`_line_graph()`); pieces whose ends are within `GAP_M` (40 m) are joined;
+- every stop, boarding and alighting included, joins each track within `TRACKS_M` (60 m) of the nearest one. The
+  two directions are often separate pieces joined only at the termini, and a stop on the other direction would
+  otherwise send the path to the end of the line and back;
+- consecutive stops are joined by the shortest way along the track; a piece longer than `DETOUR` × straight
+  + 300 m is drawn straight between its two stops; with less than half the pieces followed, the leg keeps its stops.
+
+Walk legs (two points from ResRobot) follow the street network where it is mapped
+([`street_path()`](../../backend/src/findhome/zone/house.py#L135), up to `STREET_MAX_M`). The drawn geometry is
+stored with the cached itinerary (`DRESSED` version), so street routing runs once per itinerary. `on_track` and
+`on_street` say which legs follow the real geometry; the maps leave out a walk leg that does not.
 
 ## Connectivity matrix
 
@@ -325,7 +339,7 @@ flowchart LR
 | services per date (`calendar` + `calendar_dates`), reference dates | [`active_services()`](../../backend/src/findhome/geo/build_timetable.py#L51), [`reference_dates()`](../../backend/src/findhome/geo/build_timetable.py#L69) |
 | lines per stop, departures per hour (streams `stop_times`) | [`from_gtfs()`](../../backend/src/findhome/geo/build_timetable.py#L82) |
 | fallback without a GTFS key: lines per stop only | [`from_osm()`](../../backend/src/findhome/geo/build_timetable.py#L126) |
-| query side: stops near a point, lines, departures | [`TimetableIndex`](../../backend/src/findhome/geo/store.py#L177), [`load_timetable()`](../../backend/src/findhome/geo/store.py#L215) |
+| query side: stops near a point, lines, departures | [`TimetableIndex`](../../backend/src/findhome/geo/store.py#L283), [`load_timetable()`](../../backend/src/findhome/geo/store.py#L321) |
 
 **Network.** A way is walkable when its `highway` class is in `datasets.network.walk` (or `foot=yes`), and cyclable
 when it is in `bike`, or in `bike_if_allowed` with `bicycle=yes|designated`. `foot=no`, `bicycle=no` and
@@ -470,24 +484,24 @@ flowchart TD
 |---|---|
 | extent around the address | [`house_extent()`](../../backend/src/findhome/zone/house.py#L64) |
 | walks, paths, counts and the nearby targets for the map (`nearby`) | [`walk_paths()`](../../backend/src/findhome/zone/house.py#L82) (edge geometry from `Network.edges[idx]`, reversed when stored the other way) |
-| house indices, stops, station walks | [`house_analysis()`](../../backend/src/findhome/zone/house.py#L158), [`station_walks()`](../../backend/src/findhome/zone/house.py#L132) |
-| cache version: zone inputs, poi.yaml, centroids, coordinates | [`version()`](../../backend/src/findhome/zone/house.py#L147) |
+| house indices, stops, station walks | [`house_analysis()`](../../backend/src/findhome/zone/house.py#L196), [`station_walks()`](../../backend/src/findhome/zone/house.py#L170) |
+| cache version: zone inputs, poi.yaml, centroids, coordinates | [`version()`](../../backend/src/findhome/zone/house.py#L185) |
 
 `GET /api/listings/{id}/location` ([`location()`](../../backend/src/findhome/api/routers/house.py#L74)) serves the cached payload
 ([`house_payload()`](../../backend/src/findhome/api/routers/house.py#L40); computed in a few seconds when missing) and adds what depends on stored rows:
-- **station estimate** per point ([`estimates()`](../../backend/src/findhome/zone/house.py#L240)): for each trip window, the cheapest
+- **station estimate** per point ([`estimates()`](../../backend/src/findhome/zone/house.py#L278)): for each trip window, the cheapest
   `walk(home → station) + centroid_commute(station → point)`; then the window-weighted mean. Without station rows,
   the zone's `zone_commute` value is used; without that, "not computed";
 - the zone's indices and percentiles (`zone_index`, computed when missing);
-- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L295)): each set's walk against the zone median, and each point's minutes (the
+- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L333)): each set's walk against the zone median, and each point's minutes (the
   listing's own commute when computed, else the estimate) against the zone and as "better than N % of zones".
 
-`POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L130)) is the only call that uses ResRobot. It is triggered
-by "Compute transit routes". Its destinations are your points
-([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L130)) plus the nearest target of each service set, reached on a weekday at
-`house.services_depart`. Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L158) and are cached in `routing_cache` per ~100 m
+`POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L133)) is the only call that uses ResRobot. It is triggered
+by the two buttons of the Transit routes bubble: `which=points` for your points
+([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L135)), `which=services` for the nearest target of each service set, reached on a
+weekday at `house.services_depart` (`all`, the default, does both). Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L163) and are cached in `routing_cache` per ~100 m
 cell, like the test point's. With `dry=true` it returns only the number of calls not yet cached
-([`uncached_trips()`](../../backend/src/findhome/domain/probe.py#L152)). `findhome listings location --all` warms the cache for every listing.
+([`uncached_trips()`](../../backend/src/findhome/domain/probe.py#L157)). `findhome listings location --all` warms the cache for every listing.
 
 ### Listing statistics per zone
 

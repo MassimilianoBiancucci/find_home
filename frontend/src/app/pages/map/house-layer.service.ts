@@ -1,9 +1,10 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type { Map as MlMap, Popup } from 'maplibre-gl';
 import { blipId } from '../../components/map-icons';
 import { walkTone } from '../../format';
-import { GeoCollection, HouseLocation, TransitResult } from '../../models';
+import { GeoCollection, HouseLocation, HouseTrip, TransitResult } from '../../models';
 import { setColour } from '../../set-colours';
+import { HouseTravelStore } from '../../house/house-travel.store';
 import { MapStateService } from './map-state.service';
 
 export type RouteView = 'walk' | 'transit' | 'both';
@@ -12,7 +13,7 @@ const ACCENT = '#b45cf0';
 const BUILDING_LAYERS = ['zone-3d-buildings', 'fh-3d-buildings'];
 /** House layers, bottom to top; kept above the zone layers, which load after them. */
 export const HOUSE_LAYERS = ['house-building-3d', 'house-glow', 'house-transit-line', 'house-walk-casing', 'house-walk-line',
-  'house-walk-label', 'house-pin'];
+  'house-walk-label', 'house-transit-shade', 'house-transit-glow', 'house-transit-hi', 'house-transit-core', 'house-pin'];
 
 /** The house layers that need moving so they are the topmost layers, in HOUSE_LAYERS order ([] when already so). */
 export function layersToRaise(order: string[]): string[] {
@@ -36,20 +37,63 @@ export function walkFeatures(loc: HouseLocation): { lines: GeoCollection; labels
   return { lines: { type: 'FeatureCollection', features: lines }, labels: { type: 'FeatureCollection', features: labels } };
 }
 
-/** Transit legs of the computed itineraries (line colours; walk legs as dotted grey). */
-export function transitFeatures(t: TransitResult | null, only?: string | null): GeoCollection {
+export interface TransitDraw {
+  /** Only this trip (point_id), e.g. the zone view's point filter. */
+  only?: string | null;
+  /** Draw the services' routes too (the house page's switch); your points' routes are always drawn. */
+  services?: boolean;
+}
+
+/** Trips whose every leg is a walk (too near for transit): the walking path to the target is already on the map. */
+export function walkOnly(trip: HouseTrip): boolean { return !trip.legs.some((l) => l.mode !== 'walk'); }
+
+/**
+ * Transit legs of the computed itineraries, in line colours, along the saved line where it was found. Walk legs are
+ * drawn only along the streets (a dotted grey path); ResRobot gives them as two points, and a straight line across
+ * blocks says nothing. Each feature carries its trip id, so a hovered route can be drawn on top.
+ */
+export function transitFeatures(t: TransitResult | null, opts: TransitDraw = {}): GeoCollection {
   const feats: any[] = [];
   for (const trip of t?.trips ?? []) {
-    if (only && trip.point_id !== only) continue;
+    if (opts.only && trip.point_id !== opts.only) continue;
+    if (trip.kind === 'service' && (!opts.services || walkOnly(trip))) continue;
     for (const leg of trip.legs) {
-      const coords = leg.path?.length ? leg.path : [[leg.from.lon, leg.from.lat], [leg.to.lon, leg.to.lat]];
-      if (coords.length < 2 || coords.some((c) => c[0] == null || c[1] == null)) continue;
+      const walk = leg.mode === 'walk';
+      const coords = leg.path?.length ? leg.path : walk ? [] : [[leg.from.lon, leg.from.lat], [leg.to.lon, leg.to.lat]];
+      if (coords.length < 2 || (walk && coords.length < 3) || coords.some((c) => c[0] == null || c[1] == null)) continue;
       feats.push({ type: 'Feature', geometry: { type: 'LineString', coordinates: coords },
-        properties: { walk: leg.mode === 'walk', colour: leg.mode === 'walk' ? '#9a9aaa' : leg.color ?? '#607d8b',
-          trip: trip.point_id, label: `${trip.label}: ${leg.mode === 'walk' ? 'walk' : leg.line ?? leg.mode}` } });
+        properties: { walk, colour: walk ? '#9a9aaa' : leg.color ?? '#607d8b', trip: trip.point_id, kind: trip.kind,
+          label: `${trip.label}: ${walk ? 'walk' : leg.line ?? leg.mode}${leg.minutes ? ' · ' + leg.minutes + ' min' : ''}`
+            + (trip.minutes != null ? ` (trip ${Math.round(trip.minutes)} min)` : '') } });
     }
   }
   return { type: 'FeatureCollection', features: feats };
+}
+
+/** The hover highlight of a transit route, under the given source: a dark shade, a glow in the line colour, the
+ *  line itself brighter and wider, and a white core. Filtered to the hovered trip (none until hovered). */
+export function routeHighlightLayers(prefix: string, source: string): any[] {
+  const none = ['==', ['get', 'trip'], '__none__'];
+  const cap = { 'line-cap': 'round', 'line-join': 'round' };
+  return [
+    { id: `${prefix}-shade`, type: 'line', source, filter: none, layout: cap,
+      paint: { 'line-color': '#000000', 'line-width': 22, 'line-blur': 12, 'line-opacity': 0.55 } },
+    { id: `${prefix}-glow`, type: 'line', source, filter: none, layout: cap,
+      paint: { 'line-color': ['get', 'colour'], 'line-width': 16, 'line-blur': 9, 'line-opacity': 0.75 } },
+    { id: `${prefix}-hi`, type: 'line', source, filter: none, layout: cap,
+      paint: { 'line-color': ['get', 'colour'], 'line-width': 8, 'line-opacity': 1,
+        'line-dasharray': ['case', ['get', 'walk'], ['literal', [1, 1.2]], ['literal', [1, 0]]] } },
+    { id: `${prefix}-core`, type: 'line', source, filter: ['all', none, ['!', ['get', 'walk']]], layout: cap,
+      paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.85 } },
+  ];
+}
+
+/** Point the highlight layers at a trip (null: none) and dim the other routes while one is highlighted. */
+export function setRouteHighlight(map: MlMap, prefix: string, base: string, trip: string | null): void {
+  const f = ['==', ['get', 'trip'], trip ?? '__none__'];
+  for (const id of [`${prefix}-shade`, `${prefix}-glow`, `${prefix}-hi`]) if (map.getLayer(id)) map.setFilter(id, f as any);
+  if (map.getLayer(`${prefix}-core`)) map.setFilter(`${prefix}-core`, ['all', f, ['!', ['get', 'walk']]] as any);
+  if (map.getLayer(base)) map.setPaintProperty(base, 'line-opacity', trip ? 0.3 : 0.9);
 }
 
 /** Tone names → paint colours (MapLibre cannot read CSS variables). */
@@ -63,6 +107,7 @@ const TONE_PAINT = ['match', ['get', 'tone'], 'good', '#2fbf71', 'neutral', '#e0
 @Injectable({ providedIn: 'root' })
 export class HouseLayerService {
   private state = inject(MapStateService);
+  private travel = inject(HouseTravelStore);
   readonly routes = signal<RouteView>('both');
   readonly onlyPoint = signal<string | null>(null);
   private loc: HouseLocation | null = null;
@@ -70,6 +115,14 @@ export class HouseLayerService {
   private popup: Popup | null = null;
   private bound = false;
   private raiser: (() => void) | null = null;
+
+  constructor() {
+    // the hovered route (on this map or in the Transit routes bubble) on top, glowing
+    effect(() => {
+      const trip = this.travel.hover();
+      untracked(() => { const map = this.state.map(); if (map && this.loc) setRouteHighlight(map, 'house-transit', 'house-transit-line', trip); });
+    });
+  }
 
   show(loc: HouseLocation, transit: TransitResult | null): void {
     this.loc = loc;
@@ -86,7 +139,7 @@ export class HouseLayerService {
     const map = this.state.map(), loc = this.loc;
     if (!map || !loc) return;
     const pts: number[][] = [[loc.lon, loc.lat], ...points];
-    for (const f of transitFeatures(this.transit).features) pts.push(...(f.geometry as any).coordinates);
+    for (const f of transitFeatures(this.transit, { services: this.travel.showServices() }).features) pts.push(...(f.geometry as any).coordinates);
     const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
     map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
       { padding: 80, maxZoom: 15, pitch: 45, duration: 1200 });
@@ -130,6 +183,7 @@ export class HouseLayerService {
           layout: { 'text-field': ['get', 'text'], 'text-size': 13, 'text-font': ['Noto Sans Regular'],
             'text-offset': [0, -1.3], 'text-allow-overlap': true, 'symbol-z-order': 'source' },
           paint: { 'text-color': TONE_PAINT, 'text-halo-color': '#0b0b10', 'text-halo-width': 1.6 } },
+        ...routeHighlightLayers('house-transit', 'house-transit'),
         { id: 'house-pin', type: 'symbol', source: 'house-here',
           layout: { 'icon-image': blipId('home', ACCENT), 'icon-size': 1.6, 'icon-allow-overlap': true, 'icon-ignore-placement': true } },
       ] as any,
@@ -154,7 +208,8 @@ export class HouseLayerService {
     const walks = walkFeatures(this.loc);
     this.state.setData('house-walk', r === 'transit' ? EMPTY : walks.lines);
     this.state.setData('house-walk-label', r === 'transit' ? EMPTY : walks.labels);
-    this.state.setData('house-transit', r === 'walk' ? EMPTY : transitFeatures(this.transit, this.onlyPoint()));
+    this.state.setData('house-transit', r === 'walk' ? EMPTY
+      : transitFeatures(this.transit, { only: this.onlyPoint(), services: this.travel.showServices() }));
   }
 
   /** Find the building footprint under the address once the tiles are drawn; fall back to a small extruded box. */
@@ -204,5 +259,10 @@ export class HouseLayerService {
       map.on('mousemove', id, show);
       map.on('mouseleave', id, hide);
     }
+    map.on('mousemove', 'house-transit-line', (e: any) => {
+      const trip = e.features?.[0]?.properties?.['trip'] ?? null;
+      if (trip !== this.travel.hover()) this.travel.hover.set(trip);
+    });
+    map.on('mouseleave', 'house-transit-line', () => this.travel.hover.set(null));
   }
 }

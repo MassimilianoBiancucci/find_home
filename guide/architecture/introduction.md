@@ -123,15 +123,22 @@ house analysis (`GET /api/listings/{id}/location`) side by side. Under the galle
     the zone view's 3D pin or object (`TARGET_ICONS`), with the nearest one of each set larger and glowing. The
     walking path to that nearest target carries its minutes in green / yellow / red. Icons show from zoom 13;
     chips hide a category.
-  - Your points are pinned. After "Compute transit routes" the itineraries are drawn from `HouseTravelStore`.
+  - Your points are pinned. Computed itineraries are drawn from `HouseTravelStore` along the real lines and
+    streets: your points' always, the services' only with the switch on (it turns on when they are computed; a
+    service too near for transit is not drawn, its walk is). Hovering a route, on the map or in a bubble row,
+    sets `HouseTravelStore.hover`: [`routeHighlightLayers()`](../../frontend/src/app/pages/map/house-layer.service.ts)
+    draw that trip on top with a shade, a glow and a white core, and the other routes dim. **Lines** toggles every
+    line of a mode (`GET /api/geo/transit/lines_<mode>`, loaded on first use), under the routes.
     **Home, your points and routes** zooms out to all of them; the 3D house view has the same button.
   - Outside every zone (the analysis answers 409 "outside every zone"): the home's position only.
   - **Full-screen zone view** requests full screen inside the click (browsers refuse it later), then opens
     `/map/zone/<id>?listing=<short id>`;
 - **Travel to your points**: per point the free station estimate, or the listing's computed commute, with the
-  comparison line ("better than N % of zones"). **Compute transit routes** asks for the exact itineraries
-  (`POST .../transit`). Its call count comes from the dry run (no API call) and is shown on the button and in
-  its tooltip.
+  comparison line ("better than N % of zones"), and the exact trip once its route is computed.
+- **Transit routes** ([`HouseTransit`](../../frontend/src/app/house/house-bubbles.ts)): **Compute transit routes to
+  your points** and **to nearby services** ask for the itineraries (`POST .../transit?which=points|services`), each
+  with its call count from the dry run (no API call) on the button and in its tooltip; the switch for the
+  services' routes on the map; and the computed routes, hoverable.
 
 The results live in [`HouseTravelStore`](../../frontend/src/app/house/house-travel.store.ts), per listing, so
 the 3D house view reuses them. A service row shows "or N min by transit" when transit beats walking to the same
@@ -257,11 +264,12 @@ loads the house analysis and focuses the zone on the house: the camera flies to 
   idle and extruded in the accent colour (a 12 m box when no footprint is found), a glow and a home pin;
 - the walking path to the nearest target of each set in the set's colour, labelled with the minutes in
   green / yellow / red;
-- the transit legs of "Compute transit routes" in their line colours, walking legs dotted.
+- the transit legs of the computed routes in their line colours along the track, walking legs dotted along the
+  streets, the services' only with the switch on, the hovered one on top and glowing.
 
 The layers stay above the zone's own layers, which load after them: `layersToRaise()` on `styledata` moves them
-only when needed. The right panel shows "This home" and "Travel to your points" (the same components and the same
-`HouseTravelStore` as the house page) above the zone panel, with a Walk / Transit / Both switch. The Zone bubble's
+only when needed. The right panel shows "This home", "Travel to your points" and "Transit routes" (the same components and the
+same `HouseTravelStore` as the house page) above the zone panel, with a Walk / Transit / Both switch. The Zone bubble's
 ⛶ toggles full screen for the whole app.
 
 The map's **right-click menu** ([`ContextMenuService`](../../frontend/src/app/pages/map/context-menu.service.ts#L16),

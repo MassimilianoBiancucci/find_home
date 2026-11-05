@@ -129,6 +129,44 @@ def walk_paths(eg: ExtentGraph, origin: Point, targets: dict[str, list[tuple[Poi
     return out
 
 
+STREET_MAX_M = 3000               # walk legs longer than this (straight) are not routed on the street network
+
+
+def street_path(bundle: ConfigBundle, zones: ZoneSet, a: tuple[float, float], b: tuple[float, float]) -> list[list[float]] | None:
+    """The walking path from a to b ([lon, lat]) on the street network, [lon, lat] points from a to b, or None when
+    either end is off the mapped network or the walk is too long. For the walk legs of a transit itinerary, which
+    ResRobot gives as two points only."""
+    from shapely.geometry import LineString
+
+    xa, ya = point_metric(*a)
+    xb, yb = point_metric(*b)
+    line = LineString([(xa, ya), (xb, yb)])
+    if line.length > STREET_MAX_M:
+        return None
+    if line.length < 5:
+        return [list(a), list(b)]
+    search = line.buffer(max(250.0, line.length * 0.4))
+    kommuner = sorted({zones.zones[zones.order[int(i)]].kommun_code for i in zones.tree.query(search, predicate="intersects")})
+    net = load_network(kommuner) if kommuner else None
+    if net is None:
+        return None
+    z = bundle.zone
+    p = HeatmapParams("walk", z.speeds_mps["walk"], 3600.0, z.snap_max_m, dict(z.factors))
+    eg = ExtentGraph(net, Extent("", (), Point(xa, ya).buffer(1.0), search, tuple(kommuner)), p, [])
+    sa, sb = eg.snap(Point(xa, ya)), eg.snap(Point(xb, yb))
+    if sa is None or sb is None:
+        return None
+    try:
+        nodes = nx.shortest_path(eg.g, sa[0], sb[0], weight="t")
+    except (nx.NetworkXNoPath, nx.NodeNotFound):
+        return None
+    coords = [[xa, ya], list(eg.net.nodes[nodes[0]])]
+    for u, v in pairwise(nodes):
+        coords += _edge_coords(eg, u, v)[1:]
+    coords.append([xb, yb])
+    return points_wgs84([c[0] for c in coords], [c[1] for c in coords])
+
+
 def station_walks(eg: ExtentGraph, origin: Point, stations: dict[str, dict[str, Any]], cutoff_s: float) -> dict[str, float]:
     """Walk minutes from the address to each station centre within the cut-off."""
     snap = eg.snap(origin)

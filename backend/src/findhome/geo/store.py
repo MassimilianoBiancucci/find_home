@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -114,35 +114,141 @@ def load_poi(category: str) -> PoiIndex | None:
     return idx
 
 
+GAP_M = 40                    # OSM route relations are split into ways; endpoints this close are joined
+TRACKS_M = 60                 # tracks this much farther than the nearest one still join a stop (other direction)
+DETOUR = 2.5                  # a piece between two stops longer than this × straight (+ 300 m) is not trusted
+
+
+@dataclass
+class _LineGraph:
+    g: Any                                     # networkx.Graph: nodes (x, y) in EPSG:3006, edge weight "w" (m)
+    segs: list[tuple[tuple[float, float], tuple[float, float]]]
+    tree: STRtree                              # over segs
+
+
+def _line_graph(geom: BaseGeometry) -> _LineGraph | None:
+    """Every way piece of a line as one graph, with the small gaps between pieces bridged."""
+    import math
+    from itertools import pairwise
+
+    import networkx as nx
+    from shapely.geometry import LineString
+
+    g = nx.Graph()
+    segs, ends = [], set()
+    for part in getattr(geom, "geoms", [geom]):
+        cs = [(round(x, 1), round(y, 1)) for x, y in part.coords]
+        for u, v in pairwise(cs):
+            if u != v:
+                g.add_edge(u, v, w=math.dist(u, v))
+                segs.append((u, v))
+        if len(cs) > 1:
+            ends.update((cs[0], cs[-1]))
+    if not segs:
+        return None
+    nodes = list(g.nodes)
+    ntree = STRtree([Point(n) for n in nodes])
+    for e in ends:
+        for i in ntree.query(Point(e).buffer(GAP_M)):
+            n = nodes[int(i)]
+            if n != e and not g.has_edge(e, n):
+                g.add_edge(e, n, w=math.dist(e, n) * 1.5)       # a jump, slightly dearer than the track
+    return _LineGraph(g, segs, STRtree([LineString(s) for s in segs]))
+
+
 @dataclass
 class TransitIndex:
     """Lines per (mode, ref) in EPSG:3006, to draw itinerary legs along the real track."""
     lines: dict[tuple[str, str], BaseGeometry]
     colours: dict[tuple[str, str], str]
     mtime: float
+    _graphs: dict[tuple[str, str], _LineGraph | None] = field(default_factory=dict, repr=False)
+
+    def key_for(self, mode: str, ref: str | None) -> tuple[str, str] | None:
+        """The stored line for a leg: exact ref, else without a trailing letter (176X → 176)."""
+        import re
+
+        for r in (ref or "", re.sub(r"[A-Za-z]+$", "", ref or "")):
+            if (mode, r) in self.lines:
+                return (mode, r)
+        return None
 
     def leg_path(self, mode: str, ref: str | None, a: tuple[float, float], b: tuple[float, float],
-                 max_off_m: float = 300) -> list[list[float]] | None:
-        """[lon, lat] points along the line between boarding a and alighting b ([lon, lat]); None if not found."""
-        from shapely.geometry import LineString, Point
-        from shapely.ops import substring
+                 via: list[tuple[float, float]] | tuple = (), max_off_m: float = 300) -> list[list[float]] | None:
+        """[lon, lat] points along the line from boarding a to alighting b ([lon, lat]), through the stops in
+        between (`via`, in order) so a branch or a loop is followed the right way. The line's way pieces are one
+        graph; each stop is snapped onto its nearest piece and consecutive stops are joined by the shortest way
+        along the track. A piece that cannot be followed is drawn straight between its two stops; None when the
+        line is unknown, the ends are off the track, or less than half the leg follows it."""
+        import math
+        from itertools import pairwise
 
-        from findhome.geo.crs import point_metric, to_wgs84
+        import networkx as nx
+        from shapely.geometry import LineString
 
-        geom = self.lines.get((mode, ref or ""))
-        if geom is None:
+        from findhome.geo.crs import point_metric, points_wgs84
+
+        key = self.key_for(mode, ref)
+        if key is None:
             return None
-        pa, pb = Point(point_metric(*a)), Point(point_metric(*b))
-        parts = list(getattr(geom, "geoms", [geom]))
-        best = min(parts, key=lambda g: g.distance(pa) + g.distance(pb))
-        if best.distance(pa) > max_off_m or best.distance(pb) > max_off_m:
+        if key not in self._graphs:
+            self._graphs[key] = _line_graph(self.lines[key])
+        lg = self._graphs[key]
+        if lg is None:
             return None
-        da, db = best.project(pa), best.project(pb)
-        seg = substring(best, min(da, db), max(da, db))
-        if not isinstance(seg, LineString) or seg.length == 0:
+        pts = [Point(point_metric(*p)) for p in [a, *via, b]]
+        # each stop joins every track that passes it: the two directions are often separate pieces, joined only
+        # at the termini, and a stop snapped to the other direction would send the path to the end and back
+        snaps: list[tuple[int, tuple[float, float], list[tuple[tuple, float]]]] = []   # (index, point, [(node, w)])
+        for i, pt in enumerate(pts):
+            d0 = LineString(lg.segs[int(lg.tree.nearest(pt))]).distance(pt)
+            if d0 > max_off_m:
+                if i in (0, len(pts) - 1):
+                    return None                                            # the ends must be on the track
+                continue
+            near = [LineString(lg.segs[int(j)]) for j in lg.tree.query(pt.buffer(d0 + TRACKS_M))]
+            q0 = min(near, key=lambda sg: sg.distance(pt))
+            q0 = q0.interpolate(q0.project(pt))
+            links = []
+            for sg in near:
+                q = sg.interpolate(sg.project(pt))
+                off = math.dist((q.x, q.y), (q0.x, q0.y))
+                links += [(tuple(sg.coords[0]), off + math.dist((q.x, q.y), sg.coords[0])),
+                          (tuple(sg.coords[-1]), off + math.dist((q.x, q.y), sg.coords[-1]))]
+            snaps.append((i, (q0.x, q0.y), links))
+        g = lg.g
+        temp = []
+        for i, _, links in snaps:
+            node = ("stop", i)
+            temp.append(node)
+            for n, w in links:
+                if not g.has_edge(node, n) or g[node][n]["w"] > w:
+                    g.add_edge(node, n, w=w)
+        for (i, q, _), (k, r, _) in pairwise(snaps):
+            if math.dist(q, r) < 1:
+                g.add_edge(("stop", i), ("stop", k), w=0.0)
+        coords: list[tuple[float, float]] = []
+        followed = 0
+        try:
+            pos = {("stop", i): q for i, q, _ in snaps}
+            for (i, q, _), (k, r, _) in pairwise(snaps):
+                straight = math.dist(q, r)
+                try:
+                    length, path = nx.single_source_dijkstra(g, ("stop", i), ("stop", k), weight="w")
+                except nx.NetworkXNoPath:
+                    path, length = None, math.inf
+                if path is None or length > DETOUR * straight + 300:
+                    piece = [q, r]
+                else:
+                    piece = [pos.get(n, n) for n in path]
+                    followed += 1
+                coords += piece if not coords else piece[1:]
+        finally:
+            g.remove_nodes_from(temp)
+        pairs = max(len(snaps) - 1, 1)
+        if len(coords) < 2 or followed / pairs < 0.5:
             return None
-        coords = [[round(x, 6), round(y, 6)] for x, y in to_wgs84(seg).coords]
-        return coords if da <= db else coords[::-1]
+        return points_wgs84([c[0] for c in coords], [c[1] for c in coords])
 
 
 _transit_cache: dict[str, TransitIndex] = {}

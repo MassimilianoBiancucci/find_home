@@ -6,7 +6,7 @@ import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
 import { ScoreTip } from '../components/score-tip';
-import { HouseHome, HouseTravel, HouseZone } from '../house/house-bubbles';
+import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
 import { HouseMap } from '../house/house-map';
 import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
@@ -15,7 +15,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseMap, ScoreTip],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
@@ -49,7 +49,7 @@ import { TagsStore } from '../services/tags.store';
         @if (x.listing.lat != null && x.listing.lon != null) {
           <fh-house-map [lat]="x.listing.lat" [lon]="x.listing.lon" [shortId]="x.listing.short_id" [loc]="loc()" [outside]="outside()" />
         }
-        @if (loc(); as l) { <fh-house-travel [loc]="l" /> }
+        @if (loc(); as l) { <fh-house-travel [loc]="l" /><fh-house-transit [loc]="l" /> }
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">{{ x.listing.title || x.listing.address_raw }}</h2>
           <div class="mb-2">{{ x.listing.area }} · {{ x.listing.address_raw }}</div>

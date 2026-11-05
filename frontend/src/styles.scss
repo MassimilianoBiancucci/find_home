@@ -390,6 +390,10 @@ pre.fh-pre {
 .fh-trow .fh-legs { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; align-items: center; }
 .fh-trow .fh-leg { font-size: 0.72rem; font-weight: 600; color: #fff; border-radius: 4px; padding: 0 5px; text-shadow: 0 1px 1px #0008;
   &.walk { background: transparent; color: var(--bs-secondary-color); border: 1px dashed var(--bs-border-color); text-shadow: none; } }
+.fh-trow.fh-hot-able { cursor: default; border-radius: 6px; transition: background 0.12s, box-shadow 0.12s;
+  &.hot { background: var(--fh-violet-soft); box-shadow: 0 0 0 1px var(--fh-violet), 0 0 14px -2px var(--fh-violet); } }
+.fh-tbtns { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.fh-tgroup { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--bs-secondary-color); margin: 10px 0 2px; }
 [data-bs-theme='dark'] {
   .fh-hcard { background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 45%, rgba(0, 0, 0, 0.1) 100%),
       linear-gradient(160deg, #2c2c33 0%, #222228 100%);

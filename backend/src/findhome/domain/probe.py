@@ -40,6 +40,11 @@ async def _cache_put(conn, key: str, provider: str, minutes: float | None, respo
         (key, provider, minutes, Jsonb(response), datetime.now(UTC) + timedelta(days=ttl_days)))
 
 
+async def _cache_update(conn, key: str, response: dict) -> None:
+    """New drawn geometry for a cached answer; its age and expiry stay."""
+    await conn.execute("UPDATE routing_cache SET response = %s WHERE key = %s", (Jsonb(response), key))
+
+
 def walk_key(origin: LatLon, dest: LatLon) -> str:
     return f"ors|walk|{origin.key()}|{dest.key()}|*"        # same shape as commute.cache_key for timeless providers
 
@@ -172,6 +177,10 @@ async def trips_to(conn, registry, bundle: ConfigBundle, origin: LatLon, dests: 
         key = trip_key(origin, d)
         hit = (await _cache_get(conn, [key])).get(key)
         if hit is not None:
+            if hit.get("dressed") != DRESSED:              # cached before the walks were routed: draw it once more
+                dress_legs(hit.get("legs") or [], bundle)
+                hit["dressed"] = DRESSED
+                await _cache_update(conn, key, hit)
             out.append({**base, **hit, "est": False, "cached": True})
             continue
         if registry.resrobot is None:
@@ -187,10 +196,10 @@ async def trips_to(conn, registry, bundle: ConfigBundle, origin: LatLon, dests: 
         if it is None:
             out.append({**base, "minutes": None, "legs": [], "est": False, "error": "no connection found"})
             continue
+        dress_legs(it.get("legs") or [], bundle)
+        it["dressed"] = DRESSED
         await _cache_put(conn, key, "resrobot", it["minutes"], it, ttl)
         out.append({**base, **it, "est": False, "cached": False})
-    for trip in out:
-        dress_legs(trip.get("legs") or [], bundle)
     return out
 
 
@@ -203,22 +212,38 @@ async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, poin
     return trips
 
 
-def dress_legs(legs: list[dict], bundle: ConfigBundle) -> None:
-    """Colour each transit leg by its line and follow the real track when the transit layer has the line."""
+DRESSED = 2                    # version of the drawn geometry stored with a cached itinerary (bump to redraw)
+
+
+def dress_legs(legs: list[dict], bundle: ConfigBundle, streets: bool = True) -> None:
+    """Colour each transit leg by its line and follow the real track when the transit layer has the line (through
+    the stops in between); walk legs follow the street network where it is mapped (`streets`)."""
     from findhome.geo.build_transit import RAILISH, norm_ref
-    from findhome.geo.store import load_transit
+    from findhome.geo.store import load_transit, load_zones
+    from findhome.zone.house import street_path
 
     transit = load_transit()
+    zones = load_zones() if streets else None
     for leg in legs:
         if leg.get("mode") == "walk":
+            a, b = leg.get("from") or {}, leg.get("to") or {}
+            if zones is not None and a.get("lat") is not None and b.get("lat") is not None and len(leg.get("path") or []) <= 2:
+                path = street_path(bundle, zones, (a["lon"], a["lat"]), (b["lon"], b["lat"]))
+                leg["on_street"] = bool(path)
+                if path:
+                    leg["path"] = path
             continue
         ref = norm_ref(str(leg.get("line") or "")) or ""
-        if transit and (leg["mode"], ref) not in transit.lines and leg["mode"] in RAILISH:
-            leg["mode"] = next((m for m in RAILISH if (m, ref) in transit.lines), leg["mode"])   # e.g. Roslagsbanan as "lokaltåg"
-        leg["color"] = (transit.colours.get((leg["mode"], ref)) if transit else None) or bundle.transit_colours.colour(leg["mode"], ref)
+        if transit and transit.key_for(leg["mode"], ref) is None and leg["mode"] in RAILISH:
+            leg["mode"] = next((m for m in RAILISH if transit.key_for(m, ref)), leg["mode"])   # e.g. Roslagsbanan as "lokaltåg"
+        key = transit.key_for(leg["mode"], ref) if transit else None
+        leg["color"] = (transit.colours.get(key) if transit and key else None) or bundle.transit_colours.colour(leg["mode"], ref)
         a, b = leg.get("from") or {}, leg.get("to") or {}
         if transit and a.get("lat") is not None and b.get("lat") is not None:
-            path = transit.leg_path(leg["mode"], ref, (a["lon"], a["lat"]), (b["lon"], b["lat"]))
+            stops = [(p[0], p[1]) for p in (leg.get("path") or []) if p and p[0] is not None]
+            via = stops[1:-1] if len(stops) > 2 else []                      # the stops in between (passlist)
+            path = transit.leg_path(leg["mode"], ref, (a["lon"], a["lat"]), (b["lon"], b["lat"]), via)
+            leg["on_track"] = bool(path)
             if path:
                 leg["path"] = path
 
