@@ -11,7 +11,7 @@ from shapely.geometry.base import BaseGeometry
 from shapely.strtree import STRtree
 
 from findhome.core.paths import data_dir
-from findhome.geo.crs import to_metric
+from findhome.geo.crs import polygonal, to_metric
 
 ZONES_FILE = "geo/zones.geojson"
 
@@ -62,7 +62,7 @@ def load_zones(path: Path | None = None) -> ZoneSet | None:
     for f in fc["features"]:
         pr = f["properties"]
         zones[pr["zone_id"]] = Zone(pr["zone_id"], pr["name"], pr.get("kommun_code", ""), pr.get("kommun", ""),
-                                    pr.get("district", ""), pr, to_metric(shape(f["geometry"])))
+                                    pr.get("district", ""), pr, polygonal(to_metric(shape(f["geometry"]))))
     order = list(zones)
     zs = ZoneSet(zones, STRtree([zones[z].geom for z in order]), order, mtime, p)
     _cache[str(p)] = zs

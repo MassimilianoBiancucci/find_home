@@ -12,7 +12,7 @@ from shapely.geometry import Point, mapping, shape
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import unary_union
 
-from findhome.geo.crs import point_metric, to_metric, to_wgs84
+from findhome.geo.crs import point_metric, polygonal, to_metric, to_wgs84
 from findhome.geo.store import ZoneSet, load_zones
 
 
@@ -59,7 +59,7 @@ def compile_area(cfg: dict[str, Any] | None, zones: ZoneSet | None) -> CompiledA
     cfg = cfg or {}
     buffer_m = float(cfg.get("buffer_m", 1500))
     raw = cfg.get("pieces") or []
-    erasers = [to_metric(shape(p["geometry"])) for p in raw if p.get("kind") == "eraser"]
+    erasers = [polygonal(to_metric(shape(p["geometry"]))) for p in raw if p.get("kind") == "eraser"]
     cut = unary_union(erasers) if erasers else None
     pieces: list[Piece] = []
     missing: list[str] = []
@@ -73,9 +73,9 @@ def compile_area(cfg: dict[str, Any] | None, zones: ZoneSet | None) -> CompiledA
             missing += [z for z in ids if not zones or z not in zones.zones]
             if not found:
                 continue
-            geom = unary_union(found)
+            geom = unary_union([polygonal(g) for g in found])
         else:
-            geom = to_metric(shape(p["geometry"]))
+            geom = polygonal(to_metric(shape(p["geometry"])))
         if cut is not None:
             geom = geom.difference(cut)
         if geom.is_empty:

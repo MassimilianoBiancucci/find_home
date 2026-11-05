@@ -273,6 +273,9 @@ estimates (`zones`, `zones_real`) and lists the zones with only failed routes.
 Stockholm), grouped by Stockholm's stadsdelsområden from OSM. `findhome geo fetch zones`
 ([`geo/build_zones.py`](../../backend/src/findhome/geo/build_zones.py)) downloads them, simplifies them and writes
 `data/geo/zones.geojson` (gitignored), and seeds `area_aliases.yaml` from OSM place names when it is empty.
+[`load_zones()`](../../backend/src/findhome/geo/store.py) repairs invalid outlines (a self-touching ring in the
+source data) with [`polygonal()`](../../backend/src/findhome/geo/crs.py), so unions over many zones (a whole-region
+search area, the analysed region) do not fail; the area compiler repairs drawn shapes and erasers the same way.
 [`geo/store.py`](../../backend/src/findhome/geo/store.py) loads the file once per process (reloaded when it
 changes) with an STRtree. Geometry runs in SWEREF 99 TM (EPSG:3006, metres) through
 [`geo/crs.py`](../../backend/src/findhome/geo/crs.py); files and the API use WGS84.

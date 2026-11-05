@@ -71,6 +71,21 @@ def test_zone_pieces_use_the_zones_file():
     assert r.inside and r.zone["id"] == zid
 
 
+
+def test_invalid_outlines_are_repaired_before_the_union():
+    """One self-touching (bow-tie) outline used to break the union of a whole-region zone piece."""
+    from shapely.geometry import Polygon
+
+    from findhome.geo.crs import polygonal
+
+    bow = Polygon([(X0, Y0), (X0 + 1000, Y0 + 1000), (X0 + 1000, Y0), (X0, Y0 + 1000)])
+    assert not bow.is_valid
+    fixed = polygonal(bow)
+    assert fixed.is_valid and fixed.area == pytest.approx(500_000)
+    a = area([{"id": "drawn", "kind": "shape", "weight": 1.0, "geometry": gj(bow)},
+              {"id": "sq", "kind": "shape", "weight": 0.5, "geometry": gj(SQ)}])
+    assert a.union.is_valid and len(a.pieces) == 2
+
 @pytest.fixture
 def area_repo(tmp_repo):
     (tmp_repo / "config" / "search_area.yaml").write_text(json.dumps(
