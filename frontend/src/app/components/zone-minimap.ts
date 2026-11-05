@@ -6,6 +6,10 @@ import { ZoneGeoStore } from '../services/zone-geo.store';
 import { installBlip, installPin, pinId } from './map-icons';
 
 const ZONE = '#ff8c1a';
+/** Zoom-in from "the whole analysed area": 0.26 levels keep √0.7 of its width and height, so 70 % of it, in view. */
+export const AREA_ZOOM_IN = Math.log2(1 / Math.sqrt(0.7));
+/** Pixels kept between the home's pin and the frame (more at the top: the pin stands up from the address). */
+const EDGE = 22, EDGE_TOP = 46;
 const PIN = pinId('home', '#b45cf0');
 type FC = { type: 'FeatureCollection'; features: any[] };
 const fc = (features: any[]): FC => ({ type: 'FeatureCollection', features });
@@ -21,8 +25,8 @@ export function bounds(geom: any, extra: number[][] = []): [[number, number], [n
 }
 
 /**
- * A small locator map: the home's zone filled orange in its surroundings, the area outside the analysed zones grey,
- * a standing pin on the home, and the zone's name. Outside every zone: the pin only, in the grey. Not interactive;
+ * A small locator map: most of the analysed area (at least 70 %), the home's zone filled orange, the area outside the
+ * analysed zones grey, a standing pin on the home, and the zone's name. Outside every zone: the pin only, in the grey. Not interactive;
  * one map per instance, redrawn in place when the inputs change (the list tooltip reuses one).
  */
 @Component({
@@ -126,19 +130,22 @@ export class ZoneMinimap {
     add({ id: 'mm-mask', type: 'fill', source: 'mm-mask', paint: { 'fill-color': '#9a9aa6', 'fill-opacity': 0.55 } });
     add({ id: 'mm-zones', type: 'line', source: 'mm-zones', paint: { 'line-color': '#c9b8ff', 'line-opacity': 0.25, 'line-width': 0.6 } });
     add({ id: 'mm-zone-fill', type: 'fill', source: 'mm-zone', paint: { 'fill-color': ZONE, 'fill-opacity': 0.42 } });
-    add({ id: 'mm-zone-glow', type: 'line', source: 'mm-zone', paint: { 'line-color': ZONE, 'line-width': 7, 'line-blur': 5, 'line-opacity': 0.55 } });
+    add({ id: 'mm-zone-glow', type: 'line', source: 'mm-zone', paint: { 'line-color': ZONE, 'line-width': 10, 'line-blur': 6, 'line-opacity': 0.7 } });
     add({ id: 'mm-zone-line', type: 'line', source: 'mm-zone', paint: { 'line-color': '#ffb066', 'line-width': 2 } });
     add({ id: 'mm-pin', type: 'symbol', source: 'mm-here',
       layout: { 'icon-image': PIN, 'icon-anchor': 'bottom', 'icon-size': 0.78, 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-    // the zone in its surroundings (zoomed out a little), the home alone at city scale, or the whole area
-    const b = zone ? bounds(zone.geometry, here ? [here] : []) : null;
-    if (b) {
-      const cam = map.cameraForBounds(b, { padding: 30, maxZoom: 14 });
-      if (cam) map.jumpTo({ center: cam.center, zoom: Math.max(9, (cam.zoom ?? 12) - 1.1) });
-    } else if (here) map.jumpTo({ center: here as [number, number], zoom: 11.5 });
-    else {
-      const rb = this.region ? bounds(this.region.outline) : null;
-      if (rb) map.fitBounds(rb, { padding: 10, duration: 0 });
+    // most of the analysed area, so the home's place in the city is clear: zoomed in on it just enough to keep at
+    // least 70 % of it in view, then moved only as far as needed to keep the home's pin inside the frame
+    const rb = this.region ? bounds(this.region.outline) : null;
+    const cam = rb ? map.cameraForBounds(rb, { padding: 6 }) : null;
+    if (cam) map.jumpTo({ center: cam.center, zoom: (cam.zoom ?? 10) + AREA_ZOOM_IN });
+    else if (here) map.jumpTo({ center: here as [number, number], zoom: 11 });
+    if (cam && here) {
+      const p = map.project(here as [number, number]), c = map.getCanvas();
+      const w = c.clientWidth, h = c.clientHeight;
+      const dx = p.x < EDGE ? p.x - EDGE : p.x > w - EDGE ? p.x - (w - EDGE) : 0;
+      const dy = p.y < EDGE_TOP ? p.y - EDGE_TOP : p.y > h - EDGE ? p.y - (h - EDGE) : 0;
+      if (dx || dy) map.panBy([dx, dy], { duration: 0 });
     }
   }
 }

@@ -364,8 +364,6 @@ pre.fh-pre {
     fh-info { margin-left: auto; } }
 }
 .fh-hcard-main { box-shadow: inset 3px 0 0 var(--fh-violet); }
-/* the listing page's locator: stays in view on the side while the page scrolls (cards below pass under it) */
-.fh-where { position: sticky; top: 10px; z-index: 6; margin-bottom: 1rem; background-color: var(--bs-body-bg); }
 /* the candidates list's hover card */
 .fh-ltip { position: fixed; z-index: 1080; width: 380px; pointer-events: none; padding: 10px; border-radius: 10px;
   background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);

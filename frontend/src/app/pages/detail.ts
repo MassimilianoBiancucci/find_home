@@ -106,7 +106,7 @@ import { TagsStore } from '../services/tags.store';
       </div>
 
       <div class="col-lg-5">
-        <div class="fh-hcard fh-where">
+        <div class="fh-hcard">
           <header><h2>Where</h2><span class="fh-hsub">{{ x.listing.area }}</span><fh-info id="listing.where" /></header>
           <fh-zone-minimap [lat]="x.listing.lat" [lon]="x.listing.lon" [zoneId]="x.listing.zone_id" [zoneName]="x.listing.zone_name" [height]="230" />
         </div>

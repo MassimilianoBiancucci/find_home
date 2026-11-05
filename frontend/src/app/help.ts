@@ -94,7 +94,7 @@ export const HELP: Record<string, HelpEntry> = {
   },
 
   'listing.where': {
-    title: 'Where', short: 'The home\'s zone in its surroundings: the zone filled orange, the pin on the address, everything outside the 263 analysed zones grey. A home outside every zone shows the pin only, in the grey. The map stays on the side while the page scrolls.',
+    title: 'Where', short: 'Where the home is in the analysed area: at least 70 % of the 263 zones in view, the home\'s zone filled orange, the pin on the address, everything outside the zones grey. A home outside every zone shows the pin only, in the grey.',
     config: ['config/geo.yaml → zones (findhome geo fetch zones)'],
   },
   'listing.commute': {
