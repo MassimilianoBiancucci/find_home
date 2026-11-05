@@ -37,6 +37,19 @@ def test_search_page_documents_and_mapping():
     assert c.address_raw == "Ribegatan 12, Kista"
 
 
+
+def test_whole_gallery_kept_photos_and_plans_split_in_order():
+    mod = qasa_module()
+    uploads = [{"type": "home_picture", "order": 20 - i, "url": f"https://img.example/p{20 - i}.jpg"} for i in range(20)]
+    uploads += [{"type": "home_layout_picture", "order": 25, "url": "https://img.example/plan2.png"},
+                {"type": "home_layout_picture", "order": 3, "url": "https://img.example/plan1.png"},
+                {"type": "home_picture", "order": 30, "url": None}]
+    doc = {"id": 1, "uploads": uploads, "location": {"locality": "Exempelby", "point": {"lat": 59.3, "lon": 18.0}}}
+    item = mod.document_to_listing(doc)
+    assert item.photo_urls == [f"https://img.example/p{i}.jpg" for i in range(1, 21)]
+    assert item.floorplan_urls == ["https://img.example/plan1.png", "https://img.example/plan2.png"]
+    assert item.attributes["photo_count"] == 20
+
 def test_detail_facts_only_for_that_home():
     mod = qasa_module()
     facts = mod.detail_facts((FIX / "detail_page.html").read_text(), "1497003")

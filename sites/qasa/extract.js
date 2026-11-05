@@ -10,6 +10,7 @@
 // inbox/qasa-<UTC yyyymmddThhmmss>-p<page>.json with "site":"qasa","parser":"qasa","source":"agent_browser"
 // added (or ingest it: scripts/findhome ingest listings -f <file> --parser qasa --source agent_browser).
 (() => {
+  const MAX_UPLOADS = 40;   // per type (photos, floor plans)
   const since = window.FH_SINCE ? Date.parse(window.FH_SINCE) : null;
   const all = []; let meta = {};
   for (const s of document.querySelectorAll('script')) {
@@ -34,8 +35,11 @@
     description: (n.description || '').slice(0, 400),
     location: n.location && { locality: n.location.locality, route: n.location.route,
       streetNumber: n.location.streetNumber, point: n.location.point && { lat: n.location.point.lat, lon: n.location.point.lon } },
-    uploads: (n.uploads || []).slice().sort((a, b) => (a.order || 0) - (b.order || 0)).slice(0, 6)
-      .map((u) => ({ order: u.order, type: u.type, url: u.url })),
+    // Every photo and floor plan, in upload order (search results carry the full gallery). Split by type before the
+    // cap so a floor plan ordered late is kept; 40 per type keeps the inbox file small.
+    uploads: ['home_picture', 'home_layout_picture'].flatMap((type) => (n.uploads || [])
+      .filter((u) => u.type === type && u.url).sort((a, b) => (a.order || 0) - (b.order || 0)).slice(0, MAX_UPLOADS)
+      .map((u) => ({ order: u.order, type: u.type, url: u.url }))),
   }));
   const page = Number(new URL(location.href).searchParams.get('page') || 1);
   return { page, ...meta, on_page: all.length, new_count: docs.length,

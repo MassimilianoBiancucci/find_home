@@ -3,13 +3,14 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
-import { CommuteRow, ListingDetail } from '../models';
+import { GalleryComponent } from '../components/gallery';
+import { CommuteRow, Listing, ListingDetail } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
@@ -28,6 +29,8 @@ import { TagsStore } from '../services/tags.store';
   @if (d(); as x) {
     <div class="row g-3">
       <div class="col-lg-7">
+        <fh-gallery [photos]="x.listing.photo_urls" [plans]="x.listing.floorplan_urls" [link]="x.listing.canonical_url"
+          [incomplete]="galleryIncomplete(x.listing)" />
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">{{ x.listing.title || x.listing.address_raw }}</h2>
           <div class="mb-2">{{ x.listing.area }} · {{ x.listing.address_raw }}</div>
@@ -41,12 +44,6 @@ import { TagsStore } from '../services/tags.store';
           </div>
           @if (x.listing.pet_evidence) { <div class="small mt-2">Pets: “{{ x.listing.pet_evidence }}”</div> }
           @if (x.listing.description_excerpt) { <p class="small text-body-secondary mt-2 mb-0">{{ x.listing.description_excerpt }}</p> }
-          @if (x.listing.floorplan_urls.length || x.listing.photo_urls.length) {
-            <div class="small mt-2">
-              @for (u of x.listing.floorplan_urls; track u; let i = $index) { <a [href]="u" target="_blank" rel="noopener" class="me-2">floor plan {{ i + 1 }}</a> }
-              @for (u of x.listing.photo_urls.slice(0, 6); track u; let i = $index) { <a [href]="u" target="_blank" rel="noopener" class="me-2">photo {{ i + 1 }}</a> }
-            </div>
-          }
         </div></div>
 
         <div class="card mb-3"><div class="card-body">
@@ -160,6 +157,8 @@ export class DetailPage {
     this.api.listing(id).subscribe({ next: (x) => { this.d.set(x); this.error.set(''); }, error: (e) => this.error.set(apiError(e)) });
     this.api.digest(id, true).subscribe({ next: (t) => this.digest.set(t), error: () => {} });
   }
+  /** Scans before the full-gallery fix kept 6 photos and no photo_count: the next browser scan fills them in. */
+  galleryIncomplete(l: Listing): boolean { return l.photo_urls.length === 6 && l.attributes?.['photo_count'] == null; }
   min(v: number | null): string { return v == null ? '–' : `${Math.round(v)}′`; }
   spread(c: CommuteRow): boolean { return (c.spread_min ?? 0) > 10; }
   toggle(k: string): void { this.picked.has(k) ? this.picked.delete(k) : this.picked.add(k); }

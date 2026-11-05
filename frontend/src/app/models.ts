@@ -29,6 +29,7 @@ export interface Listing {
   description_excerpt?: string | null;
   photo_urls: string[];
   floorplan_urls: string[];
+  attributes?: Record<string, unknown> | null;
   status: string;
   first_seen_at: string;
   last_changed_at: string;

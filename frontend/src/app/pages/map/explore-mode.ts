@@ -1,7 +1,8 @@
 import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { Router } from '@angular/router';
-import { TransitLine } from '../../models';
+import { Listing, TransitLine } from '../../models';
+import { GalleryComponent } from '../../components/gallery';
 import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
 import { blipUrl } from '../../components/map-icons';
@@ -16,7 +17,7 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
 /** Explore mode: layers on/off (base + POI categories), legend, inspector for the clicked item and the test point. */
 @Component({
   selector: 'fh-explore-mode',
-  imports: [DecimalPipe, ProbePanel, SavedProbesList],
+  imports: [DecimalPipe, ProbePanel, SavedProbesList, GalleryComponent],
   template: `
   <ng-template #layersTpl>
     @for (t of toggles; track t.id) {
@@ -79,6 +80,7 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
       @case ('listing') {
         @let p = sel()!.props;
         <h6 class="mb-1">{{ p['short_id'] }} · {{ p['area'] ?? '' }}</h6>
+        @if (photos(); as ph) { <fh-gallery [compact]="true" [photos]="ph.photo_urls" [plans]="ph.floorplan_urls" [link]="ph.canonical_url" /> }
         <dl class="fh-kv">
           <dt>Rent</dt><dd>{{ p['rent_sek'] ?? '?' }} kr</dd>
           <dt>Rooms</dt><dd>{{ p['rooms_rok'] ?? '?' }} rok</dd>
@@ -140,6 +142,9 @@ export class ExploreMode {
   protected transit = inject(TransitLayersService);
   private api = inject(ApiService);
   protected line = signal<TransitLine | null>(null);
+  /** Photos of the selected listing: the map features do not carry them, so they are fetched once per listing. */
+  protected photos = signal<Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'> | null>(null);
+  private photoCache = new Map<string, Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'>>();
   private probe = inject(ProbeService);
   private layout = inject(LayoutService);
   private router = inject(Router);
@@ -160,6 +165,8 @@ export class ExploreMode {
       const s = this.sel();
       untracked(() => {
         this.line.set(null);
+        this.photos.set(null);
+        if (s?.kind === 'listing' && s.props['short_id']) this.loadPhotos(String(s.props['short_id']));
         if (s?.kind === 'feature' && s.props['kind'] === 'line' && s.props['ref'])
           this.api.transitLine(s.props['mode'], s.props['ref']).subscribe({ next: (l) => this.line.set(l), error: () => {} });
       });
@@ -172,6 +179,18 @@ export class ExploreMode {
   }
 
   protected icon(glyph: string | null | undefined, color: string | null | undefined): string { return blipUrl(glyph, color); }
+  private loadPhotos(id: string): void {
+    const hit = this.photoCache.get(id);
+    if (hit) { this.photos.set(hit); return; }
+    this.api.listing(id).subscribe({
+      next: (d) => {
+        const ph = { photo_urls: d.listing.photo_urls, floorplan_urls: d.listing.floorplan_urls, canonical_url: d.listing.canonical_url };
+        this.photoCache.set(id, ph);
+        if (this.sel()?.props['short_id'] === id) this.photos.set(ph);
+      },
+      error: () => {},
+    });
+  }
   protected open(id: string): void { this.router.navigate(['/candidates', id]); }
   protected probeAt(lat: number, lon: number): void { this.probe.set(lat, lon); }
   protected stationLines(lines: Record<string, string[]>): { mode: string; label: string; color: string; refs: string[] }[] {

@@ -33,6 +33,7 @@ from findhome.scanning.generic import HttpListScanner
 
 BASE = "https://qasa.com"
 APOLLO_RE = re.compile(r'<script>(\(window\[Symbol\.for\("ApolloSSRDataTransport"\)\][\s\S]*?)</script>')
+MAX_UPLOADS = 40                   # per type; search results carry the whole gallery (extract.js keeps the same cap)
 HOME_TYPES = {"apartment": "Lägenhet", "terrace_house": "Radhus", "house": "Villa", "villa": "Villa",
               "cottage": "Stuga", "duplex": "Parhus", "corridor": "Korridorsrum", "loft": "Loft"}
 
@@ -78,8 +79,8 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
     street = " ".join(str(x) for x in (loc.get("route"), loc.get("streetNumber")) if x)
     address = ", ".join(x for x in (street, loc.get("locality")) if x) or None
     uploads = sorted(doc.get("uploads") or [], key=lambda u: u.get("order") or 0)
-    photos = [u["url"] for u in uploads if u.get("type") == "home_picture" and u.get("url")]
-    plans = [u["url"] for u in uploads if u.get("type") == "home_layout_picture" and u.get("url")]
+    photos = [u["url"] for u in uploads if u.get("type") == "home_picture" and u.get("url")][:MAX_UPLOADS]
+    plans = [u["url"] for u in uploads if u.get("type") == "home_layout_picture" and u.get("url")][:MAX_UPLOADS]
     pets = doc.get("petsAllowed")
     if doc.get("shared"):
         contract = "sublet"
@@ -91,6 +92,7 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
                                     "smokingAllowed", "wheelchairAccessible", "studentHome", "seniorHome",
                                     "corporateHome", "instantSign", "publishedAt") if doc.get(k) is not None}
     attrs["qasa_pets_allowed"] = pets
+    attrs["photo_count"] = len(photos)     # tells the UI the gallery is complete (older scans kept only 6)
     if doc.get("endDate") is None:
         attrs["open_ended"] = True     # "Tillsvidare"
     return ListingIn(
@@ -115,7 +117,7 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
         pet_status="yes" if pets is True else "unknown",
         pet_evidence="Qasa house rules: pets allowed (petsAllowed=true)" if pets is True else None,
         description_excerpt=(doc.get("description") or "")[:1200] or None,
-        photo_urls=photos[:12],
+        photo_urls=photos,
         floorplan_urls=plans,
         attributes=attrs,
     )

@@ -58,6 +58,10 @@ per page. Each `HomeDocument` has: `id`, `monthlyCost` (rent + `tenantBaseFee`),
 `endDate`, `description`, `location {route, streetNumber (often null), locality, point {lat, lon}}`,
 `uploads [{type: home_picture | home_layout_picture, order, url}]`, `platform` (qasa | blocket), `publishedAt`.
 `sites/qasa/scanner.py` maps them to `ListingIn`; nothing is read from the visible HTML.
+`uploads` holds the **whole gallery** (up to ~20 photos, plus floor plans): `extract.js` and the scanner keep every
+`home_picture` as `photo_urls` and every `home_layout_picture` as `floorplan_urls`, in `order`, split by type before
+a cap of 40 each; `attributes.photo_count` records how many photos the scan saw. Images are served from Qasa's S3
+bucket (`qasa-static-prod`), which the app's gallery loads directly in the browser.
 
 **Detail pages** `https://qasa.com/se/sv/home/<id>` carry, in Next.js flight data, the `Home` object with
 `floor`, `buildingFloors`, `buildYear`, renovation years, additional costs and `traits` (balcony, french_balcony,

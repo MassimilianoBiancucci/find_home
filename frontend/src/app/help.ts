@@ -61,6 +61,13 @@ export const HELP: Record<string, HelpEntry> = {
   'bubble.area-pieces': { title: 'Area pieces', short: 'The pieces of your search area, each with a weight that scales the area score.', config: ['config/search_area.yaml'] },
   'bubble.area-zones': { title: 'Zones', short: 'The zones (districts) of the region, grouped by municipality and district.' },
 
+  // ── Listing ───────────────────────────────────────────────────────────────────────────
+  'gallery': {
+    title: 'Photos', short: 'The ad\'s photos and floor plans, shown from the listing site\'s own image links. They are stored when the site is scanned; a removed ad\'s images may stop loading.',
+    long: 'Qasa is scanned in your browser (the site refuses scripted requests), and each scan stores every photo and floor plan of the search results. Listings scanned before the full-gallery fix kept only 6 photos; the next browser scan fills them in.',
+    config: ['sites/qasa/extract.js', 'sites/qasa/scanner.py'],
+  },
+
   // ── Right panels ──────────────────────────────────────────────────────────────────────
   'panel.Inspector': { title: 'Inspector', short: 'Details of what you clicked on the map, and the test point analysis.' },
   'panel.Connectivity': { title: 'Connectivity', short: 'The selected zone\'s travel minutes to each of your points, per window, with the route status.' },

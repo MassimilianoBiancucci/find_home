@@ -93,6 +93,14 @@ sites, runs, settings) and a folder for the map. [`services/api.service.ts`](../
 [`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF).
 Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
 
+**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) shows a listing's `photo_urls` and
+`floorplan_urls` (Photos / Floor plans tabs, thumbnails, a full-screen viewer with arrow keys, Esc, swipe and
+double-click for 1:1). It loads the images lazily from the site's own URLs; images that fail to load are dropped
+from the count. The detail page shows it at the top; the map's listing panel shows a three-thumbnail strip
+(`compact`), fetching the listing on selection because map features carry no photos. Listings with exactly 6
+photos and no `attributes.photo_count` come from scans that kept only 6, and the gallery says the next browser
+scan fills them in.
+
 The shell ([`app.html`](../../frontend/src/app/app.html)) has three boxes, like the Telia debug UI: box 1 holds
 the navigation bubble (pages, with the map modes as child entries) and the bubbles of the active page; box 2 is
 the routed page; box 3 is an optional right panel. A page publishes its bubbles and panel as `TemplateRef`s
