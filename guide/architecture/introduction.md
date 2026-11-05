@@ -154,7 +154,7 @@ stations in order or the lines serving a station.
 [`ConnectivityService`](../../frontend/src/app/pages/map/connectivity.service.ts) holds the zone × point matrix:
 the Connectivity mode ([`connectivity-mode.ts`](../../frontend/src/app/pages/map/connectivity-mode.ts)) fills the zones
 by minutes for one point or the weighted mix (grey: only failed routes, or only estimates while "exclude estimates"
-is on), or by a mobility index percentile (transport, transport + services; average or one time window). Its Matrix bubble shows the route counts per status and the refresh actions with their cost in calls
+is on), or by the transport index percentile (average or one time window). Its Matrix bubble shows the route counts per status and the refresh actions with their cost in calls
 (Refresh, Retry failed, Update stale); [`connectivity-dialogs.ts`](../../frontend/src/app/pages/map/connectivity-dialogs.ts)
 holds the pause decision dialog and the route list (filter by status, point, zone; a row flies to the zone). Explore
 can show a light tint of
@@ -185,7 +185,9 @@ stateDiagram-v2
 | camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L261) |
 
 The right panel shows, in order:
-- the two mobility indices (value, percentile, component bars, a one-line insight);
+- the three zone indices (transport, services, combined: value, percentile, an ⓘ with the derivation), a one-line
+  insight, and two collapsed sections: transport components and services per set (walk, count within reach,
+  score), each with "How is this calculated?";
 - "Where the best trips start": the zone's connectivity centroids and, per route, the rail vs bus share of the ride
   near the zone. The Zone bubble's **Show centroids** switch (off by default, remembered like other layers) draws
   each centroid with its `centroids.range_m` circle, a polygon in metres so it keeps its size when tilted;

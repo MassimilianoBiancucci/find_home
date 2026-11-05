@@ -221,6 +221,8 @@ class ZoneConfig(_Base):
     target_sets: dict[str, TargetSet]
     homes: dict[str, Any] = Field(default_factory=dict)
     indices: dict[str, Any] = Field(default_factory=dict)
+    combined: dict[str, Any] = Field(default_factory=dict)       # parts: {transport: 0.5, services: 0.5}
+    density: dict[str, Any] = Field(default_factory=dict)        # per_homes: 1000
     centroids: dict[str, Any] = Field(default_factory=dict)
 
 

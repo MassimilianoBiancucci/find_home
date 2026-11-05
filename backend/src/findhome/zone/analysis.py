@@ -49,8 +49,8 @@ def version(bundle: ConfigBundle, sets: list[str]) -> str:
     pois = sorted({c for s in sets for c in bundle.zone.target_sets[s].poi})
     poi_mtimes = [(c, (data_dir() / "geo" / "poi" / f"{c}.geojson").stat().st_mtime)
                   for c in pois if (data_dir() / "geo" / "poi" / f"{c}.geojson").exists()]
-    blob = json.dumps([bundle.raw["zone"], _meta("network"), _meta("buildings"), _meta("timetable"), poi_mtimes],
-                      sort_keys=True, default=str)
+    blob = json.dumps([bundle.raw["zone"], bundle.raw.get("poi"), _meta("network"), _meta("buildings"), _meta("timetable"),
+                       poi_mtimes], sort_keys=True, default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
 
@@ -185,9 +185,41 @@ def index_sets(bundle: ConfigBundle) -> list[str]:
     return sorted({"rail", "bus", *bundle.zone.indices.get("services", {}).get("sets", [])} & set(bundle.zone.target_sets))
 
 
+def set_weights(bundle: ConfigBundle) -> dict[str, float]:
+    """Weight of each target set in the services index: the highest poi.yaml weight among its categories
+    (sets without POI categories, such as stop sets, weigh 1)."""
+    cats = bundle.poi.categories
+    out = {}
+    for sid, ts in bundle.zone.target_sets.items():
+        ws = [cats[c].weight for c in ts.poi if c in cats]
+        out[sid] = max(ws) if ws else 1.0
+    return out
+
+
+def density(bundle: ConfigBundle, zones: ZoneSet, zone_id: str, homes: list[tuple[float, float, float]]) -> dict[str, Any]:
+    """Per services set: POIs inside the zone, per 1,000 homes (home units: buildings weighted by floors) and per km²."""
+    from shapely.geometry import Point
+    from shapely.prepared import prep
+
+    z = zones.zones[zone_id]
+    inside = prep(z.geom)
+    home_units = sum(w for x, y, w in homes if inside.contains(Point(x, y)))
+    area = z.props.get("area_km2") or (z.geom.area / 1e6)
+    per = float((bundle.zone.density or {}).get("per_homes", 1000))
+    out: dict[str, Any] = {}
+    for sid in bundle.zone.indices.get("services", {}).get("sets", []):
+        ts = bundle.zone.target_sets.get(sid)
+        if ts is None or not ts.poi:
+            continue
+        n = len(target_points(ts.model_copy(update={"stops": []}), z.geom, None, load_poi))
+        out[sid] = {"count": n, "per_1000_homes": round(per * n / home_units, 2) if home_units else None,
+                    "per_km2": round(n / area, 2) if area else None}
+    return {"home_units": round(home_units, 1), "area_km2": round(area, 3) if area else None, "sets": out}
+
+
 def zone_indices(bundle: ConfigBundle, zones: ZoneSet, zone_id: str) -> dict[str, Any]:
     from findhome.zone.heatmap import ExtentGraph
-    from findhome.zone.indices import indices
+    from findhome.zone.indices import ServiceInput, choice_cfg, indices, service_set_score
     from findhome.zone.measure import measure
 
     if not bundle.zone.indices:
@@ -199,12 +231,22 @@ def zone_indices(bundle: ConfigBundle, zones: ZoneSet, zone_id: str) -> dict[str
         raise MissingData("no walking network yet: run `findhome geo fetch network`")
     p = params(bundle, "walk")
     found = targets_for(bundle, ext, sets)
-    eg = ExtentGraph(net, ext, p, load_homes(ext.kommuner))
+    homes = load_homes(ext.kommuner)
+    eg = ExtentGraph(net, ext, p, homes)
     comps, detail = measure(bundle, ext, eg, load_timetable(), {s: [pt for pt, _ in v] for s, v in found.items()}, p)
-    return {"zone_id": zone_id, **indices(comps, bundle.zone.indices),
+    weights = set_weights(bundle)
+    ix = indices(comps, bundle.zone.indices, weights, (bundle.zone.combined or {}).get("parts"))
+    services_detail = {sid: {"label": bundle.zone.target_sets[sid].label, "walk_min": comps.services_min.get(sid),
+                             "choice": comps.services_choice.get(sid), "weight": weights.get(sid, 1.0),
+                             "score": service_set_score(ServiceInput(comps.services_min.get(sid), comps.services_choice.get(sid)),
+                                                        bundle.zone.indices)}
+                       for sid in bundle.zone.indices["services"]["sets"] if sid in comps.services_min}
+    return {"zone_id": zone_id, **ix, "services_detail": services_detail,
+            "choice_within_min": choice_cfg(bundle.zone.indices)["within_min"],
+            "density": density(bundle, zones, zone_id, homes),
             "measured": {"rail_access_min": comps.rail_access_min, "bus_access_min": comps.bus_access_min,
                          "coverage": comps.coverage, "lines": comps.lines, "frequency": comps.frequency,
-                         "services_min": comps.services_min, **detail}}
+                         "services_min": comps.services_min, "services_choice": comps.services_choice, **detail}}
 
 
 def percentiles(values: dict[str, float | None]) -> dict[str, float | None]:

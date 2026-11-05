@@ -37,28 +37,40 @@ async def zone_at(lat: float, lon: float):
 
 @router.get("/indices")
 async def all_indices(window: str | None = None, conn=Depends(get_conn)):
-    """Every zone's stored indices for the current inputs, with percentiles (the map colours by them)."""
+    """Every zone's stored indices (transport, services, combined) and POI density for the current inputs, with
+    percentiles (the map colours by them). `window` picks one time window for transport and combined."""
     b = bundle()
     ver = za.version(b, za.index_sets(b))
     rows = await (await conn.execute("SELECT zone_id, payload FROM zone_index WHERE version = %s", (ver,))).fetchall()
 
     def value(pl: dict, key: str):
+        if key == "services":                       # services has no time window
+            return pl.get(key)
         return pl["windows"].get(window, {}).get(key) if window else pl.get(key)
 
-    out = {}
-    for key in ("transport", "transport_services"):
+    out: dict[str, dict] = {}
+    for key in ("transport", "services", "combined"):
         vals = {r["zone_id"]: value(r["payload"], key) for r in rows}
         pct = za.percentiles(vals)
         for zid, v in vals.items():
             out.setdefault(zid, {})[key] = {"value": v, "percentile": pct[zid]}
+    # POI density per services set and unit, with percentiles (Explore heatmaps)
+    sets = sorted({s for r in rows for s in ((r["payload"].get("density") or {}).get("sets") or {})})
+    for sid in sets:
+        for unit in ("count", "per_1000_homes", "per_km2"):
+            vals = {r["zone_id"]: ((r["payload"].get("density") or {}).get("sets") or {}).get(sid, {}).get(unit) for r in rows}
+            pct = za.percentiles(vals)
+            for zid, v in vals.items():
+                out[zid].setdefault("density", {}).setdefault(sid, {})[unit] = {"value": v, "percentile": pct[zid]}
     windows = list((b.zone.indices or {}).get("windows", {}))
-    return {"version": ver, "window": window, "windows": windows, "zones": out, "count": len(rows),
+    return {"version": ver, "window": window, "windows": windows, "density_sets": sets, "zones": out, "count": len(rows),
             "zone_count": len(_zones_or_404().zones)}
 
 
 @router.get("/{zone_id}/indices")
 async def zone_indices(zone_id: str, conn=Depends(get_conn)):
-    """Mobility indices of one zone; computed once per inputs version (a few seconds), then from zone_index."""
+    """Indices of one zone (transport, services, combined, with derivations, per-set services detail and POI
+    density); computed once per inputs version (a few seconds), then from zone_index."""
     b, zones = bundle(), _zones_or_404()
     if zone_id not in zones.zones:
         raise HTTPException(404, "unknown zone")

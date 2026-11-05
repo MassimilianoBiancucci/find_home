@@ -8,11 +8,12 @@ import { ConnectivityDecision, ConnectivityRoutesDialog } from './connectivity-d
 import { ConnectivityService, IDX_RAMP, RAMP, SCOPE_LABELS, STATUS_COLOURS } from './connectivity.service';
 import { MapStateService } from './map-state.service';
 import { ProbePanel } from './probe-panel';
+import { InfoButton } from '../../components/info';
 
 /** Connectivity mode: zones coloured by commute minutes to your points (one point or the weighted mix). */
 @Component({
   selector: 'fh-connectivity-mode',
-  imports: [DecimalPipe, RouterLink, ProbePanel, ConnectivityDecision, ConnectivityRoutesDialog],
+  imports: [DecimalPipe, RouterLink, ProbePanel, ConnectivityDecision, ConnectivityRoutesDialog, InfoButton],
   template: `
   <ng-template #viewTpl>
     @if (conn.matrix(); as m) {
@@ -25,9 +26,7 @@ import { ProbePanel } from './probe-panel';
       }
       <div class="fh-section mt-2">Mobility index</div>
       <label class="fh-row"><input type="radio" class="form-check-input" name="cview" [checked]="conn.view() === 'idx:transport'" (change)="conn.setView('idx:transport')" />
-        <span class="fh-grow">Transport</span></label>
-      <label class="fh-row"><input type="radio" class="form-check-input" name="cview" [checked]="conn.view() === 'idx:transport_services'" (change)="conn.setView('idx:transport_services')" />
-        <span class="fh-grow">Transport + services</span></label>
+        <span class="fh-grow">Transport index</span><fh-info id="zone.transport" /></label>
       @if (conn.view().startsWith('idx:')) {
         @if (conn.indices(); as ix) {
           <select class="form-select form-select-sm mt-1" [value]="conn.indexWindow()" (change)="conn.setIndexWindow($any($event.target).value)">

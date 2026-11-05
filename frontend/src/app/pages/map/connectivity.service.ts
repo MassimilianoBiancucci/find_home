@@ -32,7 +32,7 @@ export class ConnectivityService {
   private state = inject(MapStateService);
   readonly matrix = signal<ConnectivityMatrix | null>(null);
   readonly job = signal<ConnectivityJob | null>(null);
-  readonly view = signal<string>('weighted');            // 'weighted', a point id, or 'idx:transport' / 'idx:transport_services'
+  readonly view = signal<string>('weighted');            // 'weighted', a point id, or 'idx:transport' (other indices: Explore)
   readonly indices = signal<IndicesMap | null>(null);
   readonly indexWindow = signal<string>('');              // '' = window-weighted average
   readonly opacity = signal(0.55);
@@ -153,7 +153,7 @@ export class ConnectivityService {
     const m = this.matrix();
     if (!this.zones || !m) return;
     const v = this.view();
-    const idxKey = v.startsWith('idx:') ? (v.slice(4) as 'transport' | 'transport_services') : null;
+    const idxKey = v === 'idx:transport' ? 'transport' as const : null;
     const idx = this.indices();
     const map = this.state.map();
     if (map?.getLayer('conn-fill')) map.setPaintProperty('conn-fill', 'fill-color', idxKey ? idxExpr : colourExpr);

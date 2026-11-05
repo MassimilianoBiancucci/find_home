@@ -553,7 +553,7 @@ def zone_heatmap(zone_id: str, sets: str = typer.Option("rail,bus", "--sets", he
 @zone_app.command("indices")
 def zone_indices_cmd(zone_id: Optional[str] = typer.Argument(None, help="one zone; omit with --all"),
                      all_zones: bool = typer.Option(False, "--all", help="compute every zone (a few seconds each)")):
-    """Mobility indices (transport, transport + services): one zone, or fill the cache for every zone."""
+    """Zone indices (transport, services, combined): one zone, or fill the cache for every zone (no API calls)."""
     api = _api()
     if not all_zones:
         if not zone_id:
@@ -561,11 +561,13 @@ def zone_indices_cmd(zone_id: Optional[str] = typer.Argument(None, help="one zon
             raise typer.Exit(2)
         r = api.get(f"/api/zone/{zone_id}/indices")
         m = r["measured"]
-        lines = [f"{zone_id}: transport {r['transport']} · transport + services {r['transport_services']} · services {r['services']}"]
+        lines = [f"{zone_id}: transport {r['transport']} · services {r['services']} · combined {r['combined']}"]
         lines += [f"  {w:10} transport {v['transport']} · lines {m['lines'].get(w)} · {m['frequency'].get(w)}/h"
                   for w, v in r["windows"].items()]
         lines.append(f"  walk: rail {m['rail_access_min']} min · bus {m['bus_access_min']} min · coverage {m['coverage']}"
                      f" · {m['reachable_stops']} stops within reach")
+        lines += [f"  {sid:10} walk {d['walk_min']} min · {d['choice']} within reach · score {d['score'] and round(d['score'], 2)}"
+                  f" · weight {d['weight']}" for sid, d in (r.get("services_detail") or {}).items()]
         _out(r, "\n".join(lines))
         return
     zones = api.get("/api/geo/zones")                  # served as application/geo+json: the client returns text
@@ -573,7 +575,7 @@ def zone_indices_cmd(zone_id: Optional[str] = typer.Argument(None, help="one zon
     for done, zid in enumerate(ids, 1):
         r = api.get(f"/api/zone/{zid}/indices")
         if not r.get("cached"):
-            typer.echo(f"{done}/{len(ids)} {zid}: transport {r['transport']} · + services {r['transport_services']}")
+            typer.echo(f"{done}/{len(ids)} {zid}: transport {r['transport']} · services {r['services']} · combined {r['combined']}")
     _out({"zones": len(ids)}, f"indices ready for {len(ids)} zones")
 
 

@@ -1,4 +1,5 @@
 // Shapes returned by the find_home API (backend/src/findhome/api). Numeric DB columns arrive as numbers.
+import { Derivation } from './help';
 export type PetStatus = 'yes' | 'no' | 'ask' | 'unknown';
 
 export interface Listing {
@@ -196,18 +197,26 @@ export interface ZoneLine {
   departures: number[] | null; peak_per_hour: number | null;
 }
 export interface ZoneLines { zone_id: string; day_kind: string; source: string; ref_date: string | null; lines: ZoneLine[]; nearby_lines: ZoneLine[]; }
-export interface ZoneIndexWindow { transport: number | null; transport_services: number | null; components: Record<string, number | null>; }
+export interface ZoneIndexWindow { transport: number | null; combined: number | null; components: Record<string, number | null>; }
+export type IndexKey = 'transport' | 'services' | 'combined';
+export interface ServiceDetail { label: string; walk_min: number | null; choice: number | null; weight: number; score: number | null; }
+export interface DensityUnits { count: number; per_1000_homes: number | null; per_km2: number | null; }
 export interface ZoneIndices {
-  zone_id: string; transport: number | null; transport_services: number | null; services: number | null;
+  zone_id: string; transport: number | null; services: number | null; combined: number | null;
   windows: Record<string, ZoneIndexWindow>; cached: boolean;
+  derivation: Record<IndexKey, Derivation>;
+  services_detail: Record<string, ServiceDetail>;
+  choice_within_min: number;
+  density: { home_units: number; area_km2: number | null; sets: Record<string, DensityUnits> };
   measured: { rail_access_min: number | null; bus_access_min: number | null; coverage: number | null;
     lines: Record<string, number | null>; frequency: Record<string, number | null>; services_min: Record<string, number | null>;
-    reachable_stops: number | null; modes: string[]; homes: number };
+    services_choice: Record<string, number | null>; reachable_stops: number | null; modes: string[]; homes: number };
 }
 export interface IndexValue { value: number | null; percentile: number | null; }
+export type DensityUnit = keyof DensityUnits;
 export interface IndicesMap {
-  version: string; window: string | null; windows: string[]; count: number; zone_count: number;
-  zones: Record<string, { transport: IndexValue; transport_services: IndexValue }>;
+  version: string; window: string | null; windows: string[]; density_sets: string[]; count: number; zone_count: number;
+  zones: Record<string, Record<IndexKey, IndexValue> & { density?: Record<string, Record<DensityUnit, IndexValue>> }>;
 }
 export interface ZoneCentroid { key: string; group: string; name: string; lat: number; lon: number; lines_w: number; share_within_walk: number; stops?: number; }
 export interface ZonePattern {

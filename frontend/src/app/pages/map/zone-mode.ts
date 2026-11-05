@@ -2,7 +2,9 @@ import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, 
 import { DecimalPipe } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { HeatSummary, ZoneLine } from '../../models';
+import { HeatSummary, IndexKey, ZoneLine } from '../../models';
+import { InfoButton } from '../../components/info';
+import { ExplainInline } from '../../components/explain';
 import { LayoutService } from '../../services/layout.service';
 import { MapStateService } from './map-state.service';
 import { IDX_RAMP } from './connectivity.service';
@@ -15,7 +17,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
 /** Map → Zone: pick a zone, fly into it, and study walking / cycling access to stops and services along the streets. */
 @Component({
   selector: 'fh-zone-mode',
-  imports: [DecimalPipe, RouterLink],
+  imports: [DecimalPipe, RouterLink, InfoButton, ExplainInline],
   template: `
   <ng-template #zoneTpl>
     @if (zone.facts(); as f) {
@@ -72,19 +74,28 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
       <div class="small text-body-secondary mb-2">{{ short(f.zone.district) }} · {{ f.zone.kommun }}@if (f.zone.area_km2) { · {{ f.zone.area_km2 | number: '1.1-1' }} km² }</div>
       @if (zone.indices(); as ix) {
         <div class="fh-tiles mb-2">
-          <div class="fh-tile" [style.--c]="idxColour(pct('transport'))"><div class="fh-tile-v">{{ ix.transport ?? '–' }}</div>
-            <div class="fh-tile-l">Transport index</div><div class="fh-tile-n">{{ pctLabel('transport') }}</div></div>
-          <div class="fh-tile" [style.--c]="idxColour(pct('transport_services'))"><div class="fh-tile-v">{{ ix.transport_services ?? '–' }}</div>
-            <div class="fh-tile-l">Transport + services</div><div class="fh-tile-n">{{ pctLabel('transport_services') }}</div></div>
+          @for (k of indexKeys; track k.key) {
+            <div class="fh-tile" [style.--c]="idxColour(pct(k.key))">
+              <div class="fh-tile-v">{{ ix[k.key] ?? '–' }} <fh-info [id]="'zone.' + k.key" [derivation]="ix.derivation?.[k.key]" /></div>
+              <div class="fh-tile-l">{{ k.label }}</div><div class="fh-tile-n">{{ pctLabel(k.key) }}</div></div>
+          }
         </div>
         @if (insight(); as i) { <div class="small mb-2">{{ i }}</div> }
-        <details class="fh-sec mt-0 mb-2"><summary>Index components <span>day average</span></summary>
+        <details class="fh-sec mt-0 mb-2"><summary>Transport components <span>day average</span></summary>
           @for (c of components(); track c.key) {
             <div class="fh-bar-row"><span class="fh-bar-l">{{ c.label }}</span>
               <span class="fh-bar"><i [style.width.%]="(c.score ?? 0) * 100"></i></span>
               <span class="fh-bar-v">{{ c.value }}</span></div>
           }
-          <div class="small text-body-secondary mt-1">Thresholds and weights: <code>config/zone.yaml</code> indices.</div>
+          <fh-explain helpId="zone.transport" [derivation]="ix.derivation?.transport" />
+        </details>
+        <details class="fh-sec mt-0 mb-2"><summary>Services <span>walk · within {{ choiceMin() }} min</span></summary>
+          @for (c of serviceRows(); track c.key) {
+            <div class="fh-bar-row"><span class="fh-bar-l">{{ c.label }}</span>
+              <span class="fh-bar"><i [style.width.%]="(c.score ?? 0) * 100"></i></span>
+              <span class="fh-bar-v" [title]="'weight ' + c.weight">{{ c.value }}</span></div>
+          }
+          <fh-explain helpId="zone.services" [derivation]="ix.derivation?.services" />
         </details>
       }
       @if (zone.centroids(); as c) {
@@ -256,11 +267,13 @@ export class ZoneMode {
     });
   });
 
-  protected pct(key: 'transport' | 'transport_services'): number | null {
+  protected indexKeys: { key: IndexKey; label: string }[] = [
+    { key: 'transport', label: 'Transport index' }, { key: 'services', label: 'Services index' }, { key: 'combined', label: 'Combined score' }];
+  protected pct(key: IndexKey): number | null {
     const id = this.zone.selected();
     return id ? this.zone.allIndices()?.zones[id]?.[key]?.percentile ?? null : null;
   }
-  protected pctLabel(key: 'transport' | 'transport_services'): string {
+  protected pctLabel(key: IndexKey): string {
     const p = this.pct(key), all = this.zone.allIndices();
     return p == null ? 'out of 100' : `better than ${Math.round(p)}% of ${all?.count ?? ''} zones`;
   }
@@ -289,15 +302,25 @@ export class ZoneMode {
       { key: 'coverage', label: 'Homes near a stop', score: avg('coverage'), value: m.coverage == null ? '–' : `${Math.round(m.coverage * 100)}%` },
       { key: 'lines', label: 'Lines', score: avg('lines'), value: fmt(mean(m.lines), '') },
       { key: 'frequency', label: 'Departures', score: avg('frequency'), value: fmt(mean(m.frequency), '/h') },
-      { key: 'services', label: 'Services', score: ix.services == null ? null : ix.services / 100,
-        value: fmt(mean(m.services_min), ' min') },
     ];
   });
+
+  /** Per service set: its score (proximity and choice), the median walk and how many are within reach. */
+  protected serviceRows = computed(() => {
+    const ix = this.zone.indices();
+    return Object.entries(ix?.services_detail ?? {}).map(([key, d]) => ({
+      key, label: d.label, score: d.score, weight: d.weight,
+      value: `${d.walk_min == null ? 'none near' : `${d.walk_min} min`}${d.choice == null ? '' : ` · ${d.choice}`}`,
+    }));
+  });
+  protected choiceMin = computed(() => this.zone.indices()?.choice_within_min ?? 10);
 
   /** One line: the strongest component and the weakest component in its weakest window. */
   protected insight = computed(() => {
     const ix = this.zone.indices();
-    const cs = this.components().filter((c) => c.score != null);
+    const services = this.zone.indices()?.services;
+    const cs = [...this.components(), { key: 'services', label: 'Services', score: services == null ? null : services / 100, value: '' }]
+      .filter((c) => c.score != null);
     if (!ix || !cs.length) return '';
     const best = cs.reduce((a, b) => ((b.score ?? 0) > (a.score ?? 0) ? b : a));
     let worst = { label: '', score: 2, window: '' };

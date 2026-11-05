@@ -7,8 +7,8 @@ from typing import Any
 from findhome.config.loader import ConfigBundle
 from findhome.geo.store import TimetableIndex
 from findhome.zone.extent import Extent
-from findhome.zone.heatmap import ExtentGraph, HeatmapParams, compute
-from findhome.zone.indices import Components
+from findhome.zone.heatmap import ExtentGraph, HeatmapParams, compute, weighted_quantile
+from findhome.zone.indices import Components, choice_cfg
 from findhome.zone.targets import stop_modes
 
 RAIL = {"metro", "commuter_rail", "local_rail", "tram", "train"}
@@ -51,6 +51,15 @@ def window_counts(tt: TimetableIndex, stops: list[str], hours: tuple[int, int]) 
     return float(weighted), round(sum(sorted(per_stop, reverse=True)[:3]), 1)
 
 
+def choice_median(eg: ExtentGraph, pts: list, within_min: float) -> float | None:
+    """Home-weighted median number of targets within `within_min` walk (the homes' street nodes); None without homes."""
+    if not eg.homes:
+        return None
+    counts = eg.counts_within(pts, within_min * 60) if pts else {}
+    med = weighted_quantile([(float(counts.get(n, 0)), w) for (n, _), w in eg.homes], 0.5)
+    return None if med is None else round(med, 1)
+
+
 def measure(bundle: ConfigBundle, ext: Extent, eg: ExtentGraph, tt: TimetableIndex | None,
             targets: dict[str, list], p: HeatmapParams) -> tuple[Components, dict[str, Any]]:
     """targets: points per target set (rail, bus and the services sets). Returns the components and the summary."""
@@ -66,8 +75,10 @@ def measure(bundle: ConfigBundle, ext: Extent, eg: ExtentGraph, tt: TimetableInd
         return None if v is None else round(v / 60, 1)
 
     cov = t_sum.get("any", {}).get("share_le_5min")
+    service_sets = [s for s in cfg["services"]["sets"] if s in targets]
     c = Components(rail_access_min=med("rail"), bus_access_min=med("bus"), coverage=cov,
-                   services_min={s: med(s) for s in cfg["services"]["sets"] if s in targets})
+                   services_min={s: med(s) for s in service_sets},
+                   services_choice={s: choice_median(eg, targets[s], choice_cfg(cfg)["within_min"]) for s in service_sets})
     if tt is not None:
         stops = [s for s, _ in reachable_stops(eg, tt, cfg["access_min"])]
         for w, spec in cfg["windows"].items():

@@ -81,3 +81,20 @@ def test_extent_and_neighbours():
     e = extent(zones, "A", True, reach_m=500)
     assert e.zone_ids == ("A", "B") and e.kommuner == ("0001",) and e.focus.area == 2_000_000
     assert extent(zones, "B", False, reach_m=3500).kommuner == ("0001", "0002")      # reach crosses into C's kommun
+
+
+def test_counts_within_and_choice_median():
+    from findhome.zone.heatmap import ExtentGraph
+    from findhome.zone.measure import choice_median
+
+    net = _grid()
+    # homes: one at node 1 (weight 3), one at node 9 (weight 1); targets at nodes 1 and 3 (corners of the bottom row)
+    homes = [(X0, Y0, 3.0), (X0 + 2 * STEP, Y0 + 2 * STEP, 1.0)]
+    eg = ExtentGraph(net, EXT, P, homes)
+    targets = [Point(X0, Y0), Point(X0 + 2 * STEP, Y0)]
+    counts = eg.counts_within(targets, 200)               # 200 s = 2 blocks at 1 m/s
+    assert counts[1] == 2 and counts[2] == 2 and counts[3] == 2          # bottom row reaches both
+    assert counts[5] == 2 and counts[4] == 1 and counts.get(9) == 1      # node 9: only target 3 (2 blocks up)
+    assert counts.get(7) == 1                                             # node 7: only target 1
+    assert choice_median(eg, targets, 200 / 60) == 2.0                    # weight 3 at node 1 dominates
+    assert choice_median(eg, [], 10) == 0.0

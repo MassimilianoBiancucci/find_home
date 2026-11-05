@@ -374,40 +374,63 @@ Each home snaps to the network and adds its snap walk: median, p90, share within
 Without the buildings dataset, every network node inside the focus counts once (`homes_source: network`).
 `findhome zone heatmap <zone id> --sets rail,bus` prints the summary.
 
-### Mobility indices
+### Zone indices
 
-Every zone has two indices from 0 to 100, per time window and as a window-weighted average (the main value):
-**transport** and **transport + services** (`transport × (1 − w) + services × w`, `w` = `indices.services.weight`).
-Each component maps a measured value linearly from its `zero` to its `full` threshold (`zone.yaml` `indices`), so a
-zone's value does not depend on the other zones. The map colours zones by percentile among the computed zones. The
-indices are display only and never change scores.
+Every zone has three indices from 0 to 100:
+- **transport**: walking access to rail and bus, coverage, lines and departures; per time window and as a
+  window-weighted average (the main value);
+- **services**: everyday services within walking distance, without transit;
+- **combined**: the weighted mean of named parts (`zone.yaml` `combined.parts`, today transport 0.5 and
+  services 0.5), per window and averaged.
+
+Each component maps a measured value linearly from its `zero` to its `full` threshold, so a zone's value does not
+depend on the other zones. The map colours zones by percentile among the computed zones.
+
+**Services.** Per service set (`indices.services.sets`) there are two parts:
+- **proximity**: the home-weighted median walk to the nearest target, from `zero` to `full` minutes;
+- **choice**: the home-weighted median number of targets within `choice.within_min`, from 0 to `choice.full`.
+
+They mix as `proximity × (1 − choice.weight) + choice × choice.weight`. A set with nothing within the cut-off has
+proximity 0. Sets weigh the highest `poi.yaml` weight among their categories (the gym set takes `gym` and `sats`),
+so `poi.yaml` is part of the inputs version.
 
 ```mermaid
 flowchart LR
   EG[ExtentGraph: zone network + homes] --> HT[heatmap: rail, bus] --> A[rail access, bus access, coverage]
-  EG --> HS[heatmap: services sets] --> S[services]
   EG --> R[reach search from homes, access_min] --> ST[stops within reach]
   ST --> W[per window: lines with a departure, departures/h at the 3 busiest stops]
   A --> I[transport per window]
   W --> I
   I --> AV[window-weighted average]
-  S --> IS[transport + services]
-  AV --> IS
+  EG --> HS[heatmap: services sets] --> PX[proximity per set]
+  EG --> CW[cut-off search from each target] --> CH[choice per set]
+  PX --> SV[services: weighted by poi.yaml]
+  CH --> SV
+  AV --> CB[combined: parts × weights]
+  SV --> CB
 ```
 
-| Component | Measured as | Code |
+| Part | Measured as | Code |
 |---|---|---|
-| `rail_access`, `bus_access` | home-weighted median walk (minutes) to the set | [`measure()`](../../backend/src/findhome/zone/measure.py#L54) |
-| `coverage` | share of homes within 5 min of any stop | [`measure()`](../../backend/src/findhome/zone/measure.py#L54) |
+| `rail_access`, `bus_access` | home-weighted median walk (minutes) to the set | [`measure()`](../../backend/src/findhome/zone/measure.py#L63) |
+| `coverage` | share of homes within 5 min of any stop | [`measure()`](../../backend/src/findhome/zone/measure.py#L63) |
 | `lines`, `frequency` | per window, at the stops within `access_min` of a home; rail lines count 3 | [`reachable_stops()`](../../backend/src/findhome/zone/measure.py#L18), [`window_counts()`](../../backend/src/findhome/zone/measure.py#L32) |
-| services | median walk per services set, scored and averaged | [`services_score()`](../../backend/src/findhome/zone/indices.py#L46) |
-| scoring and weights | missing components are left out and weights renormalise | [`score()`](../../backend/src/findhome/zone/indices.py#L16), [`indices()`](../../backend/src/findhome/zone/indices.py#L53) |
+| services proximity, choice | median walk per set; median count within `choice.within_min` | [`choice_median()`](../../backend/src/findhome/zone/measure.py#L54), [`counts_within()`](../../backend/src/findhome/zone/heatmap.py#L106) |
+| set score, services index | the mix above, then the weighted mean of the sets | [`service_set_score()`](../../backend/src/findhome/zone/indices.py#L71), [`services_score()`](../../backend/src/findhome/zone/indices.py#L87), [`set_weights()`](../../backend/src/findhome/zone/analysis.py#L188) |
+| combined | weighted mean of the parts with a value | [`combined()`](../../backend/src/findhome/zone/indices.py#L103) |
+| scoring and weights | missing components are left out and weights renormalise | [`score()`](../../backend/src/findhome/zone/indices.py#L28), [`indices()`](../../backend/src/findhome/zone/indices.py#L115) |
+
+Each index comes with a **derivation**: rows of measured input → score 0..1 × weight. The UI shows it under
+"How is this calculated?". The payload also has `services_detail` (walk, choice, weight and score per set) and
+**POI density** per services set: the count inside the zone, per 1,000 home units (buildings weighted by floors,
+`density.per_homes`) and per km² ([`density()`](../../backend/src/findhome/zone/analysis.py#L199)).
 
 Without GTFS departures, `frequency` is missing and `lines` counts every line at the reachable stops.
 `GET /api/zone/{id}/indices` computes a zone once per inputs version (a few seconds) and stores it in `zone_index`.
-`GET /api/zone/indices?window=` returns every stored zone with percentiles
-([`all_indices()`](../../backend/src/findhome/api/routers/zone.py#L39), [`percentiles()`](../../backend/src/findhome/zone/analysis.py#L210)). `findhome zone indices --all`
-fills the cache.
+`GET /api/zone/indices?window=` returns every stored zone's transport, services and combined values and its density
+values, each with a percentile ([`all_indices()`](../../backend/src/findhome/api/routers/zone.py#L39),
+[`percentiles()`](../../backend/src/findhome/zone/analysis.py#L252)). The window applies to transport and combined. `findhome zone indices --all` fills the
+cache; it makes no API calls.
 
 ## Scoring
 

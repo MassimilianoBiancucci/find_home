@@ -124,6 +124,18 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/zone.yaml → indices.components', 'config/zone.yaml → indices.windows', 'config/zone.yaml → indices.access_min'],
     guide: 'guide/architecture/config_and_locations.md',
   },
+  'zone.services': {
+    title: 'Services index', short: '0-100: everyday services within walking distance of a typical home of the zone, without transit. Per service set, proximity (the median walk to the nearest) and choice (how many are within a short walk); then the sets\' weighted mean.',
+    formula: 'setᵢ = proximity × (1 − c) + choice × c,  proximity = clamp((20 − walk) / (20 − 5)),  choice = clamp(count / 3)\nservices = 100 · Σ wᵢ · setᵢ / Σ wᵢ   (wᵢ: highest poi.yaml weight of the set\'s categories)',
+    long: 'Walks follow the street network from every home of the zone (buildings weighted by floors) and take the home-weighted median. A set with nothing within the cut-off scores 0 for proximity. The vet counts with a lower weight; gyms include SATS.',
+    config: ['config/zone.yaml → indices.services (sets, zero, full, choice)', 'config/poi.yaml → <category>.weight', 'config/zone.yaml → target_sets'],
+    guide: 'guide/architecture/config_and_locations.md',
+  },
+  'zone.combined': {
+    title: 'Combined score', short: '0-100: the weighted mean of the zone\'s indices, today transport and services half each. More parts (price, noise...) can be added in config.',
+    formula: 'combined = Σ wₚ · partₚ / Σ wₚ   (parts with a value only)',
+    config: ['config/zone.yaml → combined.parts'],
+  },
   'zone.percentile': {
     title: 'Percentile', short: 'The zone\'s rank among all zones with a value: p70 means better than 70 % of zones. The map colours zones by percentile for contrast; the index itself is absolute.',
   },

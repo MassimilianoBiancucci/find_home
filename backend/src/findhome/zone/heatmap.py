@@ -103,6 +103,18 @@ class ExtentGraph:
         dist.pop(SOURCE, None)
         return dist
 
+    def counts_within(self, pts: list[Point], cutoff_s: float) -> dict[int, int]:
+        """Per node, how many of the points are within the cut-off (one cut-off search per point, snap walk
+        included). The choice measure of the services index: how many groceries are within 10 minutes."""
+        out: dict[int, int] = {}
+        for pt in pts:
+            s = self.snap(pt)
+            if not s or s[1] / self.p.speed_mps > cutoff_s:
+                continue
+            for n in self.times_from({s[0]: s[1] / self.p.speed_mps}, cutoff_s):
+                out[n] = out.get(n, 0) + 1
+        return out
+
     def starts(self, pts: list[Point]) -> dict[int, float]:
         out: dict[int, float] = {}
         for pt in pts:

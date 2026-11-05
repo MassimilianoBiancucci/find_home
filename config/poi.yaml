@@ -24,5 +24,5 @@ categories:
       icon: paw, color: "#f0a95a"}
   pharmacy: {label: Pharmacy, osm_tags: ["amenity=pharmacy"], radius_m: 1000, max_walk_min: 12, weight: 0.3, provider: overpass,
       icon: pill, color: "#0bb5a8"}
-  gym: {label: Gym, osm_tags: ["leisure=fitness_centre"], radius_m: 1000, max_walk_min: 12, weight: 0.3, provider: overpass,
+  gym: {label: Gym, osm_tags: ["leisure=fitness_centre"], radius_m: 1000, max_walk_min: 12, weight: 1.0, provider: overpass,
       icon: barbell, color: "#8a8aa0"}
