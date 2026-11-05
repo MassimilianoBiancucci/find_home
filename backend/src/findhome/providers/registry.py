@@ -25,7 +25,8 @@ class ProviderRegistry:
         self.unavailable: dict[str, str] = {}
         factories = {
             "osm": lambda c: OsrmProvider(c),
-            "resrobot": lambda c: ResRobotProvider(c, secret(c.get("key_env"))),
+            "resrobot": lambda c: ResRobotProvider(c, secret(c.get("key_env")), walk_kmh=self.haversine.speeds.get("walk", 4.8),
+                                                   detour=self.haversine.detour),
             "google": lambda c: GoogleRoutesProvider(c, secret(c.get("key_env"))),
             "ors": lambda c: OrsProvider(c, secret(c.get("key_env", "ORS_API_KEY"))),
         }

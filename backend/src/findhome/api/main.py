@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -29,6 +30,19 @@ from findhome.db import repo
 
 log = logging.getLogger("findhome")
 
+_SECRET_PARAM = re.compile(r"\b((?:accessId|key|api_key|apikey)=)[^&\s\"']+", re.IGNORECASE)
+
+
+class RedactKeys(logging.Filter):
+    """httpx logs every request URL at INFO, and ResRobot (accessId=) and Google (key=) take the API key in the query."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = record.getMessage()
+        red = _SECRET_PARAM.sub(r"\1***", msg)
+        if red != msg:
+            record.msg, record.args = red, ()
+        return True
+
 
 async def _sync_sites() -> None:
     store = get_store()
@@ -50,6 +64,9 @@ async def _sync_sites_safe() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=get_settings().log_level)
+    httpx_log = logging.getLogger("httpx")
+    if not any(isinstance(f, RedactKeys) for f in httpx_log.filters):
+        httpx_log.addFilter(RedactKeys())
     store = get_store()
     store.reload()
     settings = get_settings()

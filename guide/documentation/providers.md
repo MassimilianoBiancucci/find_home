@@ -39,7 +39,11 @@ Sweden-wide journey planner on official timetables (SL included).
 - The Connectivity map mode asks ResRobot for every zone × point × window (~2,100 requests for the 263 zones,
   about 8% of the Bronze monthly quota, ~47 minutes at 45/min), capped by `connectivity.max_calls_per_run`,
   cached and resumable. A zone point ResRobot cannot route (`SVC_LOC`, no stop within about 500 m) is remembered and
-  never paid for again; repeated provider errors pause the refresh (`connectivity.on_provider_failure`). Without a
+  never paid for again; repeated provider errors pause the refresh (`connectivity.on_provider_failure`). ResRobot
+  does not route trips whose ends are a short walk apart: about 100 m answers `SVC_LOC` (H9220) even in the city
+  centre, and about 300 m answers no trip. The provider walks those instead (haversine walk speed and detour): up to
+  `walk_only_m` (400) without a call, up to `walk_fallback_m` (1000) when ResRobot refuses, so the zone that
+  holds one of your points is not marked unroutable. Without a
   key the matrix holds straight-line estimates, replaced on the next refresh with a key.
 
 ## Transit network for the map: SL GTFS or OSM routes

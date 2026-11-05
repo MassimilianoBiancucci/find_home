@@ -247,6 +247,7 @@ The first line of the output shows the budget used and which provider answered.
 | Times in digests and the map carry `~` | the provider has no key, hit its limit, or failed three times in a row in this run; the app fell back to a straight-line estimate |
 | The key is in `providers.env` but nothing changed | the API was not restarted, or the same variable is already set in the shell and wins over the file |
 | ResRobot answers 400 `SVC_LOC` (no stops near the address) for some zones | the coordinate is more than about 500 m from a stop; it is not a rate limit, and a wider walking radius does not help ([known issue](../issues/issues.md)) |
+| The log shows 400s for trips whose two ends are a few hundred metres apart | ResRobot refuses trips that short; trips under `walk_only_m` are now walked without a call, and a refusal under `walk_fallback_m` is walked too. Rows marked failed before: refresh Connectivity with *failed* |
 | ResRobot answers 429 | the key's level allows fewer calls per minute than `routing.resrobot.plan`; set `max_calls_per_minute` lower |
 | ResRobot answers `API_AUTH` | the key belongs to another Trafiklab API, or was copied with a space |
 | Nominatim answers 403 or 429 | too many requests, or the contact email is missing; wait and keep `max_requests_per_s: 1` |

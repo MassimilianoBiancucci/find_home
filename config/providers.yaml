@@ -25,6 +25,9 @@ routing:
     plan: bronze
     # max_calls_per_minute: 30       # optional override of the plan; spacing between calls is 60 / this value
     retry_delay_s: 5                 # wait after a 429 when the answer has no Retry-After (grows 5 s, 10 s, 15 s)
+    # ResRobot refuses trips whose ends are a short walk apart (~100 m: SVC_LOC/H9220, ~300 m: no trip); those are walked
+    walk_only_m: 400                 # up to this straight-line distance the trip is walked, no call
+    walk_fallback_m: 1000            # up to this distance a SVC_LOC or empty answer means the walk, not an unroutable point
     max_calls_per_month: 25000       # bronze; informational, not enforced
   google:
     enabled: false

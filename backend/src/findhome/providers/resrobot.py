@@ -23,6 +23,7 @@ from findhome.providers.base import (
     RateLimiter,
     TravelResult,
     WhenIs,
+    haversine_km,
 )
 
 # Trafiklab key levels: calls per minute (guide/documentation/providers.md). A new key starts on a "default" level that may be
@@ -31,6 +32,11 @@ PLAN_CALLS_PER_MINUTE = {"bronze": 45, "silver": 60, "gold": 200}
 MAX_RETRIES = 3
 # Error codes for a coordinate ResRobot cannot snap to a stop (about 500 m); the same coordinate always fails again.
 LOCATION_CODES = {"SVC_LOC", "SVC_LOC_ARR", "SVC_LOC_DEP", "H9220"}
+# ResRobot does not route a trip whose two ends are a short walk apart: about 100 m answers H9220 ("no stations
+# nearby", although there are), about 300 m answers no trip. Such a trip is walked: up to `walk_only_m` it is not
+# asked at all; up to `walk_fallback_m` a location error or an empty answer means the walk, not an unroutable point.
+WALK_ONLY_M = 400
+WALK_FALLBACK_M = 1000
 
 _ISO_DURATION = re.compile(r"P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?")
 
@@ -52,7 +58,8 @@ class ResRobotProvider:
     modes = {"transit"}
     time_dependent = True
 
-    def __init__(self, cfg: dict, key: str | None, client: httpx.AsyncClient | None = None):
+    def __init__(self, cfg: dict, key: str | None, client: httpx.AsyncClient | None = None,
+                 walk_kmh: float = 4.8, detour: float = 1.3):
         if not key:
             raise ProviderUnavailable("resrobot: TRAFIKLAB_RESROBOT_KEY not set")
         self.base = cfg.get("base_url", "https://api.resrobot.se/v2.1").rstrip("/")
@@ -65,6 +72,38 @@ class ResRobotProvider:
         self.limiter = RateLimiter(per_minute=per_minute * float(cfg.get("rate_margin", 0.9)))
         self.retry_delay_s = float(cfg.get("retry_delay_s", 5))
         self.client = client or httpx.AsyncClient(timeout=30)
+        self.walk_only_km = float(cfg.get("walk_only_m", WALK_ONLY_M)) / 1000
+        self.walk_fallback_km = float(cfg.get("walk_fallback_m", WALK_FALLBACK_M)) / 1000
+        self.walk_kmh, self.detour = walk_kmh, detour
+
+    def walk_minutes(self, km: float) -> float:
+        return round(km * self.detour / self.walk_kmh * 60, 1)
+
+    def _walk(self, km: float) -> TravelResult:
+        return TravelResult(minutes=self.walk_minutes(km), transfers=0,
+                            raw={"legs": 1, "first_mode": "walk", "last_mode": "walk", "walk_only": True})
+
+    def _walk_itinerary(self, origin: LatLon, dest: LatLon, km: float) -> dict:
+        m = self.walk_minutes(km)
+        end = lambda p: {"name": None, "lat": p.lat, "lon": p.lon, "time": None}
+        return {"minutes": m, "depart": None, "arrive": None, "transfers": 0, "walk_only": True,
+                "legs": [{"mode": "walk", "line": None, "name": None, "direction": None, "from": end(origin),
+                          "to": end(dest), "minutes": m, "distance_m": round(km * 1000 * self.detour),
+                          "path": [[origin.lon, origin.lat], [dest.lon, dest.lat]]}]}
+
+    async def _short(self, km: float, params: dict) -> httpx.Response | None:
+        """The answer, or None when the trip is a walk: too short to ask, or short and refused as unroutable."""
+        if km <= self.walk_only_km:
+            return None
+        try:
+            resp = await self._get(params)
+        except LocationNotFound:
+            if km <= self.walk_fallback_km:
+                return None
+            raise
+        if not (resp.json().get("Trip") or []) and km <= self.walk_fallback_km:
+            return None
+        return resp
 
     async def travel(self, origin: LatLon, dest: LatLon, mode: Mode, when: datetime,
                      when_is: WhenIs) -> TravelResult | None:
@@ -79,8 +118,9 @@ class ResRobotProvider:
         }
         if when_is == "depart_at":
             params["numF"] = 1      # ResRobot rejects numF=0 (400); arrive_by uses the default window
-        resp = await self._get(params)
-        return parse_trip_response(resp.json(), when_is)
+        km = haversine_km(origin, dest)
+        resp = await self._short(km, params)
+        return self._walk(km) if resp is None else parse_trip_response(resp.json(), when_is)
 
     async def _get(self, params: dict) -> httpx.Response:
         """GET /trip under the rate limit. A 429, or ResRobot's own per-minute API_QUOTA answer, waits (Retry-After,
@@ -105,8 +145,9 @@ class ResRobotProvider:
             "date": when.strftime("%Y-%m-%d"), "time": when.strftime("%H:%M"),
             "searchForArrival": 1 if when_is == "arrive_by" else 0,
         }
-        resp = await self._get(params)
-        return parse_itinerary(resp.json(), when_is)
+        km = haversine_km(origin, dest)
+        resp = await self._short(km, params)
+        return self._walk_itinerary(origin, dest, km) if resp is None else parse_itinerary(resp.json(), when_is)
 
 
 def _retry_wait(resp: httpx.Response, fallback: float) -> float | None:

@@ -145,3 +145,45 @@ def test_resrobot_minute_quota_waits_and_records_the_first_ride(monkeypatch):
         raise AssertionError("expected ProviderError")
     except rr.ProviderError as exc:
         assert exc.code == "API_QUOTA"
+
+
+def test_resrobot_walks_trips_too_short_to_route():
+    """ResRobot answers H9220 for ends ~100 m apart and no trip at ~300 m; those are walks, not unroutable points."""
+    from findhome.providers.base import LocationNotFound
+
+    calls = []
+
+    def handler(req):
+        calls.append(1)
+        return httpx.Response(400, json={"errorCode": "SVC_LOC", "errorText": "stations could not be found (H9220).",
+                                         "internalErrorCode": "H9220"})
+
+    p = _resrobot({"max_calls_per_minute": 6000}, handler)
+    t, o = datetime(2026, 11, 3, 8, 30), LatLon(59.3300, 18.0600)
+    near = asyncio.run(p.travel(o, LatLon(59.3309, 18.0600), "transit", t, "depart_at"))       # ~100 m: no call
+    assert not calls and near.raw["walk_only"] and near.raw["first_mode"] == "walk" and 1 < near.minutes < 3
+    mid = asyncio.run(p.travel(o, LatLon(59.3360, 18.0600), "transit", t, "depart_at"))        # ~670 m: refused → walk
+    assert len(calls) == 1 and mid.raw["walk_only"] and 9 < mid.minutes < 13
+    it = asyncio.run(p.itinerary(o, LatLon(59.3309, 18.0600), t, "depart_at"))
+    assert it["walk_only"] and [leg["mode"] for leg in it["legs"]] == ["walk"] and len(it["legs"][0]["path"]) == 2
+    try:                                                                                        # ~3 km: a real error
+        asyncio.run(p.travel(o, LatLon(59.3570, 18.0600), "transit", t, "depart_at"))
+        raise AssertionError("expected LocationNotFound")
+    except LocationNotFound:
+        pass
+
+    empty = _resrobot({"max_calls_per_minute": 6000}, lambda req: httpx.Response(200, json={"Trip": []}))
+    assert asyncio.run(empty.travel(o, LatLon(59.3330, 18.0600), "transit", t, "depart_at")).raw["walk_only"]
+    assert asyncio.run(empty.travel(o, LatLon(59.3570, 18.0600), "transit", t, "depart_at")) is None
+
+
+def test_api_key_is_masked_in_request_logs():
+    import logging
+
+    from findhome.api.main import RedactKeys
+
+    rec = logging.LogRecord("httpx", logging.INFO, "", 0, 'HTTP Request: %s %s "%s"',
+                            ("GET", "https://api.resrobot.se/v2.1/trip?format=json&accessId=abc-123&originCoordLat=59.3",
+                             "HTTP/1.1 400"), None)
+    RedactKeys().filter(rec)
+    assert "abc-123" not in rec.getMessage() and "accessId=***&originCoordLat=59.3" in rec.getMessage()
