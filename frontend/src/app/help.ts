@@ -68,6 +68,11 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['sites/qasa/extract.js', 'sites/qasa/scanner.py'],
   },
 
+  'listing.commute': {
+    title: 'Commute table', short: 'The listing\'s own transit times to each of your points, per direction, day type and time window: median, 90th percentile and worst over the sampled departures. Computed on demand (Compute) with the routing providers; estimates are straight-line guesses. It feeds the commute score group.',
+    config: ['config/locations.yaml (points, trips, windows)', 'config/time_model.yaml', 'config/providers.yaml'],
+  },
+
   // ── Right panels ──────────────────────────────────────────────────────────────────────
   'panel.Inspector': { title: 'Inspector', short: 'Details of what you clicked on the map, and the test point analysis.' },
   'panel.Connectivity': { title: 'Connectivity', short: 'The selected zone\'s travel minutes to each of your points, per window, with the route status.' },
@@ -118,6 +123,18 @@ export const HELP: Record<string, HelpEntry> = {
   },
 
   // ── House analysis (from the exact address) ──────────────────────────────────────────
+  'house.home': {
+    title: 'This home', short: 'Everything measured from the listing\'s exact address: walks along the streets to the nearest services and stops, how many are within a short walk, and the home\'s own transport, services and combined scores. No API calls.',
+    config: ['config/zone.yaml → house', 'config/zone.yaml → indices'],
+  },
+  'house.zone': {
+    title: 'Its zone', short: 'The same measures for a typical home of the listing\'s zone (home-weighted medians), with the zone\'s indices and their percentile among all zones: the reference to compare this home with.',
+    config: ['config/zone.yaml → indices', 'config/zone.yaml → combined'],
+  },
+  'house.travel': {
+    title: 'Travel to your points', short: 'How long it takes from this home to your points (config/locations.yaml). Shown first as a free estimate from the zone\'s connectivity stations; the listing\'s computed commute or the exact itineraries replace it when available.',
+    config: ['config/locations.yaml'],
+  },
   'house.services': {
     title: 'Home services score', short: '0-100: everyday services around this home, from its exact address. Per service set, the walk to the nearest one and how many are within a short walk; the same formula as the zone\'s services index, so the two compare directly.',
     formula: 'setᵢ = proximity × (1 − c) + choice × c;  score = 100 · Σ wᵢ · setᵢ / Σ wᵢ',

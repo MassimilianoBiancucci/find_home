@@ -27,6 +27,7 @@ from findhome.zone.heatmap import SOURCE, ExtentGraph, HeatmapParams
 from findhome.zone.network import EDGE_GEOM, EDGE_U, load_network
 
 DEFAULT_SETS = ["grocery", "pharmacy", "gym", "park", "vet", "rail", "bus"]
+PAYLOAD_VERSION = 2               # bump when the payload shape changes, so cached rows are recomputed
 
 
 class OutsideZones(Exception):
@@ -137,7 +138,7 @@ def version(bundle: ConfigBundle, lat: float, lon: float) -> str:
     from findhome.zone.centroid_build import load_centroids
 
     doc = load_centroids()
-    blob = json.dumps([zone_version(bundle, house_cfg(bundle)["sets"]), doc and doc.get("version"),
+    blob = json.dumps([PAYLOAD_VERSION, zone_version(bundle, house_cfg(bundle)["sets"]), doc and doc.get("version"),
                        round(lat, 5), round(lon, 5)])
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 
@@ -204,6 +205,7 @@ def house_analysis(bundle: ConfigBundle, zones: ZoneSet, lat: float, lon: float)
         "zone": {"id": zz.id, "name": zz.name, "district": zz.district, "kommun": zz.kommun,
                  "neighbours": neighbours(zones, zz.id)},
         "snapped": snap is not None, "snap_m": None if snap is None else round(snap[1]),
+        "sets": list(walks),                                  # display order (jsonb objects do not keep it)
         "walks": {sid: w.as_dict() for sid, w in walks.items()},
         "set_labels": {sid: z.target_sets[sid].label for sid in walks},
         "transport": ix["transport"], "services": ix["services"], "combined": ix["combined"],
@@ -281,7 +283,8 @@ def insights(house: dict[str, Any], zone_detail: dict[str, Any] | None, estimate
     (window-weighted), preferred over the station estimate when present."""
     colours = house.get("walk_colours") or {}
     sets = []
-    for sid, w in house["walks"].items():
+    for sid in house.get("sets") or house["walks"]:
+        w = house["walks"][sid]
         zd = (zone_detail or {}).get(sid) or {}
         label = house["set_labels"].get(sid, sid)
         mine = "none within reach" if w["minutes"] is None else f"{w['minutes']:g} min"
@@ -294,7 +297,7 @@ def insights(house: dict[str, Any], zone_detail: dict[str, Any] | None, estimate
         own = listing_commute.get(pid)
         m = own if own is not None else e["minutes"]
         if m is None:
-            points.append({"point_id": pid, "text": f"{e['label']}: not computed yet", "tone": "neutral"})
+            points.append({"point_id": pid, "text": f"{e['label']}: not computed yet", "compare": "", "tone": "neutral"})
             continue
         kind = "" if own is not None else " estimate"
         parts = [f"{e['label']}: {m:g} min{kind}"]
@@ -305,5 +308,5 @@ def insights(house: dict[str, Any], zone_detail: dict[str, Any] | None, estimate
             parts.append(f"better than {round(pct)}% of zones")
         tone = "good" if pct is not None and pct >= 66 else "bad" if pct is not None and pct < 33 else "neutral"
         points.append({"point_id": pid, "text": parts[0] + (f" ({', '.join(parts[1:])})" if len(parts) > 1 else ""),
-                       "tone": tone})
+                       "compare": ", ".join(parts[1:]), "tone": tone})
     return {"sets": sets, "points": points}

@@ -4,13 +4,16 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { GalleryComponent } from '../components/gallery';
-import { CommuteRow, Listing, ListingDetail } from '../models';
+import { InfoButton } from '../components/info';
+import { HouseHome, HouseTravel, HouseZone } from '../house/house-bubbles';
+import { HouseTravelStore } from '../house/house-travel.store';
+import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
@@ -31,6 +34,17 @@ import { TagsStore } from '../services/tags.store';
       <div class="col-lg-7">
         <fh-gallery [photos]="x.listing.photo_urls" [plans]="x.listing.floorplan_urls" [link]="x.listing.canonical_url"
           [incomplete]="galleryIncomplete(x.listing)" />
+        @if (loc(); as l) {
+          <div class="row g-3">
+            <div class="col-xl-6"><fh-house-home [loc]="l" [transit]="travel.results()[l.listing.short_id] ?? null" /></div>
+            <div class="col-xl-6"><fh-house-zone [loc]="l" /></div>
+          </div>
+          <fh-house-travel [loc]="l" />
+        } @else if (locError()) {
+          <div class="fh-hcard"><div class="fh-hnote">House analysis not available: {{ locError() }}</div></div>
+        } @else {
+          <div class="fh-hcard"><div class="fh-hnote">Measuring the home from its address… (a few seconds the first time)</div></div>
+        }
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">{{ x.listing.title || x.listing.address_raw }}</h2>
           <div class="mb-2">{{ x.listing.area }} · {{ x.listing.address_raw }}</div>
@@ -48,7 +62,7 @@ import { TagsStore } from '../services/tags.store';
 
         <div class="card mb-3"><div class="card-body">
           <div class="d-flex align-items-center gap-2 mb-2">
-            <h2 class="h6 m-0">Commute</h2>
+            <h2 class="h6 m-0">Commute</h2><fh-info id="listing.commute" />
             <button class="btn btn-sm btn-outline-secondary" (click)="commute(true)">Dry run</button>
             <button class="btn btn-sm btn-outline-primary" (click)="commute(false)">Compute</button>
           </div>
@@ -85,11 +99,12 @@ import { TagsStore } from '../services/tags.store';
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">Score
             @if (x.score?.total != null) { <span [style.color]="color(x.score?.total)">{{ score(x.score?.total) }}</span> }
+            <fh-info id="score.total" />
           </h2>
           @if (x.score_stale) { <div class="small text-warning">No score for the current config. <a href="" (click)="$event.preventDefault(); recompute()">Recompute</a></div> }
           @if (x.score?.rejected_by?.length) { <div class="small text-danger">Rejected by: {{ x.score!.rejected_by.join(', ') }}</div> }
           @for (g of breakdown(); track g.name) {
-            <div class="d-flex small justify-content-between"><span>{{ g.name }} <span class="text-body-secondary">×{{ g.weight }}</span></span>
+            <div class="d-flex small justify-content-between"><span>{{ g.name }} <span class="text-body-secondary">×{{ g.weight }}</span> <fh-info [id]="'score.' + g.name" [quiet]="true" /></span>
               <span [title]="g.why">{{ g.score == null ? 'n/a' : score(g.score) }}</span></div>
           }
         </div></div>
@@ -140,6 +155,9 @@ export class DetailPage {
   private api = inject(ApiService);
   protected tags = inject(TagsStore);
   protected d = signal<ListingDetail | null>(null);
+  protected loc = signal<HouseLocation | null>(null);
+  protected locError = signal('');
+  protected travel = inject(HouseTravelStore);
   protected digest = signal('');
   protected error = signal('');
   protected info = signal('');
@@ -155,6 +173,8 @@ export class DetailPage {
 
   load(id: string): void {
     this.api.listing(id).subscribe({ next: (x) => { this.d.set(x); this.error.set(''); }, error: (e) => this.error.set(apiError(e)) });
+    if (this.loc()?.listing.short_id !== id) { this.loc.set(null); this.locError.set(''); }
+    this.api.listingLocation(id).subscribe({ next: (l) => this.loc.set(l), error: (e) => this.locError.set(apiError(e)) });
     this.api.digest(id, true).subscribe({ next: (t) => this.digest.set(t), error: () => {} });
   }
   /** Scans before the full-gallery fix kept 6 photos and no photo_count: the next browser scan fills them in. */

@@ -58,6 +58,7 @@ def test_better_than_and_insight_lines():
     assert out["sets"][0] == {"set": "grocery", "text": "Groceries: 3.1 min (zone median 6 min)", "tone": "good"}
     assert out["sets"][1]["tone"] == "bad" and "none within reach" in out["sets"][1]["text"]
     assert out["points"][0]["text"] == "Office: 34 min estimate (zone 31 min, better than 75% of zones)"
+    assert out["points"][0]["compare"] == "zone 31 min, better than 75% of zones"
     assert out["points"][0]["tone"] == "good" and out["points"][1]["text"] == "Hub: not computed yet"
     own = insights(house, None, est, {}, {}, {"office": 28.0})
     assert own["points"][0]["text"] == "Office: 28 min"         # the listing's own commute wins over the estimate

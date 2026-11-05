@@ -39,9 +39,8 @@ const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 export const HEAT_COLOURS = ['#1a9850', '#66bd63', '#a6d96a', '#fee08b', '#fdae61', '#f46d43', '#d73027'];
 export const BEYOND = '#6b6b78';
 /** Marker colour per target set; others take the fallback. */
-export const SET_COLOURS: Record<string, string> = {
-  rail: '#0089ca', bus: '#d71d24', ferry: '#00a5ac', grocery: '#2f9e44', pharmacy: '#1c7ed6', gym: '#e8590c', park: '#5c940d', vet: '#ae3ec9',
-};
+export { SET_COLOURS } from '../../set-colours';
+import { SET_COLOURS } from '../../set-colours';
 
 /** Map → Zone: the selected zone, its facts, lines and heatmap, and the layers that show them. */
 @Injectable({ providedIn: 'root' })

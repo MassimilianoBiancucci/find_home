@@ -225,3 +225,39 @@ export interface ZonePattern {
     groups?: Record<string, number>; modes?: Record<string, number>; winners?: Record<string, number> };
 }
 export interface ZoneCentroids { zone_id: string; walk_min: number; range_m: number; coverage: Record<string, number>; homes: number; centroids: ZoneCentroid[]; patterns: ZonePattern[]; }
+
+// ── House analysis (GET /api/listings/:id/location, POST .../transit) ─────────────────────────────────────────
+export interface HouseWalk {
+  set: string; minutes: number | null; metres: number | null; target: string | null;
+  target_lonlat: [number, number] | null; path: [number, number][]; count_within: number;
+}
+export interface HouseEstimate {
+  point_id: string; label: string; minutes: number | null; source: 'stations' | 'zone' | null;
+  station?: string; walk_min?: number; windows?: number;
+}
+export type Tone = 'good' | 'neutral' | 'bad';
+export interface Insight { text: string; tone: Tone; set?: string; point_id?: string; compare?: string; }
+export interface WalkColours { green: number; yellow: number; }
+export interface HouseLocation {
+  lat: number; lon: number; cached: boolean;
+  listing: { short_id: string; lat: number; lon: number };
+  zone: { id: string; name: string; district: string; kommun: string; neighbours: string[] };
+  snapped: boolean; snap_m: number | null;
+  sets?: string[]; walks: Record<string, HouseWalk>; set_labels: Record<string, string>;
+  transport: number | null; services: number | null; combined: number | null;
+  windows: Record<string, ZoneIndexWindow>; derivation: Record<IndexKey, Derivation>;
+  services_detail: Record<string, ServiceDetail>;
+  stops: { reachable_stops: number | null; modes: string[]; lines?: Record<string, number | null>; frequency?: Record<string, number | null> };
+  choice_within_min: number; cutoff_min: number; walk_colours: WalkColours;
+  station_walks: Record<string, number>;
+  stations: Record<string, { name: string | null; group: string | null; lat: number; lon: number }>;
+  estimates: HouseEstimate[]; listing_commute: Record<string, number>;
+  zone_index: (Pick<ZoneIndices, 'transport' | 'services' | 'combined' | 'services_detail' | 'derivation' | 'density' | 'choice_within_min' | 'measured'>
+    & { percentiles: Record<IndexKey, number | null> }) | null;
+  insights: { sets: Insight[]; points: Insight[] };
+}
+export interface TransitPlan { destinations: number; calls: number; cached: number; ttl_days: number; provider: string; }
+export interface HouseTrip extends Omit<ProbeTrip, 'kind'> {
+  kind: 'point' | 'service'; when_is: string; walk_min?: number | null; beats_walk?: boolean;
+}
+export interface TransitResult extends TransitPlan { trips: HouseTrip[]; }

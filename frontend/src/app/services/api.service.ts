@@ -5,7 +5,7 @@ import type { MapSettings } from '../pages/map/map-state.service';
 import {
   AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
-  GeoCollection, Health, Listing, ListingDetail,
+  GeoCollection, Health, HouseLocation, Listing, ListingDetail, TransitResult,
   PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta, ZoneCommute,
   IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef,
 } from '../models';
@@ -119,6 +119,10 @@ export class ApiService {
     return this.http.get<ZoneLines>(`/api/zone/${encodeURIComponent(id)}/lines`, { params: new HttpParams().set('day_kind', dayKind) });
   }
   zoneCentroids(id: string) { return this.http.get<ZoneCentroids>(`/api/zone/${encodeURIComponent(id)}/centroids`); }
+  listingLocation(id: string) { return this.http.get<HouseLocation>(`/api/listings/${id}/location`); }
+  listingTransit(id: string, dry: boolean) {
+    return this.http.post<TransitResult>(`/api/listings/${id}/transit`, {}, { params: new HttpParams().set('dry', String(dry)) });
+  }
   zoneIndices(id: string) { return this.http.get<ZoneIndices>(`/api/zone/${encodeURIComponent(id)}/indices`); }
   allIndices(window?: string) {
     return this.http.get<IndicesMap>('/api/zone/indices', { params: window ? new HttpParams().set('window', window) : undefined });

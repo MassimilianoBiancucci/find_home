@@ -100,7 +100,7 @@ async def location(short_id: str, conn=Depends(get_conn)):
     try:
         zi = await stored_zone_indices(conn, b, zones, zone_id)
         zone_index = {k: zi.get(k) for k in ("transport", "services", "combined", "services_detail", "derivation",
-                                              "density", "choice_within_min")}
+                                              "density", "choice_within_min", "measured")}
         zone_index["percentiles"] = await index_percentiles(conn, b, zone_id)
     except za.MissingData:
         zone_index = None

@@ -108,6 +108,23 @@ the routed page; box 3 is an optional right panel. A page publishes its bubbles 
 through [`LayoutService`](../../frontend/src/app/services/layout.service.ts) `register`, which removes them when
 the page is destroyed. Box widths and collapsed bubbles persist in localStorage; drag handles resize the boxes.
 
+**House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) loads the listing and its
+house analysis (`GET /api/listings/{id}/location`) side by side. Under the gallery it shows the bubbles of
+[`house-bubbles.ts`](../../frontend/src/app/house/house-bubbles.ts), clustered by meaning:
+- **This home** (first, accented): the home's transport, services and combined scores, each with an ⓘ and its
+  derivation. Then one row per set (grocery, pharmacy, gym, park, vet, rail, bus): the walk minutes coloured
+  green / yellow / red by `zone.yaml` `walk_colours`, the metres, and the count within the choice window;
+- **Its zone**: the same rows with the zone's medians, the zone's indices with their percentile, and links to the
+  3D view (`/map/zone/<id>?listing=<short id>`, `&fs=1` for full screen);
+- **Travel to your points**: per point the free station estimate, or the listing's computed commute, with the
+  comparison line ("better than N % of zones"). **Compute transit routes** asks for the exact itineraries
+  (`POST .../transit`). Its call count comes from the dry run (no API call) and is shown on the button and in
+  its tooltip.
+
+The results live in [`HouseTravelStore`](../../frontend/src/app/house/house-travel.store.ts), per listing, so
+the 3D house view reuses them. A service row shows "or N min by transit" when transit beats walking to the same
+target. Set colours come from [`set-colours.ts`](../../frontend/src/app/set-colours.ts) (shared with the zone view).
+
 **Explanations.** Every text that explains a value lives in one registry,
 [`help.ts`](../../frontend/src/app/help.ts) (`HELP`, keyed by dotted ids: `bubble.<id>`, `panel.<title>`,
 `score.<group>`, `zone.<index>`). Each entry has a title, a short text, an optional formula and the config files
