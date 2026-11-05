@@ -52,6 +52,13 @@ combined:
 # POI density per zone (Explore heatmaps): counts per this many home units (buildings weighted by floors) and per km².
 density:
   per_homes: 1000
+# House analysis (house page, 3D house view): walks from the exact address on the street network, no API calls.
+house:
+  cutoff_min: 30                  # walks above this are "none within reach" (long enough for a vet)
+  sets: [grocery, pharmacy, gym, park, vet, rail, bus]
+  services_depart: "10:00"        # weekday departure for "Compute transit routes" to the nearest services
+# Walking minutes in the UI: green up to `green`, yellow up to `yellow`, red above.
+walk_colours: {green: 5, yellow: 10}
 # Connectivity centroids: the points each zone's commutes start from (Map → Connectivity, `findhome zone centroids`).
 #   strategy: stops  the fewest free-placed circles of range_m (metres, radius) that cover every bus, tram, train,
 #                    metro and ferry stop of the region; no stop is left out. A zone uses every circle within walk_min.

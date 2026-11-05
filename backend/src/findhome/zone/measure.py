@@ -15,11 +15,14 @@ RAIL = {"metro", "commuter_rail", "local_rail", "tram", "train"}
 RAIL_WEIGHT = 3                    # a rail line counts as three bus lines in the lines component
 
 
-def reachable_stops(eg: ExtentGraph, tt: TimetableIndex, minutes: float) -> list[tuple[str, float]]:
-    """(stop id, seconds) of the stops within `minutes` walk of any of the zone's homes."""
-    starts: dict[int, float] = {}
-    for (n, d), _ in eg.homes:
-        starts[n] = min(starts.get(n, float("inf")), d / eg.p.speed_mps)
+def reachable_stops(eg: ExtentGraph, tt: TimetableIndex, minutes: float,
+                    starts: dict[int, float] | None = None) -> list[tuple[str, float]]:
+    """(stop id, seconds) of the stops within `minutes` walk of any start: the zone's homes by default, or given
+    start nodes with their initial seconds (one house)."""
+    if starts is None:
+        starts = {}
+        for (n, d), _ in eg.homes:
+            starts[n] = min(starts.get(n, float("inf")), d / eg.p.speed_mps)
     times = eg.times_from(starts, minutes * 60)
     out = []
     for i in tt.tree.query(eg.ext.search, predicate="intersects"):

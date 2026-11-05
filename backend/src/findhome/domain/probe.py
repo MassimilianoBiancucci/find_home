@@ -4,6 +4,7 @@ transit itinerary to each of your points (ResRobot, cached per ~100 m origin cel
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -113,29 +114,62 @@ def _probe_slot(bundle: ConfigBundle, trip) -> Slot:
     return slots[len(slots) // 2]
 
 
-async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, point_coords: dict[str, LatLon],
-                      today=None) -> list[dict]:
-    tz = ZoneInfo(bundle.time_model.timezone)
-    today = today or datetime.now(tz).date()
-    skip = set(bundle.time_model.skip_dates)
-    ttl = int(bundle.providers.cache.get("routing_ttl_days", 30))
+@dataclass(frozen=True)
+class Destination:
+    """Where a transit itinerary goes (or comes from): one of your points, or the nearest target of a service set."""
+    id: str
+    label: str
+    kind: str                     # point | service
+    coords: LatLon
+    direction: str                # to_point (origin → destination) | from_point
+    day_type: str
+    slot: Slot
+    category: str | None = None
+
+
+def point_destinations(bundle: ConfigBundle, point_coords: dict[str, LatLon]) -> list[Destination]:
+    """Your enabled points with trips: their first trip's direction, day type and middle slot."""
     out = []
     for point in bundle.locations.points:
         coords = point_coords.get(point.id)
         if not point.enabled or coords is None or not point.trips:
             continue
         trip = point.trips[0]
-        direction = "from_point" if trip.direction == "from_point" else "to_point"
-        a, b = (origin, coords) if direction == "to_point" else (coords, origin)
-        day_type = trip.day_types[0]
-        slot = _probe_slot(bundle, trip)
-        dt = bundle.time_model.day_types[day_type]
-        when = datetime.combine(reference_date(dt.days, dt.prefer, skip, today), time(0), tz) + timedelta(minutes=slot.minutes)
-        base = {"point_id": point.id, "label": point.label, "category": point.category, "direction": direction,
-                "day_type": day_type, "slot": slot.label, "kind": slot.kind}
-        oc = LatLon(round(a.lat, 3), round(a.lon, 3)) if direction == "to_point" else a
-        dc = b if direction == "to_point" else LatLon(round(b.lat, 3), round(b.lon, 3))
-        key = f"resrobot-trip|{oc.key(3)}|{dc.key(3)}|{day_type}|{slot.minutes}|{slot.kind}"
+        out.append(Destination(point.id, point.label, "point", coords,
+                               "from_point" if trip.direction == "from_point" else "to_point", trip.day_types[0],
+                               _probe_slot(bundle, trip), point.category))
+    return out
+
+
+def trip_key(origin: LatLon, d: Destination) -> str:
+    """routing_cache key: the home side rounded to ~100 m, so nearby homes share a trip."""
+    a, b = (origin, d.coords) if d.direction == "to_point" else (d.coords, origin)
+    oc = LatLon(round(a.lat, 3), round(a.lon, 3)) if d.direction == "to_point" else a
+    dc = b if d.direction == "to_point" else LatLon(round(b.lat, 3), round(b.lon, 3))
+    return f"resrobot-trip|{oc.key(3)}|{dc.key(3)}|{d.day_type}|{d.slot.minutes}|{d.slot.kind}"
+
+
+async def uncached_trips(conn, origin: LatLon, dests: list[Destination]) -> int:
+    """How many of these itineraries would need a ResRobot call (the dry run of Compute transit routes)."""
+    keys = [trip_key(origin, d) for d in dests]
+    return len(keys) - len(await _cache_get(conn, keys))
+
+
+async def trips_to(conn, registry, bundle: ConfigBundle, origin: LatLon, dests: list[Destination],
+                   today=None) -> list[dict]:
+    """One ResRobot itinerary per destination (cached in routing_cache), with legs dressed for the map."""
+    tz = ZoneInfo(bundle.time_model.timezone)
+    today = today or datetime.now(tz).date()
+    skip = set(bundle.time_model.skip_dates)
+    ttl = int(bundle.providers.cache.get("routing_ttl_days", 30))
+    out = []
+    for d in dests:
+        a, b = (origin, d.coords) if d.direction == "to_point" else (d.coords, origin)
+        dt = bundle.time_model.day_types[d.day_type]
+        when = datetime.combine(reference_date(dt.days, dt.prefer, skip, today), time(0), tz) + timedelta(minutes=d.slot.minutes)
+        base = {"point_id": d.id, "label": d.label, "category": d.category, "kind": d.kind, "direction": d.direction,
+                "day_type": d.day_type, "slot": d.slot.label, "when_is": d.slot.kind}
+        key = trip_key(origin, d)
         hit = (await _cache_get(conn, [key])).get(key)
         if hit is not None:
             out.append({**base, **hit, "est": False, "cached": True})
@@ -145,8 +179,8 @@ async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, poin
                         "error": "resrobot: TRAFIKLAB_RESROBOT_KEY not set"})
             continue
         try:
-            it = await registry.resrobot.itinerary(a, b, when, slot.kind)
-        except Exception as exc:  # noqa: BLE001 - one failing point must not hide the others
+            it = await registry.resrobot.itinerary(a, b, when, d.slot.kind)
+        except Exception as exc:  # noqa: BLE001 - one failing destination must not hide the others
             out.append({**base, "minutes": round(registry.haversine.estimate(a, b, "transit"), 1), "legs": [],
                         "est": True, "error": f"resrobot: {exc.__class__.__name__}"})
             continue
@@ -158,6 +192,15 @@ async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, poin
     for trip in out:
         dress_legs(trip.get("legs") or [], bundle)
     return out
+
+
+async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, point_coords: dict[str, LatLon],
+                      today=None) -> list[dict]:
+    """The test point's trips to each of your points (first trip, middle slot of its first window)."""
+    trips = await trips_to(conn, registry, bundle, origin, point_destinations(bundle, point_coords), today)
+    for t in trips:                                     # the test point's payload names the slot kind "kind"
+        t["kind"] = t.pop("when_is")
+    return trips
 
 
 def dress_legs(legs: list[dict], bundle: ConfigBundle) -> None:

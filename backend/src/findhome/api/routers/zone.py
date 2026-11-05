@@ -67,6 +67,30 @@ async def all_indices(window: str | None = None, conn=Depends(get_conn)):
             "zone_count": len(_zones_or_404().zones)}
 
 
+async def stored_zone_indices(conn, b, zones, zone_id: str) -> dict:
+    """A zone's indices from zone_index, computed and stored first when missing (a few seconds, no API calls).
+    Raises za.MissingData when a dataset is not built."""
+    ver = za.version(b, za.index_sets(b))
+    row = await (await conn.execute("SELECT payload FROM zone_index WHERE zone_id = %s AND version = %s",
+                                    (zone_id, ver))).fetchone()
+    if row:
+        return {**row["payload"], "cached": True}
+    payload = await asyncio.to_thread(za.zone_indices, b, zones, zone_id)
+    await conn.execute("INSERT INTO zone_index (zone_id, version, payload) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                       (zone_id, ver, Jsonb(payload)))
+    return {**payload, "cached": False}
+
+
+async def index_percentiles(conn, b, zone_id: str) -> dict[str, float | None]:
+    """The zone's percentile among the stored zones for transport, services and combined (day average)."""
+    ver = za.version(b, za.index_sets(b))
+    rows = await (await conn.execute("SELECT zone_id, payload FROM zone_index WHERE version = %s", (ver,))).fetchall()
+    out: dict[str, float | None] = {}
+    for key in ("transport", "services", "combined"):
+        out[key] = za.percentiles({r["zone_id"]: r["payload"].get(key) for r in rows}).get(zone_id)
+    return out
+
+
 @router.get("/{zone_id}/indices")
 async def zone_indices(zone_id: str, conn=Depends(get_conn)):
     """Indices of one zone (transport, services, combined, with derivations, per-set services detail and POI
@@ -74,18 +98,10 @@ async def zone_indices(zone_id: str, conn=Depends(get_conn)):
     b, zones = bundle(), _zones_or_404()
     if zone_id not in zones.zones:
         raise HTTPException(404, "unknown zone")
-    ver = za.version(b, za.index_sets(b))
-    row = await (await conn.execute("SELECT payload FROM zone_index WHERE zone_id = %s AND version = %s",
-                                    (zone_id, ver))).fetchone()
-    if row:
-        return {**row["payload"], "cached": True}
     try:
-        payload = await asyncio.to_thread(za.zone_indices, b, zones, zone_id)
+        return await stored_zone_indices(conn, b, zones, zone_id)
     except za.MissingData as exc:
         raise HTTPException(409, str(exc)) from exc
-    await conn.execute("INSERT INTO zone_index (zone_id, version, payload) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
-                       (zone_id, ver, Jsonb(payload)))
-    return {**payload, "cached": False}
 
 
 @router.get("/{zone_id}/centroids")

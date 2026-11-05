@@ -432,6 +432,50 @@ values, each with a percentile ([`all_indices()`](../../backend/src/findhome/api
 [`percentiles()`](../../backend/src/findhome/zone/analysis.py#L252)). The window applies to transport and combined. `findhome zone indices --all` fills the
 cache; it makes no API calls.
 
+### House analysis
+
+A listing is measured from its **exact address** with the same engines and formulas as its zone, so the house and
+the zone compare line by line. The datasets are local and nothing calls an API.
+
+```mermaid
+flowchart TD
+  A[listing lat/lon] --> X[house extent: the zone under the point,<br/>a circle of the walking reach]
+  X --> EG[ExtentGraph, no homes]
+  T[targets per set: zone.yaml house.sets] --> D
+  EG --> D[one Dijkstra from the address<br/>times + node paths, cut-off house.cutoff_min]
+  D --> W[per set: nearest target, minutes, metres,<br/>path geometry, count within choice.within_min]
+  D --> ST[stops within access_min → lines, departures per window]
+  W --> IX[indices(): transport without coverage,<br/>services, combined]
+  ST --> IX
+  D --> SW[walk to each centroid station of the zone]
+  IX --> C[(listing_location)]
+  W --> C
+  SW --> C
+```
+
+| Step | Code |
+|---|---|
+| extent around the address | [`house_extent()`](../../backend/src/findhome/zone/house.py#L58) |
+| walks, paths and counts | [`walk_paths()`](../../backend/src/findhome/zone/house.py#L76) (edge geometry from `Network.edges[idx]`, reversed when stored the other way) |
+| house indices, stops, station walks | [`house_analysis()`](../../backend/src/findhome/zone/house.py#L145), [`station_walks()`](../../backend/src/findhome/zone/house.py#L119) |
+| cache version: zone inputs, poi.yaml, centroids, coordinates | [`version()`](../../backend/src/findhome/zone/house.py#L134) |
+
+`GET /api/listings/{id}/location` ([`location()`](../../backend/src/findhome/api/routers/house.py#L74)) serves the cached payload
+([`house_payload()`](../../backend/src/findhome/api/routers/house.py#L40); computed in a few seconds when missing) and adds what depends on stored rows:
+- **station estimate** per point ([`estimates()`](../../backend/src/findhome/zone/house.py#L219)): for each trip window, the cheapest
+  `walk(home → station) + centroid_commute(station → point)`; then the window-weighted mean. Without station rows,
+  the zone's `zone_commute` value is used; without that, "not computed";
+- the zone's indices and percentiles (`zone_index`, computed when missing);
+- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L274)): each set's walk against the zone median, and each point's minutes (the
+  listing's own commute when computed, else the estimate) against the zone and as "better than N % of zones".
+
+`POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L130)) is the only call that uses ResRobot. It is triggered
+by "Compute transit routes". Its destinations are your points
+([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L130)) plus the nearest target of each service set, reached on a weekday at
+`house.services_depart`. Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L158) and are cached in `routing_cache` per ~100 m
+cell, like the test point's. With `dry=true` it returns only the number of calls not yet cached
+([`uncached_trips()`](../../backend/src/findhome/domain/probe.py#L152)). `findhome listings location --all` warms the cache for every listing.
+
 ## Scoring
 
 [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) `score_listing`:

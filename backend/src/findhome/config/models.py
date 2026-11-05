@@ -223,6 +223,8 @@ class ZoneConfig(_Base):
     indices: dict[str, Any] = Field(default_factory=dict)
     combined: dict[str, Any] = Field(default_factory=dict)       # parts: {transport: 0.5, services: 0.5}
     density: dict[str, Any] = Field(default_factory=dict)        # per_homes: 1000
+    house: dict[str, Any] = Field(default_factory=dict)          # house analysis: cutoff_min, sets, services_depart
+    walk_colours: dict[str, float] = Field(default_factory=dict) # minutes: green up to, yellow up to; above: red
     centroids: dict[str, Any] = Field(default_factory=dict)
 
 

@@ -43,9 +43,10 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 [`004_connectivity_status.sql`](../../backend/migrations/004_connectivity_status.sql) adds its route status and
 `provider_failure` (zone points a provider cannot route).
 [`005_zone_cache.sql`](../../backend/migrations/005_zone_cache.sql) adds `zone_heatmap` (zone analysis cache).
-[`006_zone_index.sql`](../../backend/migrations/006_zone_index.sql) adds `zone_index` (mobility indices).
+[`006_zone_index.sql`](../../backend/migrations/006_zone_index.sql) adds `zone_index` (zone indices).
 [`007_centroid_commute.sql`](../../backend/migrations/007_centroid_commute.sql) adds `centroid_commute` (station commutes) and
 `zone_pattern` (where each zone's best trips start).
+[`009_listing_location.sql`](../../backend/migrations/009_listing_location.sql) adds `listing_location` (house analysis cache).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in

@@ -117,6 +117,35 @@ export const HELP: Record<string, HelpEntry> = {
     config: [`${PROFILE}.neighbourhood`],
   },
 
+  // ── House analysis (from the exact address) ──────────────────────────────────────────
+  'house.services': {
+    title: 'Home services score', short: '0-100: everyday services around this home, from its exact address. Per service set, the walk to the nearest one and how many are within a short walk; the same formula as the zone\'s services index, so the two compare directly.',
+    formula: 'setᵢ = proximity × (1 − c) + choice × c;  score = 100 · Σ wᵢ · setᵢ / Σ wᵢ',
+    config: ['config/zone.yaml → indices.services', 'config/poi.yaml → <category>.weight', 'config/zone.yaml → house'],
+  },
+  'house.transport': {
+    title: 'Home transport score', short: '0-100: public transport from this home: walk to rail and to a bus stop, and the lines and departures at the stops within a short walk, per time window. Like the zone\'s transport index without coverage (a share of a zone\'s homes).',
+    formula: 'transport = 100 · Σ wₖ · componentₖ / Σ wₖ   (rail, bus, lines, frequency)',
+    config: ['config/zone.yaml → indices.components', 'config/zone.yaml → indices.access_min'],
+  },
+  'house.combined': {
+    title: 'Home combined score', short: 'The weighted mean of the home\'s transport and services scores, with the same parts as the zone\'s combined score.',
+    config: ['config/zone.yaml → combined.parts'],
+  },
+  'house.walk': {
+    title: 'Walking times', short: 'Walks along the street network from the address to the nearest target of each set (stairs are slower), in minutes and metres. Colours: green, yellow, red by duration. "Within 10 min" counts how many are close enough to give a choice.',
+    config: ['config/zone.yaml → walk_colours', 'config/zone.yaml → speeds_mps', 'config/zone.yaml → house.cutoff_min'],
+  },
+  'house.estimate': {
+    title: 'Travel estimate', short: 'Free, no API call: the walk from this home to each connectivity station of its zone plus the stored transit minutes from that station to your point; the cheapest station wins per time window, then the window-weighted mean. Without station data, the zone\'s own value.',
+    formula: 'estimate = Σ wₜ · minₛ (walk(home → s) + transit(s → point, t)) / Σ wₜ',
+    config: ['config/locations.yaml (points, trips, windows)', 'config/zone.yaml → centroids'],
+  },
+  'house.transit': {
+    title: 'Compute transit routes', short: 'Asks ResRobot (Trafiklab) for public-transport itineraries from this home to your points and to the nearest grocery, pharmacy, gym, park and vet. It uses API calls, counted before you click; results are cached (about 100 m around the home) and reused.',
+    config: ['config/providers.yaml → cache.routing_ttl_days', 'config/zone.yaml → house.services_depart'],
+  },
+
   // ── Zone indices ──────────────────────────────────────────────────────────────────────
   'zone.transport': {
     title: 'Transport index', short: '0-100: how well you move from a typical home of the zone by public transport. Walking access to rail and bus, coverage, lines and departures within a short walk. Each component maps a measured value linearly between two thresholds; the components are weighted. Per time window, then the window-weighted average.',

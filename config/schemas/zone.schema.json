@@ -268,6 +268,46 @@
       },
       "additionalProperties": false
     },
+    "house": {
+      "type": "object",
+      "description": "house analysis from the exact address",
+      "properties": {
+        "cutoff_min": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "sets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "services_depart": {
+          "type": "string",
+          "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "walk_colours": {
+      "type": "object",
+      "description": "walking minutes: green up to, yellow up to; above is red",
+      "properties": {
+        "green": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "yellow": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        }
+      },
+      "required": [
+        "green",
+        "yellow"
+      ],
+      "additionalProperties": false
+    },
     "centroids": {
       "type": "object",
       "properties": {

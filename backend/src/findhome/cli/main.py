@@ -230,6 +230,35 @@ def listings_list(status: Optional[str] = None, kind: Optional[str] = None, q: O
     _out(res, "\n".join(rows) or "no listings")
 
 
+@listings_app.command("location")
+def listings_location(short_id: Optional[str] = typer.Argument(None, help="one listing; omit with --all"),
+                      all_listings: bool = typer.Option(False, "--all", help="every listing with coordinates")):
+    """House analysis from the exact address (walks, house indices, station estimate). Local data only, no API calls;
+    --all warms the cache for the house page."""
+    api = _api()
+    if not all_listings:
+        if not short_id:
+            typer.secho("give a short id or --all", fg="red", err=True)
+            raise typer.Exit(2)
+        r = api.get(f"/api/listings/{short_id}/location")
+        lines = [f"{short_id} · {r['zone']['name']}: transport {r['transport']} · services {r['services']} · combined {r['combined']}"]
+        lines += [f"  {i['text']}" for i in r["insights"]["sets"] + r["insights"]["points"]]
+        _out(r, "\n".join(lines))
+        return
+    items = api.get("/api/listings", limit=1000)["items"]
+    done = failed = 0
+    for it in items:
+        if it.get("lat") is None:
+            continue
+        try:
+            api.get(f"/api/listings/{it['short_id']}/location")
+            done += 1
+        except Exception as exc:  # noqa: BLE001 - report and go on (outside every zone, missing data)
+            failed += 1
+            typer.echo(f"{it['short_id']}: {exc}")
+    _out({"done": done, "failed": failed}, f"house analysis ready for {done} listings ({failed} failed)")
+
+
 @listings_app.command("show")
 def listings_show(short_id: str):
     """Full digest of one listing (same as `digest listing --fields full`)."""
