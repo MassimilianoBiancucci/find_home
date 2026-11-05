@@ -285,6 +285,16 @@
         "services_depart": {
           "type": "string",
           "pattern": "^[0-2][0-9]:[0-5][0-9]$"
+        },
+        "reach": {
+          "type": "object",
+          "description": "the home's transport score: share of the minutes to your points, and their good / bad limits",
+          "properties": {
+            "weight": {"type": "number", "minimum": 0, "maximum": 1},
+            "good_min": {"type": "number", "minimum": 0},
+            "bad_min": {"type": "number", "exclusiveMinimum": 0}
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

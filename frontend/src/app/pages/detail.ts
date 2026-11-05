@@ -118,8 +118,10 @@ import { TagsStore } from '../services/tags.store';
           @if (x.score_stale) { <div class="small text-warning">No score for the current config. <a href="" (click)="$event.preventDefault(); recompute()">Recompute</a></div> }
           @if (x.score?.rejected_by?.length) { <div class="small text-danger">Rejected by: {{ x.score!.rejected_by.join(', ') }}</div> }
           @for (g of breakdown(); track g.name) {
-            <div class="d-flex small justify-content-between"><span>{{ g.name }} <span class="text-body-secondary">×{{ g.weight }}</span> <fh-info [id]="'score.' + g.name" [quiet]="true" /></span>
-              <span [title]="g.why">{{ g.score == null ? 'n/a' : score(g.score) }}</span></div>
+            <div class="d-flex small justify-content-between"><span>{{ g.name }} <span class="text-body-secondary">×{{ g.weight }}</span>
+              <fh-info [id]="'score.' + g.name" [quiet]="true" [derivation]="g.detail ?? null" />
+              @if (g.estimated) { <span class="fh-badge-est" title="Part of this value is estimated (Connectivity minutes): compute the transit routes to your points to make it exact">estimate</span> }</span>
+              <span [title]="g.why" class="position-relative">{{ g.score == null ? 'n/a' : score(g.score) }}@if (g.estimated) { <i class="fh-est-dot inline"></i> }</span></div>
           }
         </div></div>
 

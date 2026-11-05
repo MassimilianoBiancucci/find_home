@@ -375,6 +375,14 @@ pre.fh-pre {
 .fh-ltip-grid { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; }
 .fh-ltip-grid > span:nth-child(odd) { color: var(--bs-secondary-color); }
 .fh-ltip-photo { float: right; width: 96px; height: 72px; object-fit: cover; border-radius: 6px; margin: 0 0 4px 8px; }
+.fh-deriv-sub td:first-child { padding-left: 1.2rem; }
+.fh-eng { font-family: var(--bs-font-monospace); font-size: 0.72rem; color: var(--bs-secondary-color);
+  ul { padding-left: 1.1rem; margin: 4px 0 0; } li { margin-bottom: 3px; } summary { font-family: var(--bs-body-font-family); cursor: pointer; } }
+/* a value that uses an approximation (estimated minutes): an orange dot on the score's top-right corner */
+.fh-est-dot { position: absolute; top: 5px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #ff8c1a;
+  box-shadow: 0 0 6px #ff8c1a; display: block;
+  &.inline { position: relative; top: -0.55em; right: 0; display: inline-block; width: 6px; height: 6px; margin-left: 2px; vertical-align: baseline; } }
+.fh-hscore { position: relative; }
 .fh-hscores { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 8px; }
 .fh-hscore { border-radius: 8px; padding: 6px 8px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
   border-top: 3px solid var(--c, var(--fh-muted));

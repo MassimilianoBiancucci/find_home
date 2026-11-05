@@ -18,6 +18,9 @@ export interface HelpEntry {
   long?: string;
   /** Guide page (repo-relative), named in the dialog. */
   guide?: string;
+  /** Developer notes, shown in the dialog in mono: data sources and their precedence, tables and cache keys, where
+   *  the value is stored and recomputed, edge cases. Terse on purpose. */
+  engineer?: string[];
 }
 
 /** A calculation the backend can attach to a score: each row is one input mapped to 0..1 and weighted. */
@@ -29,7 +32,7 @@ export interface Derivation {
   scale?: 1 | 100;
   note?: string;
 }
-export interface DerivationRow { name: string; input: string; score: number | null; weight: number; }
+export interface DerivationRow { name: string; input: string; score: number | null; weight: number; /** detail of the row above: not added */ sub?: boolean; }
 
 const PROFILE = 'config/profile.yaml → kinds.rent.preferences';
 
@@ -112,6 +115,7 @@ export const HELP: Record<string, HelpEntry> = {
   'score.total': {
     title: 'Score', short: 'Hard filters first: failing one rejects the listing. Then the weighted mean of the score groups, each 0..1. A group without the data it needs is left out and its weight does not count.',
     formula: 'score = Σ weightᵢ · groupᵢ / Σ weightᵢ   (groups with data only)',
+    engineer: ['Orange dot next to a score: at least one group with breakdown[g].estimated (today: transport with Connectivity minutes). The value is final for ranking; computing the transit routes to your points makes it exact on the next recompute.'],
     config: [`${PROFILE} (weights, params)`, 'config/profile.yaml → kinds.rent.hard_filters'],
     guide: 'guide/architecture/config_and_locations.md',
   },
@@ -129,6 +133,7 @@ export const HELP: Record<string, HelpEntry> = {
     title: 'Commute', short: 'Public-transport minutes from this home to your points (work, partner, hubs) in config/locations.yaml. Each trip window\'s median maps from good (1.0) to bad (0.0); unreliable windows (large spread) lose up to half; then the mean weighted by point and window weight.',
     formula: 'commute = Σ (point weight × window weight × clamp((bad − median) / (bad − good)) × reliability) / Σ weights',
     config: [`${PROFILE}.commute.params (good_min, bad_min, reliability_spread_penalty_min)`, 'config/locations.yaml (points, trips, windows, weights)'],
+    engineer: ['Steps aside (score None, "counted in the transport group") while the transport group is enabled and the home has reach minutes: the same minutes are in the home transport score. The hard filter max_commute_min_by_category still reads commute_results.'],
   },
   'score.cat_suitability': {
     title: 'Cat suitability', short: 'Pet status (yes, ask, unknown), plus small bonuses for a balcony and for a low floor or a lift.',
@@ -146,8 +151,33 @@ export const HELP: Record<string, HelpEntry> = {
     title: 'Area', short: 'How well the home sits in your search area (Map → Area): 1.0 inside a piece of weight 1, falling off with distance outside.',
     config: ['config/search_area.yaml', `${PROFILE}.area`],
   },
+  'score.transport': {
+    title: 'Transport (home)', short: 'The home\'s transport score (0-100 → 0-1): access from the exact address blended with the minutes to your points. It holds the commute: while it has minutes, the commute group steps aside. Orange dot: some minutes are Connectivity estimates.',
+    formula: 'group = home transport / 100;  home transport = 0.4 · access + 0.6 · reach',
+    config: [`${PROFILE}.transport (weight 4)`, 'config/zone.yaml → house.reach'],
+    engineer: [
+      'domain/scoring.py _transport(location): location from api/routers/scoring.py _location() → house_scores_for() (cached data only, no provider call).',
+      'breakdown.transport.estimated = scores.estimated; breakdown.transport.detail = access, reach and one row per point.',
+      'No house analysis (listing_location row with the current version) → None, left out of the mean; outside every zone → None with reason "outside the analysed zones".',
+      'De-duplication in score_listing(): transport enabled and reach present → commute group = None ("counted in the transport group"); transport or services enabled → neighbourhood = None.',
+      'access = payload.transport of listing_location (zone/house.py house_analysis → zone/indices.py indices() on Components: rail_access_min, bus_access_min, lines, frequency; coverage dropped, weights renormalised).',
+      'reach (zone/house.py reach): per enabled point with trips, minutes from the first source that has them: (1) listing_commute: commute_results of the current config_hash, mode transit, window-weighted median; (2) house_trip: routing_cache resrobot-trip|<home ~100 m>|<point>|<day_type>|<slot.minutes>|<kind>, expires_at > now (Compute transit routes to your points); (3) stations: zh.estimates(): per trip window min over the zone\'s connectivity stations of station_walks[s] + centroid_commute.minutes (inputs_hash), window-weighted; (4) zone: zone_commute rows of the zone. (3) and (4) set estimated.',
+      'point score sᵢ = clamp((bad_min − mᵢ) / (bad_min − good_min), 0, 1); reach = 100 · Σ wᵢ sᵢ / Σ wᵢ, wᵢ = locations.effective_weight(point); points without minutes are dropped; no minutes at all → transport = access.',
+      'stored in listing_location.payload.scores (jsonb_set) by api/routers/house.py house_scores_for(): on GET /api/listings/{id}/location, after POST /transit (which = points | all) and on every POST /api/scores/recompute. GET /api/listings reads coalesce(payload.scores.transport, payload.transport) and payload.scores.estimated.',
+      'house.reach is in zone/analysis.py NOT_HASHED: editing it needs a score recompute only, not a new house analysis.',
+    ],
+  },
+  'score.services': {
+    title: 'Services (home)', short: 'The home\'s services score (0-100 → 0-1) from its exact address: per service set the walk to the nearest one and how many are within a short walk, weighted by set.',
+    formula: 'group = home services / 100;  home services = 100 · Σ wₛ · (proximityₛ · (1 − c) + choiceₛ · c) / Σ wₛ',
+    config: [`${PROFILE}.services (weight 2)`, 'config/zone.yaml → indices.services', 'config/poi.yaml → <category>.weight'],
+    engineer: [
+      'domain/scoring.py _services(location): listing_location.payload.services (house_analysis → indices(), set weights = max poi.yaml weight per set). Never estimated (local walking network only).',
+      'Outside every zone or no analysis → None, left out of the mean.',
+    ],
+  },
   'score.neighbourhood': {
-    title: 'Neighbourhood', short: 'The home\'s own surroundings, from its exact address: services within walking distance, public transport nearby, and the services of its zone as context. Commute is not counted here (it has its own group).',
+    title: 'Neighbourhood', short: 'The home\'s own surroundings, from its exact address: services within walking distance, public transport nearby, and the services of its zone as context. Steps aside (n/a) while the transport or services group is on, so nothing counts twice.',
     config: [`${PROFILE}.neighbourhood`],
   },
 
@@ -175,13 +205,23 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/zone.yaml → indices.services', 'config/poi.yaml → <category>.weight', 'config/zone.yaml → house'],
   },
   'house.transport': {
-    title: 'Home transport score', short: '0-100: public transport from this home: walk to rail and to a bus stop, and the lines and departures at the stops within a short walk, per time window. Like the zone\'s transport index without coverage (a share of a zone\'s homes).',
-    formula: 'transport = 100 · Σ wₖ · componentₖ / Σ wₖ   (rail, bus, lines, frequency)',
-    config: ['config/zone.yaml → indices.components', 'config/zone.yaml → indices.access_min'],
+    title: 'Home transport score', short: '0-100: public transport from this home. Access (walk to rail and a bus stop, lines and departures within a short walk) blended with reach: the transit minutes to your points, weighted 0.6. Minutes come from ResRobot trips from this home when cached, else from the Connectivity matrix; then the value is marked estimate (orange dot).',
+    formula: 'transport = (1 − w) · access + w · reach;  reach = 100 · Σ pᵢ · clamp((bad − mᵢ) / (bad − good)) / Σ pᵢ   (w 0.6, good 20, bad 60)',
+    config: ['config/zone.yaml → house.reach (weight, good_min, bad_min)', 'config/zone.yaml → indices.components, indices.access_min',
+      'config/locations.yaml → points (weights, trips)'],
+    engineer: [
+      'access = payload.transport of listing_location (zone/house.py house_analysis → zone/indices.py indices() on Components: rail_access_min, bus_access_min, lines, frequency; coverage dropped, weights renormalised).',
+      'reach (zone/house.py reach): per enabled point with trips, minutes from the first source that has them: (1) listing_commute: commute_results of the current config_hash, mode transit, window-weighted median; (2) house_trip: routing_cache resrobot-trip|<home ~100 m>|<point>|<day_type>|<slot.minutes>|<kind>, expires_at > now (Compute transit routes to your points); (3) stations: zh.estimates(): per trip window min over the zone\'s connectivity stations of station_walks[s] + centroid_commute.minutes (inputs_hash), window-weighted; (4) zone: zone_commute rows of the zone. (3) and (4) set estimated.',
+      'point score sᵢ = clamp((bad_min − mᵢ) / (bad_min − good_min), 0, 1); reach = 100 · Σ wᵢ sᵢ / Σ wᵢ, wᵢ = locations.effective_weight(point); points without minutes are dropped; no minutes at all → transport = access.',
+      'stored in listing_location.payload.scores (jsonb_set) by api/routers/house.py house_scores_for(): on GET /api/listings/{id}/location, after POST /transit (which = points | all) and on every POST /api/scores/recompute. GET /api/listings reads coalesce(payload.scores.transport, payload.transport) and payload.scores.estimated.',
+      'house.reach is in zone/analysis.py NOT_HASHED: editing it needs a score recompute only, not a new house analysis.',
+    ],
   },
   'house.combined': {
-    title: 'Home combined score', short: 'The weighted mean of the home\'s transport and services scores, with the same parts as the zone\'s combined score.',
+    title: 'Home combined score', short: 'The weighted mean of the home\'s transport (with reach) and services scores, with the same parts as the zone\'s combined score. Estimated when transport is.',
+    formula: 'combined = Σ partₖ · scoreₖ / Σ partₖ   (parts with a value)',
     config: ['config/zone.yaml → combined.parts'],
+    engineer: ['zone/house.py house_scores(): computed with the reach-blended transport, stored in payload.scores.combined; payload.combined (no reach) stays for the zone comparison.'],
   },
   'house.walk': {
     title: 'Walking times', short: 'Walks along the street network from the address to the nearest target of each set (stairs are slower), in minutes and metres. Colours: green, yellow, red by duration. "Within 10 min" counts how many are close enough to give a choice.',

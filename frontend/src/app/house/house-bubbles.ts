@@ -4,7 +4,8 @@ import { RouterLink } from '@angular/router';
 import { ExplainInline } from '../components/explain';
 import { InfoButton } from '../components/info';
 import { toneColor, walkTone } from '../format';
-import { HouseLocation, HouseTrip, IndexKey, TransitResult } from '../models';
+import { Derivation } from '../help';
+import { HouseLocation, HouseScores, HouseTrip, IndexKey, TransitResult } from '../models';
 import { setColour } from '../set-colours';
 import { walkOnly } from '../pages/map/house-layer.service';
 import { HouseTravelStore, TransitWhich } from './house-travel.store';
@@ -19,6 +20,12 @@ function setOrder(loc: HouseLocation): string[] {
   const keys = loc.sets?.length ? loc.sets
     : [...DEFAULT_ORDER.filter((k) => k in loc.walks), ...Object.keys(loc.walks).filter((k) => !DEFAULT_ORDER.includes(k))];
   return [...keys.filter((k) => !STOP_SETS.has(k)), ...keys.filter((k) => STOP_SETS.has(k))];
+}
+
+/** The home transport derivation for the dialog: access and reach, then one row per point of the reach. */
+export function houseTransportDerivation(s: HouseScores): Derivation {
+  return { ...s.derivation, rows: [...s.derivation.rows,
+    ...s.reach_rows.map((r) => ({ name: `· ${r.name}${r.estimate ? ' (estimate)' : ''}`, input: r.input, score: r.score, weight: r.weight, sub: true }))] };
 }
 
 /** 0-100 index → colour (same ramp idea as the zone tiles: red, amber, green). */
@@ -37,9 +44,12 @@ export function indexColour(v: number | null | undefined): string {
     <header><h2>This home</h2><span class="fh-hsub">from the exact address</span><fh-info id="house.home" /></header>
     <div class="fh-hscores">
       @for (k of keys; track k) {
-        <div class="fh-hscore" [style.--c]="colour(l[k])">
-          <div class="fh-hscore-v">{{ l[k] == null ? '–' : (l[k]! | number: '1.0-0') }}</div>
-          <div class="fh-hscore-l">{{ label(k) }} <fh-info [id]="'house.' + k" [derivation]="l.derivation[k]" /></div>
+        @let v = value(k); @let est = k !== 'services' && !!l.scores?.estimated;
+        <div class="fh-hscore" [style.--c]="colour(v)">
+          @if (est) { <i class="fh-est-dot" [title]="estTitle()"></i> }
+          <div class="fh-hscore-v">{{ v == null ? '–' : (v | number: '1.0-0') }}</div>
+          <div class="fh-hscore-l">{{ label(k) }} <fh-info [id]="'house.' + k" [derivation]="derivation(k)" /></div>
+          @if (est) { <div class="fh-hscore-n"><span class="fh-badge-est" [title]="estTitle()">estimate</span></div> }
         </div>
       }
     </div>
@@ -64,6 +74,24 @@ export function indexColour(v: number | null | undefined): string {
 })
 export class HouseHome {
   readonly loc = input.required<HouseLocation>();
+  /** The tile value: transport and combined with reach (scores), services as measured. */
+  protected value(k: IndexKey): number | null {
+    const l = this.loc(), s = l.scores;
+    return k === 'transport' ? s?.transport ?? l.transport : k === 'combined' ? s?.combined ?? l.combined : l.services;
+  }
+  protected derivation(k: IndexKey): Derivation | undefined {
+    const l = this.loc(), s = l.scores;
+    if (!s || k === 'services') return l.derivation[k];
+    if (k === 'transport') return houseTransportDerivation(s);
+    const parts = s.combined_parts ?? { transport: 0.5, services: 0.5 };
+    return { label: 'Part', scale: 100, total: s.combined, note: 'combined = Σ partₖ · scoreₖ / Σ partₖ over the parts with a value (zone.yaml combined.parts); transport includes reach.',
+      rows: [{ name: 'transport (access + reach)', input: s.transport == null ? '–' : `${s.transport} / 100`, score: s.transport == null ? null : s.transport / 100, weight: parts['transport'] ?? 0 },
+        { name: 'services', input: s.services == null ? '–' : `${s.services} / 100`, score: s.services == null ? null : s.services / 100, weight: parts['services'] ?? 0 }] };
+  }
+  protected estTitle(): string {
+    const rows = this.loc().scores?.reach_rows.filter((r) => r.estimate).map((r) => r.name) ?? [];
+    return `Estimated: the minutes to ${rows.join(', ')} come from the Connectivity matrix (walk to a station + its stored minutes), not from a ResRobot trip from this home. Compute transit routes to your points makes them exact.`;
+  }
   readonly transit = input<TransitResult | null>(null);
   protected keys: IndexKey[] = ['transport', 'services', 'combined'];
   protected sets = computed(() => setOrder(this.loc()));

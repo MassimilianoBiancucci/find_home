@@ -63,3 +63,23 @@ def test_better_than_and_insight_lines():
     assert out["points"][0]["tone"] == "good" and out["points"][1]["text"] == "Hub: not computed yet"
     own = insights(house, None, est, {}, {}, {"office": 28.0})
     assert own["points"][0]["text"] == "Office: 28 min"         # the listing's own commute wins over the estimate
+
+
+def test_reach_picks_the_best_source_and_blends_into_transport():
+    from findhome.zone.house import house_scores, pick_minutes, reach
+
+    est = [{"point_id": "a", "minutes": 50.0, "source": "stations"}, {"point_id": "b", "minutes": 40.0, "source": "zone"},
+           {"point_id": "c", "minutes": 30.0, "source": "stations"}, {"point_id": "d", "minutes": None, "source": None}]
+    picked = pick_minutes({"a": 25.0}, {"a": 99.0, "b": 20.0}, est)
+    assert picked == {"a": (25.0, "listing_commute"), "b": (20.0, "house_trip"), "c": (30.0, "stations"), "d": (None, None)}
+    cfg = {"weight": 0.6, "good_min": 20.0, "bad_min": 60.0}
+    r = reach(picked, {"a": "A"}, {"a": 2.0, "b": 1.0, "c": 1.0}, cfg)
+    # a: (60-25)/40 = 0.875 ×2, b: 1.0 ×1, c: 0.75 ×1 → 3.5 / 4
+    assert r["value"] == 87.5 and r["estimated"] is True and [x["estimate"] for x in r["rows"]] == [False, False, True, False]
+    sc = house_scores({"transport": 50.0, "services": 70.0}, r, cfg, {"transport": 0.5, "services": 0.5})
+    assert sc["transport"] == round(0.4 * 50 + 0.6 * 87.5, 1) and sc["combined"] == round((sc["transport"] + 70) / 2, 1)
+    assert sc["derivation"]["scale"] == 100 and "point(s) estimated" in sc["derivation"]["note"]
+    exact = reach({"a": (25.0, "house_trip")}, {}, {}, cfg)
+    assert exact["estimated"] is False
+    alone = house_scores({"transport": 50.0, "services": None}, reach({}, {}, {}, cfg), cfg, None)
+    assert alone["transport"] == 50.0 and alone["reach"] is None

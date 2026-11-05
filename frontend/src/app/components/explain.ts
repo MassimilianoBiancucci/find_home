@@ -2,9 +2,10 @@ import { Component, HostListener, computed, input, output } from '@angular/core'
 import { Derivation, help } from '../help';
 
 /** Contribution of each row and the weighted total, on the derivation's scale (0..1 or 0..100). */
-export function contributions(d: Derivation): { name: string; input: string; score: number | null; weight: number; share: number | null }[] {
-  const den = d.rows.reduce((a, r) => a + (r.score == null ? 0 : r.weight), 0);
-  return d.rows.map((r) => ({ ...r, share: r.score == null || !den ? null : (r.score * r.weight) / den }));
+export function contributions(d: Derivation): { name: string; input: string; score: number | null; weight: number; share: number | null; sub?: boolean }[] {
+  // sub-rows detail the row above them (e.g. the points of the reach): shown, not added to the total
+  const den = d.rows.reduce((a, r) => a + (r.score == null || r.sub ? 0 : r.weight), 0);
+  return d.rows.map((r) => ({ ...r, share: r.score == null || r.sub || !den ? null : (r.score * r.weight) / den }));
 }
 
 /** The derivation table: input → score × weight → contribution, then the total. */
@@ -16,7 +17,7 @@ export function contributions(d: Derivation): { name: string; input: string; sco
         <thead><tr><th>{{ d.label }}</th><th>Measured</th><th class="text-end">Score</th><th class="text-end">Weight</th><th class="text-end">Adds</th></tr></thead>
         <tbody>
           @for (r of rows(); track r.name) {
-            <tr [class.text-body-secondary]="r.score == null">
+            <tr [class.text-body-secondary]="r.score == null || r.sub" [class.fh-deriv-sub]="r.sub">
               <td>{{ r.name }}</td><td>{{ r.input }}</td>
               <td class="text-end">{{ r.score == null ? 'n/a' : r.score.toFixed(2) }}</td>
               <td class="text-end">{{ r.weight }}</td>
@@ -81,6 +82,10 @@ export class ExplainInline {
           @if (e.config?.length) { <div class="small mt-2">Configured in:</div>
             <div class="fh-info-config">@for (c of e.config; track c) { <code>{{ c }}</code> }</div> }
           @if (e.guide) { <div class="small text-body-secondary mt-2">More in <code>{{ e.guide }}</code>.</div> }
+          @if (e.engineer?.length) {
+            <details class="fh-eng mt-2" open><summary class="small">For the developer</summary>
+              <ul>@for (n of e.engineer; track $index) { <li>{{ n }}</li> }</ul></details>
+          }
         </div>
       </div>
     }`,

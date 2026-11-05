@@ -57,6 +57,10 @@ house:
   cutoff_min: 30                  # walks above this are "none within reach" (long enough for a vet)
   sets: [grocery, pharmacy, gym, park, vet, rail, bus]
   services_depart: "10:00"        # weekday departure for "Compute transit routes" to the nearest services
+  # The home's transport score = (1 − weight) × access (walks to rail / bus, lines, departures) + weight × reach.
+  # Reach: per point of locations.yaml, the transit minutes from the home (cached ResRobot answers first, else the
+  # Connectivity estimate), mapped good_min → 100 … bad_min → 0, averaged by point weight.
+  reach: {weight: 0.6, good_min: 20, bad_min: 60}
 # Walking minutes in the UI: green up to `green`, yellow up to `yellow`, red above.
 walk_colours: {green: 5, yellow: 10}
 # Connectivity centroids: the points each zone's commutes start from (Map → Connectivity, `findhome zone centroids`).

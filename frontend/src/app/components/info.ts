@@ -22,7 +22,7 @@ import { ExplainDialog } from './explain';
           @if (e.config?.length) {
             <div class="fh-info-config">@for (c of e.config; track c) { <code>{{ c }}</code> }</div>
           }
-          @if (e.long || derivation()) {
+          @if (e.long || derivation() || e.engineer?.length) {
             <button type="button" class="btn btn-link btn-sm p-0 mt-1" (click)="more()">How is this calculated? →</button>
           }
         </div>

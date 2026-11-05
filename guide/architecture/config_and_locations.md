@@ -119,7 +119,7 @@ min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (
 ([`geo/build_poi.py`](../../backend/src/findhome/geo/build_poi.py)) fetches each category for the whole region
 (one Overpass request per category) into `data/geo/poi/<category>.geojson`;
 [`geo/store.py`](../../backend/src/findhome/geo/store.py) `load_poi` keeps an STRtree per category in
-EPSG:3006. POIs reach the score through the house analysis and the `neighbourhood` group (see Scoring).
+EPSG:3006. POIs reach the score through the house analysis and the `services` group (see Scoring).
 
 The **test point** ([`domain/probe.py`](../../backend/src/findhome/domain/probe.py), `POST /api/probe`) answers
 for any spot: the area result, the 3 nearest places per category by walking minutes (5 straight-line candidates
@@ -387,9 +387,9 @@ sequenceDiagram
 | target points per set | [`target_points()`](../../backend/src/findhome/zone/targets.py#L17) |
 | homes: residential buildings weighted by floors (`geo fetch buildings`) | [`homes_from_elements()`](../../backend/src/findhome/geo/build_buildings.py#L44), [`load_homes()`](../../backend/src/findhome/zone/homes.py#L13) |
 | one Dijkstra per set from a virtual source, cutoff, segment times, summary | [`compute()`](../../backend/src/findhome/zone/heatmap.py#L115) |
-| cache key: datasets' meta, zone.yaml, POI file times | [`version()`](../../backend/src/findhome/zone/analysis.py#L47) |
+| cache key: datasets' meta, zone.yaml, POI file times | [`version()`](../../backend/src/findhome/zone/analysis.py#L60) |
 | endpoints: zone at a point, facts, lines, targets, heatmap | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py#L33) |
-| lines at the zone's stops (and the neighbours') with departures per hour | [`lines()`](../../backend/src/findhome/zone/analysis.py#L171) |
+| lines at the zone's stops (and the neighbours') with departures per hour | [`lines()`](../../backend/src/findhome/zone/analysis.py#L184) |
 
 [`compute()`](../../backend/src/findhome/zone/heatmap.py#L115) works on the network inside the search area. Every target snaps to its nearest
 node (at most `snap_max_m`), and the snap walk is the weight of its edge from the virtual source. Edge time is
@@ -441,14 +441,14 @@ flowchart LR
 | `coverage` | share of homes within 5 min of any stop | [`measure()`](../../backend/src/findhome/zone/measure.py#L63) |
 | `lines`, `frequency` | per window, at the stops within `access_min` of a home; rail lines count 3 | [`reachable_stops()`](../../backend/src/findhome/zone/measure.py#L18), [`window_counts()`](../../backend/src/findhome/zone/measure.py#L32) |
 | services proximity, choice | median walk per set; median count within `choice.within_min` | [`choice_median()`](../../backend/src/findhome/zone/measure.py#L54), [`counts_within()`](../../backend/src/findhome/zone/heatmap.py#L106) |
-| set score, services index | the mix above, then the weighted mean of the sets | [`service_set_score()`](../../backend/src/findhome/zone/indices.py#L71), [`services_score()`](../../backend/src/findhome/zone/indices.py#L87), [`set_weights()`](../../backend/src/findhome/zone/analysis.py#L188) |
+| set score, services index | the mix above, then the weighted mean of the sets | [`service_set_score()`](../../backend/src/findhome/zone/indices.py#L71), [`services_score()`](../../backend/src/findhome/zone/indices.py#L87), [`set_weights()`](../../backend/src/findhome/zone/analysis.py#L201) |
 | combined | weighted mean of the parts with a value | [`combined()`](../../backend/src/findhome/zone/indices.py#L103) |
 | scoring and weights | missing components are left out and weights renormalise | [`score()`](../../backend/src/findhome/zone/indices.py#L28), [`indices()`](../../backend/src/findhome/zone/indices.py#L115) |
 
 Each index comes with a **derivation**: rows of measured input → score 0..1 × weight. The UI shows it under
 "How is this calculated?". The payload also has `services_detail` (walk, choice, weight and score per set) and
 **POI density** per services set: the count inside the zone, per 1,000 home units (buildings weighted by floors,
-`density.per_homes`) and per km² ([`density()`](../../backend/src/findhome/zone/analysis.py#L199)).
+`density.per_homes`) and per km² ([`density()`](../../backend/src/findhome/zone/analysis.py#L212)).
 
 Without GTFS departures, `frequency` is missing and `lines` counts every line at the reachable stops.
 `GET /api/zone/region` returns the analysed area (the union of all zones, simplified to ~20 m) and a mask
@@ -456,7 +456,7 @@ of everything outside it, for the maps that grey out what the app does not analy
 `GET /api/zone/{id}/indices` computes a zone once per inputs version (a few seconds) and stores it in `zone_index`.
 `GET /api/zone/indices?window=` returns every stored zone's transport, services and combined values and its density
 values, each with a percentile ([`all_indices()`](../../backend/src/findhome/api/routers/zone.py#L39),
-[`percentiles()`](../../backend/src/findhome/zone/analysis.py#L252)). The window applies to transport and combined. `findhome zone indices --all` fills the
+[`percentiles()`](../../backend/src/findhome/zone/analysis.py#L265)). The window applies to transport and combined. `findhome zone indices --all` fills the
 cache; it makes no API calls.
 
 ### House analysis
@@ -487,16 +487,16 @@ flowchart TD
 | house indices, stops, station walks | [`house_analysis()`](../../backend/src/findhome/zone/house.py#L196), [`station_walks()`](../../backend/src/findhome/zone/house.py#L170) |
 | cache version: zone inputs, poi.yaml, centroids, coordinates | [`version()`](../../backend/src/findhome/zone/house.py#L185) |
 
-`GET /api/listings/{id}/location` ([`location()`](../../backend/src/findhome/api/routers/house.py#L74)) serves the cached payload
+`GET /api/listings/{id}/location` ([`location()`](../../backend/src/findhome/api/routers/house.py#L115)) serves the cached payload
 ([`house_payload()`](../../backend/src/findhome/api/routers/house.py#L40); computed in a few seconds when missing) and adds what depends on stored rows:
 - **station estimate** per point ([`estimates()`](../../backend/src/findhome/zone/house.py#L278)): for each trip window, the cheapest
   `walk(home → station) + centroid_commute(station → point)`; then the window-weighted mean. Without station rows,
   the zone's `zone_commute` value is used; without that, "not computed";
 - the zone's indices and percentiles (`zone_index`, computed when missing);
-- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L333)): each set's walk against the zone median, and each point's minutes (the
+- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L418)): each set's walk against the zone median, and each point's minutes (the
   listing's own commute when computed, else the estimate) against the zone and as "better than N % of zones".
 
-`POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L133)) is the only call that uses ResRobot. It is triggered
+`POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L175)) is the only call that uses ResRobot. It is triggered
 by the two buttons of the Transit routes bubble: `which=points` for your points
 ([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L135)), `which=services` for the nearest target of each service set, reached on a
 weekday at `house.services_depart` (`all`, the default, does both). Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L163) and are cached in `routing_cache` per ~100 m
@@ -526,15 +526,32 @@ comes from filtering on posting dates.
   `max_rent_sek` and `ideal_rent_sek` are unset). The total is the weighted mean of the groups that returned a
   score. Groups: cost, space, commute (point weight × window weight, linear between `good_min` and `bad_min`,
   reduced when the spread exceeds `reliability_spread_penalty_min`), cat_suitability, building_comfort,
-  contract_availability, area (the area function's score; its breakdown keeps the contributions), and
+  contract_availability, area (the area function's score; its breakdown keeps the contributions), transport and
+  services ([`_transport()`](../../backend/src/findhome/domain/scoring.py#L187),
+  [`_services()`](../../backend/src/findhome/domain/scoring.py#L204)), and
   neighbourhood ([`_neighbourhood()`](../../backend/src/findhome/domain/scoring.py#L157)).
-- **neighbourhood** combines three 0-100 parts: the home's services score, the home's transport score (both from
-  the house analysis) and the zone's services index. Weights are the group's params, by default
-  `house_services 0.5, house_transport 0.3, zone_services 0.2`; missing parts renormalise. Commute is not counted
-  here, since it has its own group. `scores recompute` reads only cached values
-  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L58): `listing_location` and `zone_index`).
-  A listing whose house analysis is not computed yet gets `None` for this group: run
-  `findhome listings location --all`. Its breakdown carries the derivation rows (`detail`).
+- **transport** is the home's transport score / 100, **services** the home's services score / 100, both from the
+  house analysis. The home transport score blends access with **reach**, the transit minutes to your points
+  ([`house_scores()`](../../backend/src/findhome/zone/house.py#L367)):
+  `transport = (1 − w) · access + w · reach`, with `zone.yaml` `house.reach` (`weight 0.6`, `good_min 20`,
+  `bad_min 60`). Per point, [`pick_minutes()`](../../backend/src/findhome/zone/house.py#L333) takes the first source
+  that has minutes: the listing's commute (`commute_results`), a cached house itinerary (`routing_cache`
+  `resrobot-trip|…`), then the Connectivity estimates (walk to a station + `centroid_commute`, else the zone's
+  `zone_commute` row). The last two mark the score **estimated**: `breakdown.transport.estimated`, and an orange dot
+  next to the value in the UI. [`house_scores_for()`](../../backend/src/findhome/api/routers/house.py#L94) computes
+  them from caches only and stores them in `listing_location.payload.scores`, on `GET .../location`, after
+  `POST .../transit` and on every `scores recompute`. `house.reach` is in `NOT_HASHED`
+  ([`zone/analysis.py`](../../backend/src/findhome/zone/analysis.py)): editing it needs a recompute, not a new analysis.
+- **No double counting.** While the transport group is on and the home has reach minutes, the commute group returns
+  `None` ("counted in the transport group"); while transport or services is on, neighbourhood returns `None`. The
+  hard filter `max_commute_min_by_category` still reads `commute_results`.
+- **neighbourhood** (off by default) combines three 0-100 parts: the home's services score, the home's transport
+  score and the zone's services index, by default `house_services 0.5, house_transport 0.3, zone_services 0.2`;
+  missing parts renormalise. `scores recompute` reads only cached values
+  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L58)). A listing whose house analysis is not
+  computed yet gets `None` for these groups (run `findhome listings location --all`); a listing outside every zone
+  gets `None` with "outside the analysed zones", so these groups do not count in its mean. Breakdowns carry the
+  derivation rows (`detail`; per-point rows are `sub` rows, shown but not added).
 - With a search area defined, a listing whose area score is 0 (beyond the buffer) is rejected with
   `outside_search_area`, and the text filters `areas_include` / `areas_exclude` are not used. A listing without
   coordinates is not rejected: the area group is `None` (`area_unknown`). `scores recompute` geocodes up to 60

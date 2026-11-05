@@ -55,9 +55,17 @@ kinds:
         weight: 2
         params: {first_hand_bonus: 0.3, min_contract_months: 12}
       neighbourhood:
-        enabled: true                           # the home's surroundings from its exact address (house analysis)
-        weight: 1
+        enabled: false                          # blends home services, home transport and zone services; replaced by
+        weight: 1                               # the transport and services groups (it steps aside while they are on)
         params: {house_services: 0.5, house_transport: 0.3, zone_services: 0.2}   # parts, 0-100 each, renormalised
+      transport:
+        enabled: true                           # the home's transport score: access + minutes to your points (zone.yaml house.reach)
+        weight: 4                               # holds the commute: the commute group steps aside while this has minutes
+        params: {}
+      services:
+        enabled: true                           # the home's services score: walks to groceries, pharmacy, gym, park, vet
+        weight: 2
+        params: {}
       area:
         enabled: true                           # search area from Map → Area (config/search_area.yaml)
         weight: 3

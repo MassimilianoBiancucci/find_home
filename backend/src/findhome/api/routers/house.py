@@ -21,7 +21,14 @@ from findhome.core.db import get_conn
 from findhome.db import repo
 from findhome.domain.commute import resolve_point_coords
 from findhome.domain.connectivity import aggregate, inputs_hash
-from findhome.domain.probe import Destination, point_destinations, trips_to, uncached_trips
+from findhome.domain.probe import (
+    Destination,
+    _cache_get,
+    point_destinations,
+    trip_key,
+    trips_to,
+    uncached_trips,
+)
 from findhome.geo.store import load_zones
 from findhome.providers.base import LatLon
 from findhome.zone import analysis as za
@@ -70,6 +77,47 @@ def _listing_minutes(commute: list[dict]) -> dict[str, float]:
     return {p: round(sum(m * w for m, w in v) / (sum(w for _, w in v) or 1), 1) for p, v in per.items()}
 
 
+async def _station_estimates(conn, b, house: dict[str, Any], labels: dict[str, str]) -> list[dict[str, Any]]:
+    """The free estimate per point (walk to a station + its stored minutes, else the zone's row): two targeted reads."""
+    ih = inputs_hash(b)
+    keys = list(house.get("station_walks") or {})
+    st_rows = await (await conn.execute(
+        """SELECT station_key, point_id, direction, day_type, window_label, window_weight, minutes FROM centroid_commute
+           WHERE inputs_hash = %s AND station_key = ANY(%s) AND minutes IS NOT NULL""", (ih, keys))).fetchall() if keys else []
+    zrows = await (await conn.execute(
+        """SELECT zone_id, point_id, direction, day_type, window_label, window_weight, minutes FROM zone_commute
+           WHERE inputs_hash = %s AND zone_id = %s AND minutes IS NOT NULL""", (ih, house["zone"]["id"]))).fetchall()
+    return zh.estimates(house.get("station_walks") or {}, st_rows, zrows, labels)
+
+
+async def _house_trip_minutes(conn, b, L: dict, coords: dict[str, LatLon]) -> dict[str, float]:
+    """Per point, the minutes of a cached ResRobot itinerary from this home (Compute transit routes), no call."""
+    origin = LatLon(float(L["lat"]), float(L["lon"]))
+    keys = {d.id: trip_key(origin, d) for d in point_destinations(b, coords)}
+    hits = await _cache_get(conn, list(keys.values()))
+    return {pid: float(hits[k]["minutes"]) for pid, k in keys.items() if k in hits and hits[k].get("minutes") is not None}
+
+
+async def house_scores_for(conn, b, L: dict, house: dict[str, Any], coords: dict[str, LatLon] | None = None,
+                           est: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    """The home's transport (with reach), services and combined scores from cached data only, stored in the
+    listing_location payload under `scores` (the list and the main score read them from there)."""
+    reg = registry()
+    if coords is None:
+        coords = await resolve_point_coords(conn, reg, b.locations.points, int(b.providers.cache.get("geocode_ttl_days", 365)))
+    labels = {p.id: p.label for p in b.locations.points if p.enabled and p.trips}
+    if est is None:
+        est = await _station_estimates(conn, b, house, labels)
+    picked = zh.pick_minutes(_listing_minutes(await repo.commute_for(conn, L["id"], b.config_hash)),
+                             await _house_trip_minutes(conn, b, L, coords), est)
+    weights = {p.id: b.locations.effective_weight(p) for p in b.locations.points}
+    cfg = zh.reach_cfg(b)
+    sc = zh.house_scores(house, zh.reach(picked, labels, weights, cfg), cfg, (b.zone.combined or {}).get("parts"))
+    await conn.execute("UPDATE listing_location SET payload = jsonb_set(payload, '{scores}', %s) WHERE listing_id = %s",
+                       (Jsonb(sc), L["id"]))
+    return sc
+
+
 @router.get("/{short_id}/location")
 async def location(short_id: str, conn=Depends(get_conn)):
     b = bundle()
@@ -104,8 +152,9 @@ async def location(short_id: str, conn=Depends(get_conn)):
         zone_index["percentiles"] = await index_percentiles(conn, b, zone_id)
     except za.MissingData:
         zone_index = None
+    scores = await house_scores_for(conn, b, L, house, est=est)
     return {**house, "listing": {"short_id": L["short_id"], "lat": float(L["lat"]), "lon": float(L["lon"])},
-            "estimates": est, "listing_commute": listing_commute, "zone_index": zone_index,
+            "scores": scores, "estimates": est, "listing_commute": listing_commute, "zone_index": zone_index,
             "insights": zh.insights(house, (zone_index or {}).get("services_detail"), est, zone_minutes, all_zones,
                                     listing_commute)}
 
@@ -152,6 +201,8 @@ async def transit(short_id: str, dry: bool = False, which: str = "all", conn=Dep
     if dry:
         return summary
     trips = await trips_to(conn, reg, b, origin, dests)
+    if which in ("points", "all"):
+        await house_scores_for(conn, b, L, house)            # exact minutes replace the estimates in transport
     for t in trips:
         if t["kind"] == "service":
             walk = house["walks"].get(t["category"], {}).get("minutes")

@@ -44,12 +44,25 @@ def _meta(name: str) -> str:
     return p.read_text(encoding="utf-8") if p.exists() else ""
 
 
+# zone.yaml keys applied after the stored analyses (from cached rows, at read time): editing them must not throw the
+# zone indices and house analyses away
+NOT_HASHED = (("house", "reach"),)
+
+
+def _hashed_zone(raw: dict) -> dict:
+    out = {**raw}
+    for section, key in NOT_HASHED:
+        if isinstance(out.get(section), dict) and key in out[section]:
+            out[section] = {k: v for k, v in out[section].items() if k != key}
+    return out
+
+
 def version(bundle: ConfigBundle, sets: list[str]) -> str:
-    """Changes when a dataset is rebuilt or zone.yaml / the POI files the sets use change."""
+    """Changes when a dataset is rebuilt or zone.yaml (but NOT_HASHED) / the POI files the sets use change."""
     pois = sorted({c for s in sets for c in bundle.zone.target_sets[s].poi})
     poi_mtimes = [(c, (data_dir() / "geo" / "poi" / f"{c}.geojson").stat().st_mtime)
                   for c in pois if (data_dir() / "geo" / "poi" / f"{c}.geojson").exists()]
-    blob = json.dumps([bundle.raw["zone"], bundle.raw.get("poi"), _meta("network"), _meta("buildings"), _meta("timetable"),
+    blob = json.dumps([_hashed_zone(bundle.raw["zone"]), bundle.raw.get("poi"), _meta("network"), _meta("buildings"), _meta("timetable"),
                        poi_mtimes], sort_keys=True, default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:16]
 

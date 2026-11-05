@@ -158,8 +158,8 @@ def _neighbourhood(p, location: dict[str, Any] | None):
     """The home's surroundings from its exact address (house analysis) and its zone's services index (0-100 each):
     house services, house transport and zone services, weighted by params; missing parts renormalise. Commute is
     not counted here: it has its own group."""
-    if not location:
-        return None, "no house analysis yet (open the listing or run findhome listings location --all)", None
+    if not location or location.get("outside"):
+        return None, _no_house(location, "neighbourhood"), None
     w = {**NEIGHBOURHOOD_DEFAULT, **{k: float(v) for k, v in (p or {}).items() if k in NEIGHBOURHOOD_DEFAULT}}
     parts = {"house_services": location.get("services"), "house_transport": location.get("transport"),
              "zone_services": location.get("zone_services")}
@@ -172,6 +172,40 @@ def _neighbourhood(p, location: dict[str, Any] | None):
         return None, "house analysis without scores", rows
     why = ", ".join(f"{labels[k]} {v:g}" for k, v in parts.items() if v is not None)
     return sum(v * x for v, x in have) / total, why, rows
+
+
+NO_HOUSE = "no house analysis yet (open the listing or run findhome listings location --all)"
+OUTSIDE = "outside the analysed zones: not measured (left out of the mean)"
+
+
+def _no_house(location: dict[str, Any] | None, what: str) -> str:
+    if not location:
+        return NO_HOUSE
+    return OUTSIDE if location.get("outside") else f"house analysis without a {what} score"
+
+
+def _transport(p, location: dict[str, Any] | None):
+    """The home's transport score (0-100 → 0-1): access from the address blended with reach, the transit minutes to
+    your points (zone.yaml house.reach). Estimated when any point's minutes come from the Connectivity matrix."""
+    if not location or location.get("transport") is None:
+        return None, _no_house(location, "transport"), None, None
+    t, a, r = location["transport"], location.get("transport_access"), location.get("reach")
+    est = bool(location.get("estimated"))
+    rows = [{"name": "access", "input": "–" if a is None else f"{a:g} / 100", "score": None if a is None else round(a / 100, 3),
+             "weight": location.get("reach_weight_access", 1.0)},
+            {"name": "reach", "input": "no minutes" if r is None else f"{r:g} / 100{' (estimate)' if est else ''}",
+             "score": None if r is None else round(r / 100, 3), "weight": location.get("reach_weight", 0.0)}]
+    rows += [{"name": f"· {x['name']}", "input": x["input"], "score": x["score"], "weight": x["weight"], "sub": True}
+             for x in location.get("reach_rows") or []]
+    why = f"home {t:g} = access {'–' if a is None else f'{a:g}'} + reach {'–' if r is None else f'{r:g}'}{' · estimate' if est else ''}"
+    return t / 100, why, rows, {"estimated": est}
+
+
+def _services(p, location: dict[str, Any] | None):
+    """The home's services score (0-100 → 0-1) from its exact address: walks to the nearest of each service set."""
+    if not location or location.get("services") is None:
+        return None, _no_house(location, "services"), None, None
+    return location["services"] / 100, f"home {location['services']:g} / 100", None, None
 
 
 def evaluate_area(bundle: ConfigBundle, listing: dict[str, Any]) -> dict[str, Any] | None:
@@ -208,7 +242,16 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
         "contract_availability": lambda p: _contract(p, hf, listing),
         "area": lambda p: _area(area),
         "neighbourhood": lambda p: _neighbourhood(p, location),
+        "transport": lambda p: _transport(p, location),
+        "services": lambda p: _services(p, location),
     }
+    on = {n for n, g in prof.preferences.items() if g.enabled}
+    # no double counting: the transport group already holds the minutes to your points (reach), and the transport and
+    # services groups hold what neighbourhood blends
+    if "transport" in on and location and location.get("reach") is not None:
+        groups["commute"] = lambda p: (None, "counted in the transport group (reach), not twice")
+    if on & {"transport", "services"}:
+        groups["neighbourhood"] = lambda p: (None, "replaced by the transport and services groups")
     breakdown: dict[str, Any] = {}
     num = den = 0.0
     for name, pref in prof.preferences.items():
@@ -222,6 +265,8 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
         breakdown[name] = {"score": None if s is None else round(s, 3), "weight": pref.weight, "why": why}
         if extra and extra[0]:
             breakdown[name]["detail"] = {"label": "Part", "rows": extra[0], "total": None if s is None else round(s, 3)}
+        if len(extra) > 1 and extra[1] and extra[1].get("estimated") and s is not None:
+            breakdown[name]["estimated"] = True                 # part of the value is an approximation
         if name == "area" and area and not area.get("unknown"):
             breakdown[name]["detail"] = area
         if s is not None:

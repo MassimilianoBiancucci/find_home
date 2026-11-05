@@ -68,7 +68,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
               @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
             </td>
-            <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}</td>
+            <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}@if (r.house_estimated) { <i class="fh-est-dot inline"></i> }</td>
             <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td>
             <td>{{ r.status }}</td>
             <td>{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
@@ -106,7 +106,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
         <span>Size</span><span><span [style.color]="values.rate(t, 'rooms_rok')?.colour">{{ num(t.rooms_rok) }} rok{{ t.has_sovalkov ? ' + alkov' : '' }}</span> ·
           <span [style.color]="values.rate(t, 'size_m2')?.colour">{{ num(t.size_m2, ' m²') }}</span></span>
         @if (t.house_transport != null) {
-          <span>From the address</span><span>transport <b [style.color]="idx(t.house_transport)">{{ int(t.house_transport) }}</b> ·
+          <span>From the address</span><span>transport <b [style.color]="idx(t.house_transport)">{{ int(t.house_transport) }}</b>@if (t.house_estimated) { <i class="fh-est-dot inline"></i> <span class="fh-badge-est">estimate</span> } ·
             services <b [style.color]="idx(t.house_services)">{{ int(t.house_services) }}</b></span>
         }
         <span>Building</span><span>floor {{ t.floor ?? '?' }}{{ t.has_elevator ? ', lift' : '' }}{{ t.has_balcony ? ', balcony' : '' }}{{ t.build_year ? ' · built ' + t.build_year : '' }}</span>
@@ -142,7 +142,9 @@ export class CandidatesPage implements OnInit {
   protected idx = indexColour;
   protected int = (v: number | null | undefined) => (v == null ? '' : Math.round(v));
   protected houseTitle(l: Listing, k: 'transport' | 'services'): string {
-    if (l[k === 'transport' ? 'house_transport' : 'house_services'] != null) return `${k === 'transport' ? 'Transport' : 'Services'} score of this home, 0-100, measured from its exact address (open it for the details)`;
+    if (k === 'transport' && l.house_transport != null) return `Transport score of this home, 0-100: access from its exact address + the minutes to your points`
+      + (l.house_estimated ? ' · estimate: some minutes come from the Connectivity matrix (compute the transit routes to your points to make them exact)' : ' (ResRobot trips)');
+    if (l[k === 'transport' ? 'house_transport' : 'house_services'] != null) return `Services score of this home, 0-100, measured from its exact address (open it for the details)`;
     return l.zone_id ? 'Not measured yet: open the listing, or run findhome listings location --all' : 'Outside the analysed zones: not measured';
   }
   protected kr = fmtKr; protected num = fmtNum; protected score = fmtScore; protected pet = petClass; protected color = scoreColor;

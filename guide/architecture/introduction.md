@@ -234,7 +234,14 @@ card at the top of its side column. The candidates table reuses one instance in 
 two score groups that add most. Each listing carries `zone_id` / `zone_name` (`GET /api/listings`, by point in
 polygon on the zones) and `house_transport` / `house_services`, the home's own 0-100 scores from its cached house
 analysis (`listing_location`; empty until the listing is opened or `findhome listings location --all` runs, and
-outside the zones). The table shows them as the Transport and Services columns.
+outside the zones). Transport includes the reach to your points (`payload.scores`); `house_estimated` says some of
+its minutes are Connectivity estimates. The table shows them as the Transport and Services columns.
+
+**Estimates.** An orange dot (`.fh-est-dot`) sits next to a value that uses estimated minutes: the main score
+(`fh-score-tip`, when a breakdown group has `estimated`), the Transport column, and the This home tiles (with an
+"estimate" badge). The ⓘ dialog lists the per-point minutes and their source, and help entries carry an
+`engineer` list (data sources and their order, tables, cache keys, where values are stored) shown under "For the
+developer".
 
 **Value colours.** Rooms, m², rent and rent per m² are coloured in the candidates table, its hover card and the
 listing page. `GET /api/listings/scale`

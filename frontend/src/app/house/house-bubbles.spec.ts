@@ -93,6 +93,21 @@ describe('house bubbles', () => {
     expect(store.hover()).toBe('office');
   });
 
+  it('shows transport with reach, marked estimate with an orange dot when some minutes are estimated', () => {
+    setup();
+    const f = TestBed.createComponent(HouseHome);
+    const scores = { transport: 44, transport_access: 50, reach: 40, services: 60, combined: 52, combined_parts: { transport: 0.5, services: 0.5 },
+      estimated: true, reach_cfg: { weight: 0.6, good_min: 20, bad_min: 60 }, derivation: { label: 'Part', rows: [], total: 44, scale: 100 },
+      reach_rows: [{ name: 'Office', input: '40 min · estimate', score: 0.5, weight: 1, source: 'stations', estimate: true }] };
+    f.componentRef.setInput('loc', { ...LOC, scores });
+    f.detectChanges();
+    const tiles = [...(f.nativeElement as HTMLElement).querySelectorAll('.fh-hscore')];
+    expect(tiles.map((t) => t.querySelector('.fh-hscore-v')?.textContent?.trim()).slice(0, 3)).toEqual(['44', String(LOC.services ?? '–'), '52']);
+    expect(tiles[0].querySelector('.fh-est-dot')).not.toBeNull();
+    expect(tiles[0].textContent).toContain('estimate');
+    expect(tiles[1].querySelector('.fh-est-dot')).toBeNull();                       // services are never estimated
+  });
+
   it('keeps the other kind when one kind is computed again', () => {
     const r = mergeTrips(TRANSIT, 'points', { ...TRANSIT, trips: [] });
     expect(r.trips.map((t) => t.point_id)).toEqual(['service:grocery']);

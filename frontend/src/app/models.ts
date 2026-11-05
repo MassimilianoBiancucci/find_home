@@ -1,5 +1,5 @@
 // Shapes returned by the find_home API (backend/src/findhome/api). Numeric DB columns arrive as numbers.
-import { Derivation } from './help';
+import { Derivation, DerivationRow } from './help';
 export type PetStatus = 'yes' | 'no' | 'ask' | 'unknown';
 
 export interface Listing {
@@ -44,9 +44,11 @@ export interface Listing {
   /** The home's transport and services scores (0-100) from its exact address; null until measured or outside the zones. */
   house_transport?: number | null;
   house_services?: number | null;
+  /** The transport score uses estimated minutes to some of your points (Connectivity matrix, not a ResRobot trip). */
+  house_estimated?: boolean;
 }
 
-export interface ScorePart { score: number | null; weight: number; why: string; }
+export interface ScorePart { score: number | null; weight: number; why: string; estimated?: boolean; detail?: Derivation; }
 
 export interface CommuteRow {
   point_id: string;
@@ -248,6 +250,14 @@ export interface HouseEstimate {
 export type Tone = 'good' | 'neutral' | 'bad';
 export interface Insight { text: string; tone: Tone; set?: string; point_id?: string; compare?: string; }
 export interface WalkColours { green: number; yellow: number; }
+/** A point's row of the reach: its minutes, where they come from and its 0-1 score. */
+export interface ReachRow extends DerivationRow { source: string | null; estimate: boolean; }
+/** The home's scores with reach (backend zone/house.py house_scores). */
+export interface HouseScores {
+  transport: number | null; transport_access: number | null; reach: number | null; reach_rows: ReachRow[];
+  services: number | null; combined: number | null; combined_parts: Record<string, number>; estimated: boolean;
+  reach_cfg: { weight: number; good_min: number; bad_min: number }; derivation: Derivation;
+}
 export interface HouseLocation {
   lat: number; lon: number; cached: boolean;
   listing: { short_id: string; lat: number; lon: number };
@@ -255,6 +265,8 @@ export interface HouseLocation {
   snapped: boolean; snap_m: number | null;
   sets?: string[]; walks: Record<string, HouseWalk>; set_labels: Record<string, string>;
   transport: number | null; services: number | null; combined: number | null;
+  /** Transport with reach, and the combined from it; the plain `transport` above is the access part. */
+  scores?: HouseScores;
   windows: Record<string, ZoneIndexWindow>; derivation: Record<IndexKey, Derivation>;
   services_detail: Record<string, ServiceDetail>;
   stops: { reachable_stops: number | null; modes: string[]; lines?: Record<string, number | null>; frequency?: Record<string, number | null> };

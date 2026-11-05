@@ -8,7 +8,8 @@ from typing import Any
 from findhome.db import repo
 
 GROUP_SHORT = {"cost": "cost", "space": "space", "commute": "commute", "cat_suitability": "cats",
-               "building_comfort": "building", "contract_availability": "contract", "neighbourhood": "neighbourhood", "area": "area"}
+               "building_comfort": "building", "contract_availability": "contract", "neighbourhood": "neighbourhood", "area": "area",
+               "transport": "transport", "services": "services"}
 CONTRACT_SHORT = {"first_hand": "1st-hand", "second_hand": "2nd-hand", "sublet": "sublet", "unknown": "?"}
 
 

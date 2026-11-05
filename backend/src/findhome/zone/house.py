@@ -316,6 +316,91 @@ def estimates(station_walks: dict[str, float], rows: list[dict], zone_rows: list
     return [out[p] for p in labels if p in out]
 
 
+REACH_DEFAULT = {"weight": 0.6, "good_min": 20.0, "bad_min": 60.0}
+# Where a point's minutes come from, best first. The first two are ResRobot answers for this home; the last two are
+# the Connectivity matrix (estimates: the walk to a station + the station's stored minutes, or the zone's own row).
+SOURCES = {"listing_commute": "exact · listing commute (commute_results)",
+           "house_trip": "exact · house itinerary (routing_cache resrobot-trip)",
+           "stations": "estimate · walk + station → point (centroid_commute)",
+           "zone": "estimate · zone row (zone_commute)"}
+EXACT = {"listing_commute", "house_trip"}
+
+
+def reach_cfg(bundle: ConfigBundle) -> dict[str, float]:
+    return {**REACH_DEFAULT, **{k: float(v) for k, v in (house_cfg(bundle).get("reach") or {}).items()}}
+
+
+def pick_minutes(listing_commute: dict[str, float], house_trips: dict[str, float],
+                 est: list[dict[str, Any]]) -> dict[str, tuple[float | None, str | None]]:
+    """Per point: (minutes, source) from the best source that has it (SOURCES order)."""
+    out: dict[str, tuple[float | None, str | None]] = {}
+    for e in est:
+        pid = e["point_id"]
+        if listing_commute.get(pid) is not None:
+            out[pid] = (float(listing_commute[pid]), "listing_commute")
+        elif house_trips.get(pid) is not None:
+            out[pid] = (float(house_trips[pid]), "house_trip")
+        elif e.get("minutes") is not None:
+            out[pid] = (float(e["minutes"]), e.get("source") or "zone")
+        else:
+            out[pid] = (None, None)
+    return out
+
+
+def reach(minutes: dict[str, tuple[float | None, str | None]], labels: dict[str, str], weights: dict[str, float],
+          cfg: dict[str, float]) -> dict[str, Any]:
+    """0-100: how fast this home reaches your points by transit. Per point clamp((bad − m) / (bad − good)), mean
+    weighted by the point weight; points without minutes are left out (and listed)."""
+    good, bad = cfg["good_min"], cfg["bad_min"]
+    rows, num, den, estimated = [], 0.0, 0.0, False
+    for pid, (m, src) in minutes.items():
+        w = float(weights.get(pid, 1.0))
+        s = None if m is None else max(0.0, min(1.0, (bad - m) / (bad - good))) if bad > good else float(m <= good)
+        rows.append({"name": labels.get(pid, pid), "input": "no minutes" if m is None else f"{m:g} min · {SOURCES.get(src, src)}",
+                     "score": None if s is None else round(s, 3), "weight": w, "source": src, "estimate": src not in EXACT and m is not None})
+        if s is not None and w > 0:
+            num, den = num + w * s, den + w
+            estimated = estimated or src not in EXACT
+    return {"value": None if den == 0 else round(100 * num / den, 1), "rows": rows, "estimated": estimated}
+
+
+def house_scores(house: dict[str, Any], r: dict[str, Any], cfg: dict[str, float],
+                 combined_parts: dict[str, float] | None) -> dict[str, Any]:
+    """The home's scores with reach: transport = (1 − w) × access + w × reach (access alone without reach),
+    services as measured, combined from the two with zone.yaml combined.parts. Engineer-level derivation."""
+    access, svc = house.get("transport"), house.get("services")
+    w = cfg["weight"]
+    rv = r["value"]
+    if access is None and rv is None:
+        transport = None
+    elif rv is None:
+        transport = access
+    elif access is None:
+        transport = rv
+    else:
+        transport = round((1 - w) * access + w * rv, 1)
+    parts = combined_parts or {"transport": 0.5, "services": 0.5}
+    have = [(v, parts.get(k, 0.0)) for k, v in (("transport", transport), ("services", svc)) if v is not None]
+    tw = sum(x for _, x in have)
+    combined_v = round(sum(v * x for v, x in have) / tw, 1) if tw else None
+    n_est = sum(1 for row in r["rows"] if row["estimate"])
+    note = (f"transport = (1 − {w:g}) × access {access if access is not None else '–'} + {w:g} × reach "
+            f"{rv if rv is not None else '–'}; reach per point = clamp(({cfg['bad_min']:g} − min) / "
+            f"({cfg['bad_min']:g} − {cfg['good_min']:g})), mean by point weight. Minutes source order: "
+            + " > ".join(SOURCES) + f". {n_est} point(s) estimated." if rv is not None else
+            "no minutes to your points: transport = access only")
+    derivation = {
+        "label": "Part", "scale": 100, "total": transport, "note": note,
+        "rows": [{"name": "access (walk to rail/bus, lines, departures)", "input": "house_analysis → indices()",
+                  "score": None if access is None else round(access / 100, 3), "weight": round(1 - w, 3) if rv is not None else 1.0},
+                 {"name": "reach (minutes to your points)", "input": f"{len([x for x in r['rows'] if x['score'] is not None])} points",
+                  "score": None if rv is None else round(rv / 100, 3), "weight": w if access is not None else 1.0}],
+    }
+    return {"transport": transport, "transport_access": access, "reach": rv, "reach_rows": r["rows"],
+            "services": svc, "combined": combined_v, "combined_parts": parts, "estimated": r["estimated"], "reach_cfg": cfg,
+            "derivation": derivation}
+
+
 def _tone(minutes: float | None, colours: dict[str, float]) -> str:
     if minutes is None:
         return "bad"

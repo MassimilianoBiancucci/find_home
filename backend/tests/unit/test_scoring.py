@@ -20,7 +20,8 @@ def test_score_is_weighted_mean_of_available_groups(tmp_repo):
     assert 0 <= res["total"] <= 1
     assert res["breakdown"]["cost"]["score"] is None          # max/ideal rent not set yet (TODO(user))
     assert res["breakdown"]["cat_suitability"]["score"] == 1.0
-    assert res["breakdown"]["neighbourhood"]["score"] is None  # no house analysis given: left out of the mean
+    assert res["breakdown"]["transport"]["score"] is None      # no house analysis given: left out of the mean
+    assert res["breakdown"]["services"]["score"] is None
 
 
 def test_commute_and_reliability_penalty(tmp_repo):
@@ -48,6 +49,9 @@ def test_max_commute_by_category():
 
 def test_neighbourhood_from_house_analysis_and_zone(tmp_repo):
     b = bundle(tmp_repo)
+    prefs = b.profile.kinds["rent"].preferences
+    prefs["neighbourhood"].enabled = True                   # the example has transport + services instead
+    prefs["transport"].enabled = prefs["services"].enabled = False
     L = {"listing_kind": "rent", "pet_status": "yes"}
     full = score_listing(b, L, [], {"services": 80, "transport": 60, "zone_services": 50})["breakdown"]["neighbourhood"]
     assert full["score"] == round(0.5 * 0.8 + 0.3 * 0.6 + 0.2 * 0.5, 3)
@@ -79,3 +83,18 @@ def test_value_scale_keeps_listings_in_the_running_and_reads_the_targets():
     assert f["rent_sek"]["limit"] == 12000 and f["rent_sek"]["ideal"] == 9000           # 0.75 × max, as the cost group
     assert f["size_m2"]["ideal"] == 50 and f["rooms_rok"]["limit"] == 2
     assert f["rent_per_m2"]["values"] == [200.0, 200.0]
+
+
+def test_transport_and_services_groups_hold_the_commute_and_flag_estimates(tmp_repo):
+    b = bundle(tmp_repo)
+    L = {"listing_kind": "rent", "pet_status": "yes"}
+    loc = {"services": 70, "transport": 62.0, "transport_access": 50, "reach": 70, "estimated": True, "reach_weight": 0.6,
+           "reach_weight_access": 0.4, "reach_rows": [{"name": "Work", "input": "30 min · estimate", "score": 0.75, "weight": 1.0}]}
+    commute = [{"point_id": "work-main", "median_min": 25, "window_weight": 1, "mode": "transit"}]
+    bd = score_listing(b, L, commute, loc)["breakdown"]
+    assert bd["transport"]["score"] == 0.62 and bd["transport"]["estimated"] is True and "estimate" in bd["transport"]["why"]
+    assert [r["name"] for r in bd["transport"]["detail"]["rows"]] == ["access", "reach", "· Work"]
+    assert bd["services"]["score"] == 0.7 and "estimated" not in bd["services"]
+    assert bd["commute"]["score"] is None and "transport" in bd["commute"]["why"]           # not counted twice
+    no_reach = score_listing(b, L, commute, {**loc, "reach": None, "estimated": False})["breakdown"]
+    assert no_reach["commute"]["score"] is not None and "estimated" not in no_reach["transport"]
