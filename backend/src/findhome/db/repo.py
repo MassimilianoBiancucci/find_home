@@ -175,8 +175,10 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
     params.append(limit)
     return await _fetchall(
         conn, f"""SELECT l.*, s.total AS score, s.rejected_by, s.breakdown, s.config_hash AS score_hash,
-                    (s.listing_id IS NULL) AS score_stale
+                    (s.listing_id IS NULL) AS score_stale,
+                    (ll.payload->>'transport')::float AS house_transport, (ll.payload->>'services')::float AS house_services
                  FROM listings l LEFT JOIN scores s ON s.listing_id = l.id AND s.config_hash = %s
+                 LEFT JOIN listing_location ll ON ll.listing_id = l.id
                  WHERE {' AND '.join(where)}
                  ORDER BY s.total DESC NULLS LAST, l.last_changed_at DESC LIMIT %s""", tuple(params))
 

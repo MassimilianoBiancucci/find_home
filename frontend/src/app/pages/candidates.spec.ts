@@ -6,7 +6,8 @@ import { ApiService } from '../services/api.service';
 import { CandidatesPage } from './candidates';
 
 const rows = [
-  { short_id: 'L-AAAA', status: 'new', pet_status: 'yes', photo_urls: [], floorplan_urls: [], score: 0.8 },
+  { short_id: 'L-AAAA', status: 'new', pet_status: 'yes', photo_urls: [], floorplan_urls: [], score: 0.8, zone_id: 'Z1',
+    house_transport: 71.6, house_services: 38.2 },
   { short_id: 'L-BBBB', status: 'new', pet_status: 'ask', photo_urls: [], floorplan_urls: [], score: 0.6 },
 ];
 
@@ -29,6 +30,16 @@ describe('CandidatesPage keyboard triage', () => {
   });
 
   const key = (k: string) => document.dispatchEvent(new KeyboardEvent('keydown', { key: k }));
+
+  it('shows the home\'s transport and services scores, coloured, and says why one is missing', () => {
+    const fixture = TestBed.createComponent(CandidatesPage);
+    fixture.detectChanges();
+    const cells = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('tbody tr td.fh-idx')];
+    expect(cells.slice(0, 2).map((c) => c.textContent?.trim())).toEqual(['72', '38']);
+    expect(cells[0].style.color).toBe('var(--fh-good)');
+    expect(cells[1].style.color).toBe('var(--fh-bad)');
+    expect(cells[2].title).toContain('Outside the analysed zones');
+  });
 
   it('moves with j and shortlists with s', () => {
     const fixture = TestBed.createComponent(CandidatesPage);

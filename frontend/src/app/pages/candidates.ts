@@ -6,6 +6,7 @@ import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { ScoreTip } from '../components/score-tip';
 import { ZoneMinimap } from '../components/zone-minimap';
 import { ValueScaleStore, valueOf } from '../value-scale';
+import { indexColour } from '../house/house-bubbles';
 import { Listing } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { TagsStore } from '../services/tags.store';
@@ -54,7 +55,10 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
   } @else {
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle">
-      <thead><tr><th>Id</th><th>Score</th><th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
+      <thead><tr><th>Id</th><th>Score</th>
+        <th title="The home's transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby">Transport</th>
+        <th title="The home's services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near">Services</th>
+        <th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
       <tbody>
         @for (r of rows(); track r.short_id; let i = $index) {
           <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
@@ -64,6 +68,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
               @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
             </td>
+            <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}</td>
+            <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td>
             <td>{{ r.status }}</td>
             <td>{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
             @let ro = values.rate(r, 'rooms_rok'); @let rs = values.rate(r, 'size_m2');
@@ -99,6 +105,10 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
           @if (perM2(t) != null) { <span [style.color]="values.rate(t, 'rent_per_m2')?.colour"> · {{ perM2(t)! | number: '1.0-0' }} kr/m²</span> }</span>
         <span>Size</span><span><span [style.color]="values.rate(t, 'rooms_rok')?.colour">{{ num(t.rooms_rok) }} rok{{ t.has_sovalkov ? ' + alkov' : '' }}</span> ·
           <span [style.color]="values.rate(t, 'size_m2')?.colour">{{ num(t.size_m2, ' m²') }}</span></span>
+        @if (t.house_transport != null) {
+          <span>From the address</span><span>transport <b [style.color]="idx(t.house_transport)">{{ int(t.house_transport) }}</b> ·
+            services <b [style.color]="idx(t.house_services)">{{ int(t.house_services) }}</b></span>
+        }
         <span>Building</span><span>floor {{ t.floor ?? '?' }}{{ t.has_elevator ? ', lift' : '' }}{{ t.has_balcony ? ', balcony' : '' }}{{ t.build_year ? ' · built ' + t.build_year : '' }}</span>
         <span>Pets</span><span><span class="badge" [class]="pet(t.pet_status)">{{ t.pet_status }}</span></span>
         <span>Contract</span><span>{{ t.contract_type ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}{{ t.available_from ? ' · from ' + t.available_from : '' }}</span>
@@ -129,6 +139,12 @@ export class CandidatesPage implements OnInit {
   protected tip = signal<{ row: Listing; top: number; left: number } | null>(null);
   private tipTimer: ReturnType<typeof setTimeout> | null = null;
   protected perM2 = (l: Listing) => valueOf(l, 'rent_per_m2');
+  protected idx = indexColour;
+  protected int = (v: number | null | undefined) => (v == null ? '' : Math.round(v));
+  protected houseTitle(l: Listing, k: 'transport' | 'services'): string {
+    if (l[k === 'transport' ? 'house_transport' : 'house_services'] != null) return `${k === 'transport' ? 'Transport' : 'Services'} score of this home, 0-100, measured from its exact address (open it for the details)`;
+    return l.zone_id ? 'Not measured yet: open the listing, or run findhome listings location --all' : 'Outside the analysed zones: not measured';
+  }
   protected kr = fmtKr; protected num = fmtNum; protected score = fmtScore; protected pet = petClass; protected color = scoreColor;
 
   ngOnInit(): void { this.load(); this.values.load(); }

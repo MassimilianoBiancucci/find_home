@@ -41,6 +41,9 @@ export interface Listing {
   /** The zone the coordinates fall in (null outside every zone or without coordinates). */
   zone_id?: string | null;
   zone_name?: string | null;
+  /** The home's transport and services scores (0-100) from its exact address; null until measured or outside the zones. */
+  house_transport?: number | null;
+  house_services?: number | null;
 }
 
 export interface ScorePart { score: number | null; weight: number; why: string; }

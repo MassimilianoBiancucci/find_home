@@ -232,7 +232,9 @@ are fetched once per session
 card at the top of its side column. The candidates table reuses one instance in its hover card (after
 250 ms on a row), with the photo, rent and rent per m², rooms and size, building, pets, contract, status and the
 two score groups that add most. Each listing carries `zone_id` / `zone_name` (`GET /api/listings`, by point in
-polygon on the zones).
+polygon on the zones) and `house_transport` / `house_services`, the home's own 0-100 scores from its cached house
+analysis (`listing_location`; empty until the listing is opened or `findhome listings location --all` runs, and
+outside the zones). The table shows them as the Transport and Services columns.
 
 **Value colours.** Rooms, m², rent and rent per m² are coloured in the candidates table, its hover card and the
 listing page. `GET /api/listings/scale`
