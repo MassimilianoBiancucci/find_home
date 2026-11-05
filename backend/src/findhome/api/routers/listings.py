@@ -6,9 +6,20 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from findhome.api.state import bundle
 from findhome.core.db import get_conn
 from findhome.db import repo
+from findhome.domain import value_scale as vs
 from findhome.domain.models import FeedbackIn, StatusChange
+from findhome.geo.store import load_zones, zone_at
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
+
+
+def _with_zone(rows: list[dict]) -> list[dict]:
+    """Each listing with the zone its coordinates fall in (zone_id / zone_name; None outside every zone)."""
+    zones = load_zones()
+    for r in rows:
+        z = zone_at(zones, r.get("lat"), r.get("lon"))
+        r["zone_id"], r["zone_name"] = (z.id, z.name) if z else (None, None)
+    return rows
 
 
 @router.get("")
@@ -16,7 +27,16 @@ async def list_listings(status: str | None = None, kind: str | None = None, q: s
                         include_rejected: bool = True, limit: int = Query(200, le=1000), since: str | None = None,
                         conn=Depends(get_conn)):
     rows = await repo.list_listings(conn, bundle().config_hash, status, kind, q, include_rejected, limit, since)
-    return {"config_hash": bundle().config_hash, "items": rows}
+    return {"config_hash": bundle().config_hash, "items": _with_zone(rows)}
+
+
+@router.get("/scale")
+async def scale(kind: str = "rent", conn=Depends(get_conn)):
+    """Values of the listings still in the running (scored, not rejected) and your targets, to colour rent, size,
+    rooms and rent per m² by percentile and target."""
+    b = bundle()
+    rows = await repo.list_listings(conn, b.config_hash, None, kind, None, True, 1000, None)
+    return vs.value_scale(rows, b.profile.kinds.get(kind))
 
 
 @router.get("/exists")
@@ -31,6 +51,7 @@ async def detail(short_id: str, conn=Depends(get_conn)):
     L = await repo.get_listing(conn, short_id)
     score = await (await conn.execute("SELECT total, rejected_by, breakdown, computed_at FROM scores "
                                       "WHERE listing_id = %s AND config_hash = %s", (L["id"], b.config_hash))).fetchone()
+    _with_zone([L])
     return {
         "listing": L, "score": score, "score_stale": score is None,
         "commute": await repo.commute_for(conn, L["id"], b.config_hash),

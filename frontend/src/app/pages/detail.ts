@@ -8,6 +8,8 @@ import { InfoButton } from '../components/info';
 import { ScoreTip } from '../components/score-tip';
 import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
+import { ZoneMinimap } from '../components/zone-minimap';
+import { ValueScaleStore, valueOf } from '../value-scale';
 import { HouseMap } from '../house/house-map';
 import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
 import { ApiService, apiError } from '../services/api.service';
@@ -15,7 +17,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
@@ -54,9 +56,12 @@ import { TagsStore } from '../services/tags.store';
           <h2 class="h6">{{ x.listing.title || x.listing.address_raw }}</h2>
           <div class="mb-2">{{ x.listing.area }} · {{ x.listing.address_raw }}</div>
           <div class="d-flex flex-wrap gap-3 small">
-            <span><b>{{ kr(x.listing.rent_sek) }}</b>/month</span>
-            <span>{{ num(x.listing.rooms_rok) }} rok{{ x.listing.has_sovalkov ? ' + sovalkov' : '' }}</span>
-            <span>{{ num(x.listing.size_m2, ' m²') }}</span>
+            @let rr = values.rate(x.listing, 'rent_sek'); @let rm = values.rate(x.listing, 'rent_per_m2');
+            @let ro = values.rate(x.listing, 'rooms_rok'); @let rs = values.rate(x.listing, 'size_m2');
+            <span [title]="rr?.title ?? ''"><b [style.color]="rr?.colour">{{ kr(x.listing.rent_sek) }}</b>/month
+              @if (rm) { <span class="ms-1" [style.color]="rm.colour" [title]="rm.title">({{ kr(perM2(x.listing)) }}/m²)</span> }</span>
+            <span [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(x.listing.rooms_rok) }} rok{{ x.listing.has_sovalkov ? ' + sovalkov' : '' }}</span>
+            <span [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(x.listing.size_m2, ' m²') }}</span>
             <span>floor {{ x.listing.floor ?? '?' }}{{ x.listing.has_elevator ? ', lift' : '' }}{{ x.listing.has_balcony ? ', balcony' : '' }}</span>
             <span>{{ x.listing.contract_type ?? 'contract ?' }}{{ x.listing.contract_end ? ' → ' + x.listing.contract_end : '' }}</span>
             @if (x.listing.available_from) { <span>from {{ x.listing.available_from }}</span> }
@@ -101,6 +106,10 @@ import { TagsStore } from '../services/tags.store';
       </div>
 
       <div class="col-lg-5">
+        <div class="fh-hcard fh-where">
+          <header><h2>Where</h2><span class="fh-hsub">{{ x.listing.area }}</span><fh-info id="listing.where" /></header>
+          <fh-zone-minimap [lat]="x.listing.lat" [lon]="x.listing.lon" [zoneId]="x.listing.zone_id" [zoneName]="x.listing.zone_name" [height]="230" />
+        </div>
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">Score
             <fh-score-tip [total]="x.score?.total" [breakdown]="x.score?.breakdown" [rejected]="x.score?.rejected_by" />
@@ -165,6 +174,7 @@ export class DetailPage {
   /** The house analysis answered that the home is outside every mapped zone (the map still shows its position). */
   protected outside = computed(() => /outside every zone/.test(this.locError()));
   protected travel = inject(HouseTravelStore);
+  protected values = inject(ValueScaleStore);
   protected digest = signal('');
   protected error = signal('');
   protected info = signal('');
@@ -179,6 +189,7 @@ export class DetailPage {
   constructor() {
     // only the id drives a reload: load() reads other signals (loc), which must not re-trigger this effect
     effect(() => { const id = this.shortId(); untracked(() => this.load(id)); });
+    this.values.load();
   }
 
   load(id: string): void {
@@ -189,6 +200,7 @@ export class DetailPage {
   }
   /** Scans before the full-gallery fix kept 6 photos and no photo_count: the next browser scan fills them in. */
   galleryIncomplete(l: Listing): boolean { return l.photo_urls.length === 6 && l.attributes?.['photo_count'] == null; }
+  protected perM2 = (l: Listing) => valueOf(l, 'rent_per_m2');
   min(v: number | null): string { return v == null ? '–' : `${Math.round(v)}′`; }
   spread(c: CommuteRow): boolean { return (c.spread_min ?? 0) > 10; }
   toggle(k: string): void { this.picked.has(k) ? this.picked.delete(k) : this.picked.add(k); }

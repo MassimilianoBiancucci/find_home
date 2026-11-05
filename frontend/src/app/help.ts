@@ -93,6 +93,10 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['sites/qasa/extract.js', 'sites/qasa/scanner.py'],
   },
 
+  'listing.where': {
+    title: 'Where', short: 'The home\'s zone in its surroundings: the zone filled orange, the pin on the address, everything outside the 263 analysed zones grey. A home outside every zone shows the pin only, in the grey. The map stays on the side while the page scrolls.',
+    config: ['config/geo.yaml → zones (findhome geo fetch zones)'],
+  },
   'listing.commute': {
     title: 'Commute table', short: 'The listing\'s own transit times to each of your points, per direction, day type and time window: median, 90th percentile and worst over the sampled departures. Computed on demand (Compute) with the routing providers; estimates are straight-line guesses. It feeds the commute score group.',
     config: ['config/locations.yaml (points, trips, windows)', 'config/time_model.yaml', 'config/providers.yaml'],

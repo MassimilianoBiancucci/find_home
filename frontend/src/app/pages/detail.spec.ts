@@ -16,6 +16,7 @@ describe('DetailPage', () => {
       digest: vi.fn(() => of('digest')),
       listingLocation: vi.fn(() => of(loc)),
       listingTransit: vi.fn(() => of({ destinations: 0, calls: 0, cached: 0, ttl_days: 30, provider: 'resrobot' })),
+      listingScale: vi.fn(() => of({ n: 0, fields: {} })),
       config: vi.fn(() => of({ data: { statuses: { default: ['new'] }, tags: { positive: {}, negative: {} } } })),
     };
     TestBed.configureTestingModule({ imports: [DetailPage], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });

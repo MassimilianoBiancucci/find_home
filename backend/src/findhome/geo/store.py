@@ -41,6 +41,15 @@ class ZoneSet:
         return None
 
 
+def zone_at(zones: ZoneSet | None, lat: float | None, lon: float | None) -> Zone | None:
+    """The zone holding a WGS84 point, or None (outside every zone, no coordinates, zones not built)."""
+    if zones is None or lat is None or lon is None:
+        return None
+    from findhome.geo.crs import point_metric
+
+    return zones.containing(Point(point_metric(float(lon), float(lat))))
+
+
 _cache: dict[str, ZoneSet] = {}
 
 

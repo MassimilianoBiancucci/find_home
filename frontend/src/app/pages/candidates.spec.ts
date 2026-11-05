@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { NEVER, of } from 'rxjs';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { ApiService } from '../services/api.service';
 import { CandidatesPage } from './candidates';
@@ -19,6 +19,10 @@ describe('CandidatesPage keyboard triage', () => {
       feedback: vi.fn(() => of({})),
       config: vi.fn(() => of({ data: { statuses: { default: ['new', 'shortlisted', 'rejected'] }, tags: { positive: {}, negative: { too_far: { label: 'Too far' } } } } })),
       recompute: vi.fn(() => of({ scored: 2, rejected: 0 })),
+      listingScale: vi.fn(() => of({ n: 0, fields: {} })),
+      geoZones: vi.fn(() => of({ type: 'FeatureCollection', features: [] })),
+      zoneRegion: vi.fn(() => NEVER),
+      mapSettings: vi.fn(() => NEVER),                 // no map in the test DOM
     };
     TestBed.configureTestingModule({ imports: [CandidatesPage], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });
   });

@@ -1,8 +1,11 @@
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { ScoreTip } from '../components/score-tip';
+import { ZoneMinimap } from '../components/zone-minimap';
+import { ValueScaleStore, valueOf } from '../value-scale';
 import { Listing } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { TagsStore } from '../services/tags.store';
@@ -15,7 +18,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, ScoreTip],
+  imports: [FormsModule, RouterLink, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -51,10 +54,11 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
   } @else {
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle">
-      <thead><tr><th>Id</th><th>Score</th><th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>Pets</th><th>Contract</th></tr></thead>
+      <thead><tr><th>Id</th><th>Score</th><th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
       <tbody>
         @for (r of rows(); track r.short_id; let i = $index) {
-          <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)">
+          <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
+            (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()">
             <td class="fh-mono"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
             <td>
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
@@ -62,9 +66,12 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             </td>
             <td>{{ r.status }}</td>
             <td>{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
-            <td>{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
-            <td>{{ num(r.size_m2) }}</td>
-            <td>{{ kr(r.rent_sek) }}</td>
+            @let ro = values.rate(r, 'rooms_rok'); @let rs = values.rate(r, 'size_m2');
+            @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2');
+            <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
+            <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td>
+            <td [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
+            <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
             <td><span class="badge" [class]="pet(r.pet_status)">{{ r.pet_status }}</span></td>
             <td class="small">{{ r.contract_type ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
           </tr>
@@ -72,7 +79,35 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       </tbody>
     </table>
     </div>
+    @if (values.scale(); as sc) {
+      <div class="small text-body-secondary">Rooms, m², rent and kr/m² are coloured against the {{ sc.n }} listings still in the running
+        (scored, not rejected) and your targets in config/profile.yaml: green good, amber middling, red poor or past your limit. Hover a value for why.</div>
+    }
   }
+  <!-- one hover card, reused: its minimap stays alive between rows -->
+  <div class="fh-ltip" [class.off]="!tip()" [style.top.px]="tip()?.top ?? -1000" [style.left.px]="tip()?.left ?? -1000">
+    @let t = tip()?.row;
+    <fh-zone-minimap [lat]="t?.lat" [lon]="t?.lon" [zoneId]="t?.zone_id" [zoneName]="t?.zone_name" [height]="170" />
+    @if (t) {
+      <div class="fh-ltip-head"><span class="fh-mono">{{ t.short_id }}</span><b>{{ t.title || t.address_raw }}</b>
+        @if (t.rejected_by?.length) { <span class="badge text-bg-danger">rejected</span> }
+        @else { <strong [style.color]="color(t.score)">{{ score(t.score) }}</strong> }</div>
+      @if (t.photo_urls.length) { <img class="fh-ltip-photo" [src]="t.photo_urls[0]" alt="" /> }
+      <div class="fh-ltip-grid">
+        <span>Where</span><span>{{ t.area }}{{ t.zone_name && t.zone_name !== t.area ? ' · zone ' + t.zone_name : '' }}{{ t.zone_id ? '' : ' · outside the zones' }}</span>
+        <span>Rent</span><span><b [style.color]="values.rate(t, 'rent_sek')?.colour">{{ kr(t.rent_sek) }}</b>
+          @if (perM2(t) != null) { <span [style.color]="values.rate(t, 'rent_per_m2')?.colour"> · {{ perM2(t)! | number: '1.0-0' }} kr/m²</span> }</span>
+        <span>Size</span><span><span [style.color]="values.rate(t, 'rooms_rok')?.colour">{{ num(t.rooms_rok) }} rok{{ t.has_sovalkov ? ' + alkov' : '' }}</span> ·
+          <span [style.color]="values.rate(t, 'size_m2')?.colour">{{ num(t.size_m2, ' m²') }}</span></span>
+        <span>Building</span><span>floor {{ t.floor ?? '?' }}{{ t.has_elevator ? ', lift' : '' }}{{ t.has_balcony ? ', balcony' : '' }}{{ t.build_year ? ' · built ' + t.build_year : '' }}</span>
+        <span>Pets</span><span><span class="badge" [class]="pet(t.pet_status)">{{ t.pet_status }}</span></span>
+        <span>Contract</span><span>{{ t.contract_type ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}{{ t.available_from ? ' · from ' + t.available_from : '' }}</span>
+        <span>Status</span><span>{{ t.status }} · seen {{ t.first_seen_at | date: 'mediumDate' }}</span>
+        @if (t.rejected_by?.length) { <span>Rejected by</span><span class="text-danger">{{ t.rejected_by!.join(', ') }}</span> }
+        @else if (topGroups(t).length) { <span>Best for</span><span>{{ topGroups(t).join(' · ') }}</span> }
+      </div>
+    }
+  </div>
   `,
 })
 export class CandidatesPage implements OnInit {
@@ -89,9 +124,38 @@ export class CandidatesPage implements OnInit {
   protected status = '';
   protected q = '';
   protected hideRejected = false;
+  protected values = inject(ValueScaleStore);
+  /** The row under the mouse and where its hover card goes (shown after a short pause). */
+  protected tip = signal<{ row: Listing; top: number; left: number } | null>(null);
+  private tipTimer: ReturnType<typeof setTimeout> | null = null;
+  protected perM2 = (l: Listing) => valueOf(l, 'rent_per_m2');
   protected kr = fmtKr; protected num = fmtNum; protected score = fmtScore; protected pet = petClass; protected color = scoreColor;
 
-  ngOnInit(): void { this.load(); }
+  ngOnInit(): void { this.load(); this.values.load(); }
+
+  protected hoverIn(r: Listing, ev: MouseEvent): void {
+    if (this.tipTimer) clearTimeout(this.tipTimer);
+    const row = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    this.tipTimer = setTimeout(() => {
+      const w = 380, h = 470, vw = window.innerWidth, vh = window.innerHeight;
+      const left = ev.clientX + 24 + w < vw ? ev.clientX + 24 : Math.max(8, ev.clientX - w - 24);
+      const top = Math.max(8, Math.min(row.top - 40, vh - h - 8));
+      this.tip.set({ row: r, top, left });
+    }, 250);
+  }
+
+  protected hoverOut(): void {
+    if (this.tipTimer) clearTimeout(this.tipTimer);
+    this.tipTimer = null;
+    this.tip.set(null);
+  }
+
+  /** The two score groups that add the most to the total. */
+  protected topGroups(l: Listing): string[] {
+    return Object.entries(l.breakdown ?? {}).filter(([, p]) => p.score != null)
+      .sort(([, a], [, b]) => b.score! * b.weight - a.score! * a.weight).slice(0, 2)
+      .map(([name, p]) => `${name} ${fmtScore(p.score)}`);
+  }
 
   load(): void {
     this.loading.set(true);
@@ -103,7 +167,7 @@ export class CandidatesPage implements OnInit {
 
   recompute(): void {
     this.api.recompute().subscribe({
-      next: (r) => { this.message.set(`Scored ${r.scored} (${r.rejected} rejected by hard filters)`); this.load(); },
+      next: (r) => { this.message.set(`Scored ${r.scored} (${r.rejected} rejected by hard filters)`); this.load(); this.values.load(true); },
       error: (e) => this.error.set(apiError(e)),
     });
   }

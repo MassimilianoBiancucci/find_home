@@ -123,6 +123,7 @@ export class ApiService {
   listingTransit(id: string, dry: boolean, which: 'points' | 'services' | 'all' = 'all') {
     return this.http.post<TransitResult>(`/api/listings/${id}/transit`, {}, { params: new HttpParams().set('dry', String(dry)).set('which', which) });
   }
+  listingScale() { return this.http.get<import('../value-scale').ValueScale>('/api/listings/scale'); }
   zoneRegion() { return this.http.get<{ zones: number; outline: any; mask: any }>('/api/zone/region'); }
   zoneStats(filters: Record<string, string | number | null | undefined>) {
     let params = new HttpParams();

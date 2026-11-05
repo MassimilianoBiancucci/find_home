@@ -222,6 +222,25 @@ hover it lists every score group (score, weight, contribution, reason) and the h
 listing; a click opens the explanation dialog. It is used in the candidates table, the map's listing panel and
 the detail page.
 
+**Where the home is.** [`fh-zone-minimap`](../../frontend/src/app/components/zone-minimap.ts) is a small,
+non-interactive locator: the home's zone filled orange in its surroundings, the area outside the analysed zones
+grey (the `GET /api/zone/region` mask), a standing pin on the home and the zone's name; outside every zone, the pin
+in the grey. Zones, region and map style are fetched once per session
+([`ZoneGeoStore`](../../frontend/src/app/services/zone-geo.store.ts)). The listing page has it as the sticky
+**Where** card at the top of its side column. The candidates table reuses one instance in its hover card (after
+250 ms on a row), with the photo, rent and rent per m², rooms and size, building, pets, contract, status and the
+two score groups that add most. Each listing carries `zone_id` / `zone_name` (`GET /api/listings`, by point in
+polygon on the zones).
+
+**Value colours.** Rooms, m², rent and rent per m² are coloured in the candidates table, its hover card and the
+listing page. `GET /api/listings/scale`
+([`value_scale()`](../../backend/src/findhome/domain/value_scale.py#L45)) returns the sorted values of the listings
+still in the running (scored, not rejected by a hard filter, not rejected or archived by you) and your targets:
+`hard_filters.max_rent_sek` / `min_size_m2` / `min_rooms_rok` as limits, `cost.ideal_rent_sek` (else 0.75 × the
+max, as the cost group) and `space.ideal_size_m2` as ideals.
+[`rateValue()`](../../frontend/src/app/value-scale.ts) averages the percentile (better than N %) with the place
+between limit and ideal; past the limit is red. Green from 0.67, amber from 0.33. The tooltip of a value says why.
+
 **Zone mode** (`/map/zone`, `/map/zone/:id`, [`zone-mode.ts`](../../frontend/src/app/pages/map/zone-mode.ts#L116)) studies one zone.
 Without an id it is a picker: every zone is outlined, hover highlights one, a click opens it.
 [`ZoneService`](../../frontend/src/app/pages/map/zone.service.ts#L21) owns the state and the layer groups:

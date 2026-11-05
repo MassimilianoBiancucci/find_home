@@ -38,6 +38,9 @@ export interface Listing {
   rejected_by?: string[] | null;
   breakdown?: Record<string, ScorePart> | null;
   score_stale?: boolean;
+  /** The zone the coordinates fall in (null outside every zone or without coordinates). */
+  zone_id?: string | null;
+  zone_name?: string | null;
 }
 
 export interface ScorePart { score: number | null; weight: number; why: string; }
