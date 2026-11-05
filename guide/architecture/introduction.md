@@ -99,6 +99,20 @@ the routed page; box 3 is an optional right panel. A page publishes its bubbles 
 through [`LayoutService`](../../frontend/src/app/services/layout.service.ts) `register`, which removes them when
 the page is destroyed. Box widths and collapsed bubbles persist in localStorage; drag handles resize the boxes.
 
+**Explanations.** Every text that explains a value lives in one registry,
+[`help.ts`](../../frontend/src/app/help.ts) (`HELP`, keyed by dotted ids: `bubble.<id>`, `panel.<title>`,
+`score.<group>`, `zone.<index>`). Each entry has a title, a short text, an optional formula and the config files
+and keys behind the value.
+- [`fh-info`](../../frontend/src/app/components/info.ts) is the ⓘ button. It opens a popover with the entry; an
+  unknown id renders nothing and warns in development.
+- A bubble shows its ⓘ in the header when `bubble.<id>` exists, or when `Bubble.info` names another entry. The
+  right panel does the same with `panel.<title>`.
+- [`fh-explain`](../../frontend/src/app/components/explain.ts) (inline "How is this calculated?") and
+  `fh-explain-dialog` (opened from the popover) add the entry's long text and a `Derivation`: rows of
+  input → score 0..1 × weight, with the total.
+- Each new computed value in the UI gets an entry, so the user can see how it is derived and which config key to
+  change.
+
 The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one MapLibre instance owned by
 `MapShell` and shared through [`MapStateService`](../../frontend/src/app/pages/map/map-state.service.ts) with
 the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`, `/map/zone`). Modes add named layer

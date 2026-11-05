@@ -312,3 +312,45 @@ pre.fh-pre {
 .fh-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.5); flex: none; }
 .fh-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 0.85rem;
   dt { color: var(--bs-secondary-color); font-weight: 500; } dd { margin: 0; } }
+
+// ── Explanations: ⓘ button, popover, "How is this calculated?" (components/info.ts, explain.ts) ──────────
+.fh-info { display: inline-flex; vertical-align: middle; }
+.fh-info-btn {
+  border: 0; background: none; padding: 0 2px; line-height: 1; font-size: 0.95rem; cursor: pointer;
+  color: var(--fh-violet); opacity: 0.75; text-transform: none; letter-spacing: 0;
+  &:hover, &:focus-visible, &[aria-expanded='true'] { opacity: 1; }
+  &:focus-visible { outline: 2px solid var(--fh-violet); outline-offset: 1px; border-radius: 50%; }
+}
+.fh-bubble header .fh-bubble-info { margin-left: auto; }
+.fh-bubble header .fh-bubble-info + .fh-bubble-chev { margin-left: 4px; }
+.fh-info-pop {
+  position: fixed; z-index: 2000; width: 320px; max-width: calc(100vw - 16px); padding: 10px 12px;
+  background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); font-size: 0.82rem; font-weight: 400; color: var(--bs-body-color);
+  text-transform: none; letter-spacing: 0; text-align: left; cursor: default; white-space: normal;
+}
+.fh-info-title { font-weight: 600; margin-bottom: 4px; }
+.fh-info-text { line-height: 1.4; }
+.fh-info-formula {
+  margin-top: 6px; padding: 4px 6px; border-radius: 4px; background: var(--fh-violet-soft);
+  font-family: var(--bs-font-monospace); font-size: 0.76rem; white-space: pre-wrap;
+}
+.fh-info-config { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 4px;
+  code { font-size: 0.72rem; padding: 1px 5px; border-radius: 4px; background: var(--fh-sub); border: 1px solid var(--bs-border-color); } }
+.fh-explain { margin-top: 6px; font-size: 0.84rem;
+  summary { cursor: pointer; color: var(--fh-violet); font-size: 0.8rem; }
+  &[open] summary { margin-bottom: 6px; } }
+.fh-explain-backdrop { position: fixed; inset: 0; z-index: 2100; background: rgba(10, 10, 14, 0.55);
+  display: flex; align-items: flex-start; justify-content: center; padding: 8vh 16px; }
+.fh-explain-dialog { width: 640px; max-width: 100%; max-height: 80vh; overflow: auto; padding: 16px 18px;
+  background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 10px; box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35); }
+.fh-deriv { th, td { padding: 2px 6px; } tfoot th { border-top: 1px solid var(--bs-border-color); } }
+[data-bs-theme='dark'] {
+  .fh-info-btn { color: #c9c9d6; }
+  .fh-info-pop, .fh-explain-dialog {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%), linear-gradient(160deg, #2c2c33 0%, #222228 100%);
+    border-color: #4c4c56; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 12px 32px rgba(0, 0, 0, 0.5);
+  }
+  .fh-info-formula { background: rgba(255, 255, 255, 0.06); }
+  .fh-explain summary { color: #c9c9d6; }
+}

@@ -1,7 +1,8 @@
 import { DestroyRef, Injectable, TemplateRef, computed, signal } from '@angular/core';
 
-export interface Bubble { id: string; title: string; tpl: TemplateRef<unknown>; badge?: string; }
-export interface RightPanel { title: string; tpl: TemplateRef<unknown>; }
+/** `info`: help id for the corner ⓘ (default `bubble.<id>` / `panel.<title>`, see help.ts). */
+export interface Bubble { id: string; title: string; tpl: TemplateRef<unknown>; badge?: string; info?: string; }
+export interface RightPanel { title: string; tpl: TemplateRef<unknown>; info?: string; }
 
 interface Persisted { left: number; right: number; leftOpen: boolean; rightOpen: boolean; collapsed: Record<string, boolean>; }
 

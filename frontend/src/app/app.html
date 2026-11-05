@@ -38,7 +38,7 @@
           </div>
         </fh-bubble>
         @for (b of layout.bubbles(); track b.id) {
-          <fh-bubble [id]="b.id" [title]="b.title" [badge]="b.badge"><ng-container [ngTemplateOutlet]="b.tpl" /></fh-bubble>
+          <fh-bubble [id]="b.id" [title]="b.title" [badge]="b.badge" [info]="b.info"><ng-container [ngTemplateOutlet]="b.tpl" /></fh-bubble>
         }
       </div>
     } @else {
@@ -60,6 +60,7 @@
       <aside class="fh-box fh-box3">
         <div class="fh-box3-head">
           <span class="fh-box3-title">{{ panel.title }}</span>
+          <fh-info [id]="panel.info ?? 'panel.' + panel.title" [quiet]="!panel.info" />
           <button class="fh-icon-btn ms-auto" title="Hide panel" (click)="layout.toggleRight(false)">»</button>
         </div>
         <div class="fh-box3-scroll"><ng-container [ngTemplateOutlet]="panel.tpl" /></div>

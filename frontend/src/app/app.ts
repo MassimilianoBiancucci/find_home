@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { BubbleComponent } from './components/bubble';
+import { InfoButton } from './components/info';
 import { Health } from './models';
 import { ApiService } from './services/api.service';
 import { LayoutService } from './services/layout.service';
@@ -12,7 +13,7 @@ interface NavItem { path: string; label: string; key: string; children?: { path:
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgTemplateOutlet, BubbleComponent],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgTemplateOutlet, BubbleComponent, InfoButton],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
