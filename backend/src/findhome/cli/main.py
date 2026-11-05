@@ -10,6 +10,7 @@ import asyncio
 import json
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -30,9 +31,11 @@ geo_app = typer.Typer(help="Build the map's geodata under data/geo/ (zones, POIs
 area_app = typer.Typer(help="The search area (Map → Area): zones, weights, checks.", no_args_is_help=True)
 connectivity_app = typer.Typer(help="Zone × point commute matrix (Map → Connectivity).", no_args_is_help=True)
 zone_app = typer.Typer(help="Zone analysis (Map → Zone): walking / cycling heatmaps.", no_args_is_help=True)
+jobs_app = typer.Typer(help="Jobs (Jobs page): list them; the agent protocol next / submit.", no_args_is_help=True)
 for name, sub in (("db", db_app), ("config", config_app), ("listings", listings_app), ("digest", digest_app),
                   ("ingest", ingest_app), ("site", site_app), ("run", run_app), ("scores", scores_app),
-                  ("geo", geo_app), ("area", area_app), ("connectivity", connectivity_app), ("zone", zone_app)):
+                  ("geo", geo_app), ("area", area_app), ("connectivity", connectivity_app), ("zone", zone_app),
+                  ("jobs", jobs_app)):
     app.add_typer(sub, name=name)
 
 STATE = {"json": False, "api": None}
@@ -142,7 +145,8 @@ def scan(site: str = typer.Argument(..., help="Site slug or --all"),
          max_pages: Optional[int] = typer.Option(None, "--max-pages")):
     """Scripted scan (api/http) of a site: fetch → normalize → dedupe → ingest. One line per site."""
     res = _api().post("/api/scans", {"site": "all" if site in ("--all", "all") else site, "dry_run": dry_run,
-                                     "max_pages": max_pages})
+                                     "max_pages": max_pages,
+                                     "trigger": "agent" if os.environ.get("FINDHOME_AGENT_RUN_ID") else "cli"})
     _out(res, "\n".join(r["line"] for r in res["results"]) or "no active sites")
 
 
@@ -154,7 +158,9 @@ def _load_json(path: Path) -> object:
 @ingest_app.command("listings")
 def ingest_listings(file: Path = typer.Option(..., "--file", "-f", help="JSON list of ListingIn (or {listings:[...]}); - for stdin"),
                     source: Optional[str] = typer.Option(None, "--source", help="Override source.method: agent_browser|manual"),
-                    parser: Optional[str] = typer.Option(None, "--parser", help="Site slug whose scanner.py converts raw site items (e.g. qasa extract.js output)")):
+                    parser: Optional[str] = typer.Option(None, "--parser", help="Site slug whose scanner.py converts raw site items (e.g. qasa extract.js output)"),
+                    run: Optional[str] = typer.Option(None, "--run", envvar="FINDHOME_AGENT_RUN_ID",
+                                                      help="Agent run / batch id: calls with the same id fill one scan run per site")):
     """Ingest listings (agent browser scans, manual adds). See `findhome config schema ingest --markdown`."""
     data = _load_json(file)
     items = data["listings"] if isinstance(data, dict) and "listings" in data else data
@@ -166,7 +172,9 @@ def ingest_listings(file: Path = typer.Option(..., "--file", "-f", help="JSON li
     if source:
         for it in items:
             it.setdefault("source", {})["method"] = source
-    res = _api().post("/api/ingest/listings", {"listings": items})
+    if not run and source == "agent_browser":
+        run = f"cli:{datetime.now(UTC):%Y%m%dT%H%M%S}"
+    res = _api().post("/api/ingest/listings", {"listings": items, "run": run})
     lines = [f"created {res['created']} · updated {res['updated']} · unchanged {res['unchanged']} · duplicate {res['duplicate']}"]
     lines += [f"  {i['short_id']} {i['outcome']} ({i['external_id']})" for i in res["items"] if i["outcome"] != "unchanged"]
     _out(res, "\n".join(lines))
@@ -373,9 +381,46 @@ def site_list():
                         f"last scan {s['last_scan_at'] or '-'}" for s in res["items"]))
 
 
+# ── jobs ────────────────────────────────────────────────────
+@jobs_app.command("list")
+def jobs_list():
+    """Every job with its last execution."""
+    res = _api().get("/api/jobs")
+    _out(res, "\n".join(f"{j['key']:<18} {j['kind']:<6} runs {j['runs']:<4} last "
+                         f"{(j['last_run'] or {}).get('status', '-')}" for j in res["items"]))
+
+
+@jobs_app.command("next")
+def jobs_next(job_run: str = typer.Argument(..., help="The job run id from your prompt (job_run=<id>)")):
+    """The next listing of a job run for you to check (nothing left → 'done')."""
+    item = _api().post(f"/api/job-runs/{job_run}/next")["item"]
+    if not item:
+        _out({"item": None}, "done: no listing left in this job run")
+        return
+    _out({"item": item}, "\n".join([
+        f"{item['short_id']}  {item['title'] or ''} · {item['area'] or ''}",
+        f"  open: {item['urls'][0] if item['urls'] else '(no URL)'}",
+        f"  now: pets {item['current']['pet_status']} ({item['current']['pet_source'] or 'no source'}): "
+        f"{item['current']['pet_evidence'] or '-'}",
+        f"  {item['left_after_this']} more after this one"]))
+
+
+@jobs_app.command("submit")
+def jobs_submit(job_run: str, short_id: str,
+                pet: str = typer.Option(..., "--pet", help="yes | no | ask | unknown"),
+                evidence: Optional[str] = typer.Option(None, "--evidence", help="The exact pet sentence from the page"),
+                url: Optional[str] = typer.Option(None, "--url", help="The page you read")):
+    """Record what the listing page says about pets (quote it); unknown when it says nothing."""
+    res = _api().post(f"/api/job-runs/{job_run}/submit",
+                      {"short_id": short_id, "pet": pet, "evidence": evidence, "url": url})
+    _out(res, f"{res['short_id']}: {res['outcome']}" + (f" ({res['note']})" if res.get("note") else ""))
+
+
 # ── run ─────────────────────────────────────────────────────
 @run_app.command("new")
-def run_new(profile: str = typer.Argument("manual"), prompt_file: str = ""):
+def run_new(profile: str = typer.Argument("manual"), prompt_file: str = "",
+            kind: str = typer.Option("other", help="scan | job | onboarding | evaluate | other"),
+            site: Optional[str] = typer.Option(None, help="Site slug the run works on")):
     """Create runs/<ts>-<profile>/ with scratchpad + history digest; prints the folder.
     Export FINDHOME_RUN_DIR and FINDHOME_AGENT_RUN_ID from the output for later commands."""
     from findhome.agentrun.rundir import new_run_dir
@@ -385,7 +430,9 @@ def run_new(profile: str = typer.Argument("manual"), prompt_file: str = ""):
     api = _api()
     try:
         (path / "context" / "history_digest.md").write_text(api.get("/api/digest/history"), encoding="utf-8")
-        run_id = api.post("/api/agent-runs/register", {"profile": profile, "run_dir": str(path.relative_to(repo_root()))})["id"]
+        run_id = api.post("/api/agent-runs/register", {
+            "profile": profile, "run_dir": str(path.relative_to(repo_root())), "kind": kind, "site": site,
+            "session_id": os.environ.get("CLAUDE_CODE_SESSION_ID")})["id"]
     except typer.Exit:
         run_id = ""
     (path / ".run_id").write_text(run_id)
@@ -393,20 +440,44 @@ def run_new(profile: str = typer.Argument("manual"), prompt_file: str = ""):
          f"FINDHOME_RUN_DIR={path}\nFINDHOME_AGENT_RUN_ID={run_id}")
 
 
+@run_app.command("attach")
+def run_attach(run_id: str = typer.Argument(..., help="The run id the app put in your prompt (run=<id>)")):
+    """Mark a run the app registered (VS Code launcher) as started by this session; prints its folder."""
+    from findhome.core.paths import repo_root
+
+    res = _api().post(f"/api/agent-runs/{run_id}/attach", {"session_id": os.environ.get("CLAUDE_CODE_SESSION_ID")})
+    path = repo_root() / res["run_dir"]
+    if path.is_dir():
+        (path / ".run_id").write_text(run_id)
+    _out({**res, "run_dir": str(path)}, f"FINDHOME_RUN_DIR={path}\nFINDHOME_AGENT_RUN_ID={run_id}")
+
+
+@run_app.command("backfill-inbox")
+def run_backfill_inbox():
+    """Record runs for past browser scans in inbox/processed that have none (safe to run twice)."""
+    res = _api().post("/api/runs/backfill-inbox")
+    _out(res, "\n".join(f"{r['site']}: {r['files']} files, {r['seen']} seen, {r['linked']} sources linked "
+                         f"({r['new']} new) → scan run {r['scan_run_id'][:8]}" for r in res["results"])
+         or "nothing to backfill")
+
+
 @run_app.command("close")
-def run_close(run_dir: Optional[Path] = typer.Option(None, envvar="FINDHOME_RUN_DIR")):
-    """Store the scratchpad's Handover section as the run summary."""
-    if not run_dir:
-        typer.secho("no run dir: pass --run-dir or set FINDHOME_RUN_DIR", fg="red")
-        raise typer.Exit(1)
-    text = (run_dir / "scratchpad.md").read_text(encoding="utf-8")
-    handover = text.split("## Handover", 1)[-1].strip()
-    run_id = os.environ.get("FINDHOME_AGENT_RUN_ID", "")
-    if not run_id and (run_dir / ".run_id").exists():
-        run_id = (run_dir / ".run_id").read_text().strip()
-    if run_id:
-        _api().patch(f"/api/agent-runs/{run_id}", {"summary": handover})
-    typer.echo(f"closed {run_dir.name}: {len(handover)} chars of handover stored")
+def run_close(run_dir: Optional[Path] = typer.Option(None, envvar="FINDHOME_RUN_DIR"),
+              run: Optional[str] = typer.Option(None, "--run", envvar="FINDHOME_AGENT_RUN_ID", help="Agent run id"),
+              summary: Optional[str] = typer.Option(None, "--summary",
+                                                    help="Handover text (default: the scratchpad's Handover section)")):
+    """Store the handover (the scratchpad's Handover section, or --summary) as the run summary."""
+    if summary is None:
+        if not run_dir:
+            typer.secho("no handover: pass --summary, or --run-dir / FINDHOME_RUN_DIR with a scratchpad", fg="red")
+            raise typer.Exit(1)
+        text = (run_dir / "scratchpad.md").read_text(encoding="utf-8")
+        summary = text.split("## Handover", 1)[-1].strip()
+    if not run and run_dir and (run_dir / ".run_id").exists():
+        run = (run_dir / ".run_id").read_text().strip()
+    if run:
+        _api().patch(f"/api/agent-runs/{run}", {"summary": summary})
+    typer.echo(f"closed {run or (run_dir.name if run_dir else '?')}: {len(summary)} chars of handover stored")
 
 
 @app.command()

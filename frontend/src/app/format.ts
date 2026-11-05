@@ -3,7 +3,12 @@ export const fmtKr = (v?: number | null) => (v == null ? '?' : `${Math.round(v).
 export const fmtNum = (v?: number | null, unit = '') => (v == null ? '?' : `${+Number(v).toFixed(1)}${unit}`);
 export const fmtScore = (v?: number | null) => (v == null ? '–' : Number(v).toFixed(2));
 export const petClass = (p: string) =>
-  ({ yes: 'text-bg-success', ask: 'text-bg-warning', unknown: 'text-bg-secondary', no: 'text-bg-danger' } as Record<string, string>)[p] ?? 'text-bg-secondary';
+  ({ yes: 'text-bg-success', ask: 'text-bg-warning', unknown: 'text-bg-secondary', no: 'text-bg-danger', conflict: 'fh-pet-conflict' } as Record<string, string>)[p]
+  ?? 'text-bg-secondary';
+/** One-letter mark of who set the pet status (U you · A agent · S site · K keyword rules). */
+export const petSourceMark = (s?: string | null) => (s ? ({ user: 'U', agent: 'A', site: 'S', keywords: 'K' } as Record<string, string>)[s] ?? '' : '');
+export const petSourceLabel = (s?: string | null) =>
+  s ? ({ user: 'your answer', agent: 'the agent\'s check', site: 'the site\'s own field', keywords: 'the wording rules' } as Record<string, string>)[s] ?? s : 'no source';
 export const scoreColor = (v?: number | null) =>
   v == null ? 'var(--fh-muted)' : v >= 0.75 ? 'var(--fh-good)' : v >= 0.5 ? 'var(--fh-mid)' : 'var(--fh-bad)';
 

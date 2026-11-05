@@ -19,8 +19,7 @@ from selectolax.lexbor import LexborNode as Node
 from findhome.config.models import SiteConfig
 from findhome.core.paths import data_dir
 from findhome.domain.models import ListingIn, SourceIn
-from findhome.domain.normalize import (contract_type_from_text, parse_int, parse_number, parse_rooms,
-                                       pet_status_from_text)
+from findhome.domain.normalize import contract_type_from_text, parse_int, parse_number, parse_rooms
 from findhome.scanning.base import Query, RawItem
 
 INT_FIELDS = {"rent_sek", "deposit_sek", "floor", "build_year", "price_sek", "avgift_sek", "drift_sek",
@@ -62,8 +61,8 @@ def build_listing(site: SiteConfig, values: dict[str, Any], page_url: str, snaps
             fields["rooms_rok"], sov = parse_rooms(str(raw))
             if sov:
                 fields["has_sovalkov"] = True
-        elif key in ("pets", "pet_text"):
-            fields["pet_status"], fields["pet_evidence"] = pet_status_from_text(str(raw))
+        elif key in ("pets", "pet_text"):      # the site's own pet wording; judged at ingest (findhome.pets)
+            fields.setdefault("attributes", {})["pets_text"] = str(raw)
         elif key in ("contract", "contract_text"):
             fields["contract_type"] = contract_type_from_text(str(raw)) or "unknown"
         elif key in LIST_FIELDS:
@@ -72,8 +71,6 @@ def build_listing(site: SiteConfig, values: dict[str, Any], page_url: str, snaps
             continue
         else:
             fields[key] = raw
-    if fields.get("pet_status") in (None, "unknown") and values.get("description_excerpt"):
-        fields["pet_status"], fields["pet_evidence"] = pet_status_from_text(str(values["description_excerpt"]))
     fields = {k: v for k, v in fields.items() if v is not None}
     url = values.get("url")
     if url:

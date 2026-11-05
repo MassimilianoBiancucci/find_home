@@ -35,14 +35,120 @@
             "items": {
               "type": "string"
             }
+          },
+          "kind": {
+            "enum": [
+              "scan",
+              "job",
+              "onboarding",
+              "evaluate",
+              "other"
+            ],
+            "description": "What the run does (Runs page grouping)"
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Inline prompt (e.g. a skill call with {param} placeholders); used instead of prompt_file"
+          },
+          "params": {
+            "type": "object",
+            "description": "Parameters the app passes to the run, validated before launch; used as {name} in prompt and args",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "type": {
+                  "enum": [
+                    "site",
+                    "int",
+                    "string",
+                    "job_run"
+                  ]
+                },
+                "required": {
+                  "type": "boolean"
+                },
+                "default": {},
+                "min": {
+                  "type": "integer"
+                },
+                "max": {
+                  "type": "integer"
+                },
+                "from_site": {
+                  "enum": [
+                    "browser_pages"
+                  ],
+                  "description": "default and max come from the site's scan.browser pages"
+                },
+                "site_needs": {
+                  "enum": [
+                    "browser",
+                    "not_origin"
+                  ],
+                  "description": "the site must allow a browser scan / must not be origin-only"
+                }
+              },
+              "required": [
+                "type"
+              ]
+            }
+          },
+          "allowed_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Joined with commas into {allowed_tools} in args"
+          },
+          "max_turns": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "{max_turns} in args"
+          },
+          "turns_per": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "param": {
+                "type": "string"
+              },
+              "turns": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "description": "Adds turns × the value of an int param to max_turns (e.g. 4 per page)"
+          },
+          "launchers": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "cli",
+                "vscode"
+              ]
+            },
+            "minItems": 1,
+            "description": "cli: the app spawns the command headless; vscode: the app opens a prefilled Claude Code tab"
           }
         },
         "additionalProperties": false,
         "required": [
           "command",
           "args",
-          "prompt_file",
           "timeout_min"
+        ],
+        "anyOf": [
+          {
+            "required": [
+              "prompt_file"
+            ]
+          },
+          {
+            "required": [
+              "prompt"
+            ]
+          }
         ]
       }
     }

@@ -2,9 +2,11 @@ import { Component, computed, effect, inject, input, signal, untracked } from '@
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
+import { fmtKr, fmtNum, fmtScore, petClass, petSourceLabel, scoreColor } from '../format';
 import { GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
+import { PetBadge } from '../components/pet-badge';
+import { SiteLogo } from '../components/site-logo';
 import { ScoreTip } from '../components/score-tip';
 import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
@@ -13,17 +15,19 @@ import { ValueScaleStore, valueOf } from '../value-scale';
 import { HouseMap } from '../house/house-map';
 import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
 import { ApiService, apiError } from '../services/api.service';
+import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
     <h1 class="fh-mono">{{ shortId() }}</h1>
     @if (d(); as x) {
-      <span class="badge" [class]="pet(x.listing.pet_status)">pets {{ x.listing.pet_status }}</span>
+      <fh-pet-badge prefix="pets " [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
+      @if (x.listing.origin_site) { <fh-site-logo [slug]="x.listing.origin_site" [withName]="true" [title]="'First published on ' + sites.name(x.listing.origin_site)" /> }
       <select class="form-select form-select-sm w-auto" [ngModel]="x.listing.status" (ngModelChange)="setStatus($event)">
         @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
       </select>
@@ -66,7 +70,6 @@ import { TagsStore } from '../services/tags.store';
             <span>{{ x.listing.contract_type ?? 'contract ?' }}{{ x.listing.contract_end ? ' → ' + x.listing.contract_end : '' }}</span>
             @if (x.listing.available_from) { <span>from {{ x.listing.available_from }}</span> }
           </div>
-          @if (x.listing.pet_evidence) { <div class="small mt-2">Pets: “{{ x.listing.pet_evidence }}”</div> }
           @if (x.listing.description_excerpt) { <p class="small text-body-secondary mt-2 mb-0">{{ x.listing.description_excerpt }}</p> }
         </div></div>
 
@@ -136,6 +139,29 @@ import { TagsStore } from '../services/tags.store';
         </div></div>
 
         <div class="card mb-3"><div class="card-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <h2 class="h6 m-0">Pets</h2>
+            <fh-pet-badge [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
+            <span class="small text-body-secondary">{{ x.listing.pet_source ? 'set by ' + petSource(x.listing.pet_source) : 'nobody has decided yet' }}</span>
+          </div>
+          @if (x.listing.pet_status === 'conflict') {
+            <div class="small text-warning-emphasis mb-2">The sources disagree: your answer settles it.</div>
+          }
+          @if (x.listing.pet_evidence) { <div class="fh-quote mb-2" style="-webkit-line-clamp:4; max-width:none">“{{ x.listing.pet_evidence }}”</div> }
+          <div class="d-flex flex-wrap gap-1 align-items-center">
+            <span class="small text-body-secondary me-1">Your answer:</span>
+            @for (p of petAnswers; track p) {
+              <button class="btn btn-sm" [class]="x.listing.pet_source === 'user' && x.listing.pet_status === p ? 'btn-primary' : 'btn-outline-secondary'"
+                      [disabled]="petBusy()" (click)="setPet(p)">{{ p }}</button>
+            }
+            @if (x.listing.pet_source === 'user') {
+              <button class="btn btn-sm btn-link" [disabled]="petBusy()" (click)="setPet('unknown')" title="Forget your answer: the agent, the site and the rules decide again">clear</button>
+            }
+          </div>
+          <input class="form-control form-control-sm mt-2" placeholder="note, e.g. what the landlord said (optional)" [(ngModel)]="petNote" title="Saved with the answer you click" />
+        </div></div>
+
+        <div class="card mb-3"><div class="card-body">
           <h2 class="h6">Feedback</h2>
           <div class="btn-group btn-group-sm mb-2">
             @for (p of polarities; track p) {
@@ -163,8 +189,25 @@ import { TagsStore } from '../services/tags.store';
 
         <div class="card"><div class="card-body small">
           <h2 class="h6">Sources & timeline</h2>
+          @if (x.listing.origin_site; as o) {
+            <div class="d-flex align-items-center gap-2 mb-2">
+              <fh-site-logo [slug]="o" size="md" />
+              <div><div class="fw-semibold">{{ sites.name(o) }}</div><div class="text-body-secondary" style="font-size:0.74rem">first published here (origin)</div></div>
+            </div>
+          }
           @for (s of x.sources; track s.site_slug + s.external_id) {
-            <div>{{ s.site_slug }} · <a [href]="s.url" target="_blank" rel="noopener">{{ s.external_id }}</a> · {{ s.source_method }}</div>
+            <div class="fh-src-row">
+              <fh-site-logo [slug]="s.site_slug" />
+              <span class="text-truncate">{{ sites.name(s.site_slug) }} ·
+                @if (s.url) { <a [href]="s.url" target="_blank" rel="noopener" class="fh-mono">{{ s.external_id }} ↗</a> } @else { <span class="fh-mono">{{ s.external_id }}</span> }
+                <span class="fh-chip fh-tone-muted ms-1">{{ s.source_method === 'agent_browser' ? 'browser' : s.source_method }}</span>
+                @if (s.first_scan_run_id || s.scan_run_id) {
+                  <a class="ms-1" style="font-size:0.74rem" [routerLink]="['/runs']" [queryParams]="{ scan: s.first_scan_run_id || s.scan_run_id }"
+                     title="The scan run that found this source">run ↗</a>
+                }</span>
+              <span class="text-body-secondary text-end" style="font-size:0.74rem" [title]="'first seen ' + (s.first_seen_at | date: 'medium') + ', last seen ' + (s.last_seen_at | date: 'medium')">
+                {{ s.first_seen_at | date: 'shortDate' }}{{ (s.last_seen_at | date: 'shortDate') !== (s.first_seen_at | date: 'shortDate') ? ' → ' + (s.last_seen_at | date: 'shortDate') : '' }}</span>
+            </div>
           }
           <hr class="my-2" />
           @for (e of x.events; track e.at) {
@@ -180,6 +223,11 @@ export class DetailPage {
   readonly shortId = input.required<string>();
   private api = inject(ApiService);
   protected tags = inject(TagsStore);
+  protected sites = inject(SitesStore);
+  protected petAnswers = ['yes', 'no', 'ask'] as const;
+  protected petNote = '';
+  protected petBusy = signal(false);
+  protected petSource = petSourceLabel;
   protected d = signal<ListingDetail | null>(null);
   protected loc = signal<HouseLocation | null>(null);
   protected locError = signal('');
@@ -205,6 +253,7 @@ export class DetailPage {
     // only the id drives a reload: load() reads other signals (loc), which must not re-trigger this effect
     effect(() => { const id = this.shortId(); untracked(() => this.load(id)); });
     this.values.load();
+    this.sites.load();
   }
 
   load(id: string): void {
@@ -261,6 +310,19 @@ export class DetailPage {
         if (!dry) this.api.recompute([this.shortId()]).subscribe(() => this.load(this.shortId()));
       },
       error: (e) => this.error.set(apiError(e)),
+    });
+  }
+  /** Your answer on the pets (wins over every other source); 'unknown' clears it. */
+  setPet(status: 'yes' | 'no' | 'ask' | 'unknown'): void {
+    this.petBusy.set(true);
+    this.api.setPet(this.shortId(), status, this.petNote || undefined).subscribe({
+      next: () => {
+        this.petBusy.set(false);
+        this.info.set(status === 'unknown' ? 'Your pet answer is cleared' : `Pets: ${status} (your answer)`);
+        this.petNote = '';
+        this.load(this.shortId());
+      },
+      error: (e) => { this.petBusy.set(false); this.error.set(apiError(e)); },
     });
   }
   recompute(): void { this.api.recompute([this.shortId()]).subscribe(() => this.load(this.shortId())); }

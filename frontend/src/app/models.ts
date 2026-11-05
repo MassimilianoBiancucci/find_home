@@ -1,6 +1,8 @@
 // Shapes returned by the find_home API (backend/src/findhome/api). Numeric DB columns arrive as numbers.
 import { Derivation, DerivationRow } from './help';
-export type PetStatus = 'yes' | 'no' | 'ask' | 'unknown';
+export type PetStatus = 'yes' | 'no' | 'ask' | 'unknown' | 'conflict';
+/** Who set the pet status: you, the agent's check, the site's own field, or the wording rules. */
+export type PetSource = 'user' | 'agent' | 'site' | 'keywords';
 
 export interface Listing {
   id: string;
@@ -26,6 +28,12 @@ export interface Listing {
   contract_end?: string | null;
   pet_status: PetStatus;
   pet_evidence?: string | null;
+  pet_source?: PetSource | null;
+  pet_checked_at?: string | null;
+  /** The site that first published the home (e.g. homeq for a HomeQ home found on Qasa). */
+  origin_site?: string | null;
+  /** Sites the home was found on (listing_sources). */
+  found_on?: string[] | null;
   available_from?: string | null;
   description_excerpt?: string | null;
   photo_urls: string[];
@@ -67,7 +75,7 @@ export interface CommuteRow {
 
 export interface Feedback { polarity: 'like' | 'dislike' | 'neutral'; tags: string[]; note?: string | null; actor: string; at: string; }
 export interface Evaluation { summary: string; pros: string[]; cons: string[]; questions_for_landlord: string[]; extracted: Record<string, unknown>; at: string; }
-export interface Source { site_slug: string; external_id: string; url?: string | null; source_method: string; first_seen_at: string; last_seen_at: string; }
+export interface Source { site_slug: string; external_id: string; url?: string | null; source_method: string; first_seen_at: string; last_seen_at: string; scan_run_id?: string | null; first_scan_run_id?: string | null; }
 export interface StatusEvent { from_status?: string | null; to_status: string; actor: string; note?: string | null; at: string; }
 
 export interface ListingDetail {
@@ -81,15 +89,95 @@ export interface ListingDetail {
   events: StatusEvent[];
 }
 
+export type SiteStatus = 'unverified' | 'active' | 'broken' | 'disabled';
+export interface ScanMethodState { enabled: boolean; reason: string | null; }
 export interface Site {
-  slug: string; name: string; url: string; kinds: string[]; status: string; method?: string | null;
-  auth?: string | null; notes?: string; last_scan_at?: string | null; last_error?: string | null;
-  last_counts?: Record<string, unknown> | null;
+  slug: string; name: string; url: string; kinds: string[]; status: SiteStatus | string;
+  /** scanned: the app or the agent scans it · origin: its homes arrive through an aggregator (platforms of another site). */
+  role: 'scanned' | 'origin' | string;
+  method?: string | null; auth?: string | null; notes?: string;
+  brand?: { logo?: string | null; colour?: string | null; favicon?: string | null } | null;
+  logo_url?: string | null;
+  risk_note?: string | null;
+  last_verified?: string | null;
+  scan?: { script: ScanMethodState; browser: ScanMethodState & { default_pages: number; max_pages: number } } | null;
+  /** Platform value on this aggregator → origin site slug. */
+  platforms?: Record<string, string>;
+  known_listings?: number; origin_listings?: number;
+  last_scan_at?: string | null; last_error?: string | null;
+  last_counts?: ScanCounts | null; last_scan_status?: string | null; last_scan_id?: string | null;
 }
 
-export interface AgentRun { id: string; profile: string; command: string; run_dir: string; started_by: string; started_at: string; finished_at?: string | null; status: string; exit_code?: number | null; summary?: string | null; }
-export interface ScanRun { id: string; site_slug: string; method: string; trigger: string; started_at: string; finished_at?: string | null; status: string; counts: Record<string, unknown>; error?: string | null; }
-export interface AgentProfile { name: string; label?: string | null; command: string; prompt_file: string; timeout_min: number; }
+export interface ScanCounts {
+  seen?: number; new?: number; changed?: number; unchanged?: number; dup_cross_site?: number; filtered?: number; pages?: number;
+  errors?: string[]; [k: string]: unknown;
+}
+
+export type Launcher = 'cli' | 'vscode';
+export type AgentRunStatus = 'waiting' | 'running' | 'ok' | 'error' | 'timeout' | 'cancelled' | 'expired' | 'ended_no_handover';
+export interface AgentRunResult {
+  subtype?: string; is_error?: boolean; num_turns?: number; total_cost_usd?: number;
+  permission_denials?: { tool_name?: string; tool_input?: unknown; [k: string]: unknown }[]; [k: string]: unknown;
+}
+export interface AgentRun {
+  id: string; profile: string; command: string; run_dir: string; started_by: string; started_at: string; finished_at?: string | null;
+  status: AgentRunStatus | string; exit_code?: number | null; log_path?: string | null; summary?: string | null;
+  launcher?: 'cli' | 'vscode' | 'manual' | 'desktop' | string | null;
+  kind?: 'scan' | 'job' | 'onboarding' | 'evaluate' | 'other' | string | null;
+  site_slug?: string | null; params?: Record<string, unknown> | null; session_id?: string | null; transcript_path?: string | null;
+  cost_usd?: number | null; num_turns?: number | null; result?: AgentRunResult | null; duration_s?: number | null;
+  scan_runs?: ScanRun[]; job_runs?: JobRun[];
+}
+export interface ScanRun {
+  id: string; site_slug: string; method: string; trigger: string; dry_run?: boolean; started_at: string; finished_at?: string | null;
+  status: string; counts: ScanCounts; error?: string | null; agent_run_id?: string | null; batch_id?: string | null;
+  pages?: number | null; params?: Record<string, unknown> | null; duration_s?: number | null;
+}
+export interface ScanRunListing { short_id: string; title?: string | null; area?: string | null; origin_site?: string | null; pet_status: PetStatus; first_seen_at: string; found_here: boolean; }
+export interface ScanRunDetail extends ScanRun { listings: ScanRunListing[]; }
+export interface RunsTimeline { agent_runs: AgentRun[]; scan_runs: ScanRun[]; }
+
+export interface ProfileParam { type: string; required?: boolean; min?: number; max?: number; default?: unknown; site_needs?: string; from_site?: string; }
+export interface AgentProfile {
+  name: string; label?: string | null; kind?: string | null; command: string; prompt_file: string | null;
+  params?: Record<string, ProfileParam>; launchers?: Launcher[]; timeout_min: number;
+}
+/** POST /api/agent-runs: cli → running; vscode → waiting with the prefilled prompt and the vscode:// link to open. */
+export interface AgentStart {
+  id: string; run_dir?: string; profile: string; launcher: Launcher; params?: Record<string, unknown>; status: string;
+  session_id?: string | null; prompt?: string; open_url?: string;
+}
+
+export interface JobSubset {
+  sites?: string[]; origin_sites?: string[]; pet_status?: string[]; pet_source?: string[]; new_since?: string | null;
+  passes_hard_filters?: boolean; order?: 'score_desc' | 'newest' | 'oldest'; short_ids?: string[];
+  exclude_checked_within_days?: number | null; status?: string[];
+}
+export interface JobSettings { subset: JobSubset; n: number; launcher?: Launcher; }
+export interface JobRunBrief { id: string; status: string; counts: Record<string, number>; started_at: string; finished_at?: string | null; agent_run_id?: string | null; }
+export interface Job {
+  key: string; type: string; label: string; settings: JobSettings; enabled: boolean; runs?: number; recent_errors?: number;
+  last_run?: JobRunBrief | null; running?: number; kind: 'inapp' | 'agent'; description: string; max_n: number; profile?: string | null;
+}
+export interface JobRun {
+  id: string; job_key: string; status: string; settings?: JobSettings; agent_run_id?: string | null; counts: Record<string, number>;
+  error?: string | null; started_at: string; finished_at?: string | null; agent_status?: string | null; launcher?: string | null;
+  cost_usd?: number | null; num_turns?: number | null; duration_s?: number | null; summary?: string | null;
+}
+export interface PetState { pet_status: PetStatus; pet_source?: PetSource | null; pet_evidence?: string | null; }
+export interface JobItem {
+  id: number; short_id: string; title?: string | null; area?: string | null; origin_site?: string | null; state: string;
+  before?: PetState | null; after?: PetState | null; evidence?: string | null; page_url?: string | null;
+  outcome?: 'changed' | 'unchanged' | 'conflict' | 'skipped' | 'error' | null; note?: string | null;
+  current_pet?: PetStatus | null; current_source?: PetSource | null;
+}
+export interface JobRunDetail extends JobRun { items: JobItem[]; }
+export interface JobPreview {
+  count: number; n: number;
+  items: { short_id: string; title?: string | null; area?: string | null; origin_site?: string | null; pet_status: PetStatus; pet_source?: PetSource | null; score?: number | null }[];
+}
+/** POST /api/jobs/{key}/run: in-app jobs finish at once; agent jobs also start an agent run (vscode → open_url). */
+export interface JobRunStart { run: JobRun; agent?: AgentStart; note?: string; }
 
 export interface ConfigStatus { files: string[]; config_hash: string | null; errors: string[]; sites: string[]; }
 export interface ConfigFile<T = any> { name: string; data: T; text: string; }

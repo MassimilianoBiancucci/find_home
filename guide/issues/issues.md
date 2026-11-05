@@ -23,3 +23,15 @@ ResRobot's trip from it, which starts with its own walk to the boarding stop. A 
 by up to two circle radii (2 × `range_m`), the same for every zone.
 **Fix direction:** keep the trip's first walk leg and boarding stop (`TravelResult.raw`), subtract that walk, and add
 the home's network walk to the boarding stop instead.
+
+## Agent launcher
+
+### Headless browser runs are not verified end to end
+**Impact: medium.** The `browser_scan`, `site_onboarding` and `pet_agent_check` profiles start
+`claude -p … --chrome --permission-mode dontAsk` ([`config/agent.yaml`](../../config/agent.yaml)). A start was checked
+up to Claude Code's init event (Claude in Chrome connected, `--strict-mcp-config` keeps it, the `find-home` skill is
+listed), but no full run has completed yet: whether the extension asks for per-site approval in print mode, and
+whether every tool the prompts use is in `--allowedTools`, shows only on a real run (`permission_denials` in the
+run's result, shown on the Runs page).
+**Fix direction:** run `browser_scan` for Qasa with `pages=1` from the Sites page, read the run's
+`permission_denials` and log, adjust `allowed_tools`; use the VS Code launcher meanwhile.

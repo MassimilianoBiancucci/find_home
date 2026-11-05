@@ -36,9 +36,11 @@ CONFIG_FILES: dict[str, type[m._Base]] = {
     "area_aliases": m.AreaAliases,
     "transit_colours": m.TransitColours,
     "zone": m.ZoneConfig,
+    "pet_rules": m.PetRules,
 }
 # files whose content changes scores; their canonical JSON makes the config hash
 SCORING_FILES = ("profile", "locations", "time_model", "poi", "tags", "search_area")
+# ("pet_rules" changes pet statuses at ingest, not scores: it is not part of the hash)
 
 
 class ConfigError(Exception):
@@ -62,6 +64,7 @@ class ConfigBundle:
     area_aliases: m.AreaAliases
     transit_colours: m.TransitColours
     zone: m.ZoneConfig
+    pet_rules: m.PetRules
     sites: dict[str, m.SiteConfig]
     raw: dict[str, Any] = field(repr=False)
     config_hash: str = ""
@@ -155,6 +158,11 @@ def _cross_checks(raw: dict[str, Any], sites: dict[str, Any]) -> list[str]:
                 errors.append(f"sites/{slug}/site.yaml: filter_map/{key}: not in filters_catalog.yaml")
         if site.get("slug") != slug:
             errors.append(f"sites/{slug}/site.yaml: slug '{site.get('slug')}' does not match folder name")
+        for platform, target in (site.get("platforms") or {}).items():
+            if target not in sites:
+                errors.append(f"sites/{slug}/site.yaml: platforms/{platform}: '{target}' is not a registered site")
+        if site.get("role") == "origin" and site.get("status") == "active":
+            errors.append(f"sites/{slug}/site.yaml: an origin-only site is never scanned: status must not be active")
     errors += _area_checks(raw)
     return errors
 

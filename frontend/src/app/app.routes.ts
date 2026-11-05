@@ -15,6 +15,8 @@ export const routes: Routes = [
   { path: 'locations', title: 'Locations · find_home', loadComponent: () => import('./pages/locations').then((m) => m.LocationsPage) },
   { path: 'sites', title: 'Sites · find_home', loadComponent: () => import('./pages/sites').then((m) => m.SitesPage) },
   { path: 'runs', title: 'Runs · find_home', loadComponent: () => import('./pages/runs').then((m) => m.RunsPage) },
+  { path: 'jobs', title: 'Jobs · find_home', loadComponent: () => import('./pages/jobs').then((m) => m.JobsPage) },
+  { path: 'jobs/:key', title: 'Job · find_home', loadComponent: () => import('./pages/job').then((m) => m.JobPage) },
   { path: 'settings', title: 'Settings · find_home', loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage) },
   { path: '**', redirectTo: 'candidates' },
 ];

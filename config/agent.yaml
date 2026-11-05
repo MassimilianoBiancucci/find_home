@@ -1,15 +1,46 @@
 # yaml-language-server: $schema=./schemas/agent.schema.json
 # ─────────────────────────────────────────────────────────────
-#  Headless agent commands started by the app's "Run agent" button
-#  (backend/src/findhome/agentrun). The app never calls an LLM itself: it
-#  spawns the command, streams its output to runs/<id>/log.jsonl and records
-#  the run. `{prompt}` in args is replaced by the prompt file's text.
+#  Agent commands the app starts (backend/src/findhome/agentrun/launcher.py). The app never calls
+#  an LLM itself: it registers the run, then spawns the command (launcher cli: output streamed to
+#  runs/<id>/log.jsonl, final result event stored) or opens a prefilled Claude Code tab in VS Code
+#  (launcher vscode). In `prompt`/`args`: {prompt}, {run_id}, {session_id}, {max_turns},
+#  {allowed_tools} and every declared param ({site}, {pages} ...), validated before launch.
 #  The agent CLI must be installed and logged in on this machine.
 #  Verify the exact flags of your CLI version before first use.
 # ─────────────────────────────────────────────────────────────
 profiles:
+  pet_agent_check:
+    label: Browser agent - check pet policies (job)
+    kind: job
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/pet_agent_check.md exactly,
+      with job_run={job_run} n={n} run={run_id}.
+    params:
+      job_run: {type: job_run, required: true}
+      n: {type: int, min: 1, max: 50, default: 10}
+    allowed_tools:
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__get_page_text
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Bash(scripts/findhome jobs next:*)
+      - Bash(scripts/findhome jobs submit:*)
+    max_turns: 10
+    turns_per: {param: n, turns: 5}
+    args: ["-p", "{prompt}", "--model", "haiku", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 40
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   claude_scan:
     label: Claude Code - scan for new listings
+    kind: scan
     command: claude
     args: ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
     prompt_file: .agents/skills/find-home/prompts/run_scan.md
@@ -17,41 +48,81 @@ profiles:
     env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
   claude_evaluate:
     label: Claude Code - evaluate new listings
+    kind: evaluate
     command: claude
     args: ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
     prompt_file: .agents/skills/find-home/prompts/run_evaluate.md
     timeout_min: 30
     env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
-  claude_qasa_chrome:
-    # Qasa scan through YOUR Chrome (Claude in Chrome extension) with Haiku. Requirements:
-    #  - Chrome open, extension installed, signed in to the same claude.ai account/org as `claude`
-    #  - `claude` logged in with /login (a subscription). With an API key Claude Code turns Chrome off,
-    #    so ANTHROPIC_API_KEY is deliberately NOT passed through here.
-    #  - qasa.com allowed in the extension's site permissions; only one browser connected
-    # It may only use the listed browser tools and write files under inbox/ (reads are allowed by
-    # default); anything else is refused instead of prompting (dontAsk). See guide/documentation/agent-permissions.md.
-    label: Claude in Chrome (Haiku) - scan Qasa
+  # ── browser agent (Claude in Chrome, YOUR Chrome) ─────────────────────────────────────────────
+  # Requirements (once): `claude` CLI installed and logged in with /login (subscription: with an API key
+  # Claude Code turns Chrome off, so ANTHROPIC_API_KEY is deliberately NOT passed through); Chrome open with the
+  # Claude in Chrome extension signed in to the same account; the site allowed in the extension's site
+  # permissions; one browser connected. Anything outside --allowedTools is refused, not prompted (dontAsk);
+  # --strict-mcp-config keeps only Claude in Chrome. See guide/documentation/agent-permissions.md.
+  # Launchers: cli = the app runs it headless; vscode = the app opens a prefilled Claude Code tab in VS Code.
+  browser_scan:
+    label: Browser agent - scan a site (Claude in Chrome, Haiku)
+    kind: scan
     command: claude
-    args:
-      - "-p"
-      - "{prompt}"
-      - "--model"
-      - "haiku"
-      - "--chrome"
-      - "--permission-mode"
-      - "dontAsk"
-      - "--allowedTools"
-      - "mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__tabs_create_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__javascript_tool,mcp__claude-in-chrome__tabs_close_mcp,Edit(./inbox/**)"
-      - "--max-turns"
-      - "40"
-      - "--output-format"
-      - "stream-json"
-      - "--verbose"
-    prompt_file: .agents/skills/find-home/prompts/qasa_browser_scan.md
-    timeout_min: 15
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/browser_scan_site.md exactly,
+      with site={site} pages={pages} run={run_id}.
+    params:
+      site: {type: site, required: true, site_needs: browser}
+      pages: {type: int, min: 1, from_site: browser_pages}
+    allowed_tools:
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Write(./inbox/**)
+      - Edit(./inbox/**)
+    max_turns: 12
+    turns_per: {param: pages, turns: 4}
+    args: ["-p", "{prompt}", "--model", "haiku", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 30
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
+  site_onboarding:
+    label: Browser agent - onboard or repair a site (Claude in Chrome)
+    kind: onboarding
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/site_onboarding.md for site={site}
+      (run={run_id}). Start with `scripts/findhome run attach {run_id}` and end with `scripts/findhome run close`.
+      Read pages in my Chrome only; never look for private endpoints or get around a site's protection.
+    params:
+      site: {type: site, required: true, site_needs: not_origin}
+    allowed_tools:
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__get_page_text
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__read_page
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome:*)
+      - Write(./sites/**)
+      - Edit(./sites/**)
+      - Write(./inbox/**)
+      - Edit(./runs/**)
+    max_turns: 80
+    args: ["-p", "{prompt}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [vscode, cli]
+    timeout_min: 45
     env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   codex_scan:
     label: Codex - scan for new listings
+    kind: scan
     command: codex
     args: ["exec", "{prompt}"]
     prompt_file: .agents/skills/find-home/prompts/run_scan.md

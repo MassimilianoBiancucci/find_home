@@ -1,43 +1,48 @@
 # yaml-language-server: $schema=../../config/schemas/site.schema.json
 # ─────────────────────────────────────────────────────────────
-#  Bostadsförmedlingen Stockholm — UNVERIFIED stub (init-project). Nothing here has been checked on the
-#  live site yet; see tasks/BACKLOG.md → verify-sites. Every site-specific value is a hypothesis.
+#  Bostadsförmedlingen Stockholm — the municipal housing queue (first-hand contracts).
+#  The public list (https://bostad.stockholm.se/bostad/) is filled in the browser from one JSON feed,
+#  GET /AllaAnnonser/: the whole region in one response. A scan is that ONE request (scanner.py),
+#  filtered locally; new listings' pages are read for the description (pets wording), capped.
+#  No robots.txt (404), no bot protection, no terms clause on automated access (probe 2026-11-05).
+#  The feed is not documented: if its shape changes the scan fails loudly → site_repair.md.
+#  Applying needs your queue registration and login (BankID): you do it, never the agent.
 # ─────────────────────────────────────────────────────────────
 slug: bostadsformedlingen
 name: Bostadsförmedlingen Stockholm
-url: https://bostad.stockholm.se                # UNVERIFIED
-kinds: [rent]                   # rent | buy
-status: unverified              # unverified | active | broken | disabled
-last_verified: null             # agent run id or date of the last verification
+url: https://bostad.stockholm.se
+kinds: [rent]
+status: active
+role: scanned
+brand: {logo: null, colour: "#00607a"}
+scan:
+  script: {enabled: true}
+  browser: {enabled: false, reason: "the scripted feed covers the site; no browser needed"}
+last_verified: '2026-11-05 (feed /AllaAnnonser/ 200, JSON list; listing pages carry the description)'
 fetch:
-  order: [api, http, playwright, agent_browser]   # cheapest first
-  method: null                 # chosen after probe/verification
-  list_url_template: null      # e.g. "https://.../search?area=stockholm&page={page}" ({page} optional)
-  api: {endpoint: null, method: GET, items_path: null, body: null}
-  selectors:                   # http method: CSS relative to the item; "css@attr" for attributes
-    item: null
-    external_id: null
-    url: null
-    title: null
-    rent_sek: null
-    size_m2: null
-    rooms: null
-    address_raw: null
-    area: null
-  pagination: {type: page_param, param: page, max_pages: 5}
+  order: [api, http, playwright, agent_browser]
+  method: api
+  list_url_template: https://bostad.stockholm.se/bostad/
+  api: {endpoint: 'https://bostad.stockholm.se/AllaAnnonser/', method: GET, items_path: null, body: null}
+  selectors: {}                 # not used: scanner.py maps the feed
+  pagination: {type: none}      # the feed is the whole region
+  details: {enabled: true, max_per_run: 15}   # listing pages of NEW listings only: description for pet wording
+local_filter:
+  exclude_flags: [Student, Ungdom, Senior, KompisUngdom]   # special queues that do not apply; Korttid kept
+  search_area_buffer_m: 3000    # drop listings farther than 3 km from your search area (the feed is region-wide)
 filter_map:                     # canonical key (config/filters_catalog.yaml) → param | ui_step | local_only
   max_rent_sek: {param: null, local_only: true}
   min_size_m2: {param: null, local_only: true}
   min_rooms_rok: {param: null, local_only: true}
-  pets_allowed: {param: null, local_only: true, note: verify whether the site exposes a pet filter}
+  pets_allowed: {param: null, local_only: true, note: no pet filter and no pet field in the feed}
   areas_include: {param: null, local_only: true}
   contract_types: {param: null, local_only: true}
   move_in_from: {param: null, local_only: true}
-field_map: {}                   # api method: ListingIn field → JSON path, e.g. rent_sek: price.amount
-pets: {filter_available: unknown, typical_wording: []}
-auth: {mode: browser_session}  # UNVERIFIED: applying needs BankID login
-# auth.mode: none | browser_session (agent uses your logged-in browser; never store credentials)
-politeness: {min_delay_s: 3, max_pages_per_run: 10, respect_robots: true, user_agent: findhome/0.1 (personal use)}
-schedule: {interval: null}      # read by an external scheduler (Claude/Codex); the app never schedules
+field_map: {}                   # mapping lives in scanner.py to_listing()
+pets: {filter_available: 'no', typical_wording: [Husdjur, allergianpassad]}
+auth: {mode: none}              # listings are public; applying needs your login (BankID), never the agent's
+politeness: {min_delay_s: 3, max_pages_per_run: 1, respect_robots: true, user_agent: findhome/0.1 (personal home search)}
+schedule: {interval: 12h}       # suggestion for an external scheduler: one request per run
 notes: >-
-  Municipal queue for first-hand contracts (queue points). Hypothesis: listings public, applying needs login (BankID) → agent browser for actions; pets rarely stated.
+  Municipal queue for first-hand contracts (queue points; queue_hint in attributes). Pets are never in the
+  feed: the description from the listing page goes through the pet rules, unknown ones go to the pet job.

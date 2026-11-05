@@ -9,6 +9,8 @@
 config/locations.yaml
 config/profile.yaml
 config/search_area.yaml
+# personal Claude Code settings (e.g. the SessionEnd hook to the local API): guide/documentation/agent-permissions.md
+.claude/settings.local.json
 
 # Python
 backend/.venv/

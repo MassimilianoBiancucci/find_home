@@ -2,16 +2,27 @@
 # ─────────────────────────────────────────────────────────────
 #  Qasa (qasa.com) — onboarded 2026-10-31 with the find-home skill (prompts/site_onboarding.md).
 #  Search pages are server-rendered and embed the full result as Apollo SSR JSON.
-#  qasa.com answers scripted HTTP requests with 429 (bot protection), so scans run in the user's
-#  browser: the agent opens each result page, runs sites/qasa/extract.js on it and ingests the
-#  output with `findhome ingest listings --parser qasa`. See NAVIGATION.md.
-#  Qasa also carries Blocket Bostad listings (attributes.platform = "blocket").
+#  qasa.com answers scripted HTTP requests with 429 (bot protection), so the scripted scanner is
+#  off (scan.script) and scans run in the user's browser: the browser agent opens each result page,
+#  runs sites/qasa/extract.js on it and writes the output to inbox/. See NAVIGATION.md.
+#  Qasa also carries HomeQ and Blocket Bostad listings (attributes.platform): `platforms` maps them
+#  to their origin sites, which are registered as origin-only.
 # ─────────────────────────────────────────────────────────────
 slug: qasa
 name: Qasa
 url: https://qasa.com
 kinds: [rent]
 status: active
+role: scanned
+brand: {logo: null, colour: "#0b6e4f"}
+scan:
+  script: {enabled: false, reason: "qasa.com answers scripted requests with 429 (Vercel bot checkpoint)"}
+  browser: {enabled: true, extractor: extract.js, default_pages: 20, max_pages: 20}
+platforms: {dotcom: qasa, blocket: blocket-bostad, homeq: homeq}
+risk_note: >-
+  robots.txt disallows the filtered find-home URLs and Qasa's terms prohibit systematic collection.
+  Accepted by the user (2026-11-05): browser scans started by hand only, at most 20 result pages,
+  never on a schedule.
 last_verified: '2026-10-31 (browser exploration; scripted HTTP refused with 429 → agent_browser)'
 fetch:
   order: [api, http, playwright, agent_browser]
@@ -22,7 +33,7 @@ fetch:
     sharedHome: privateHome             # own home only, no room in a shared flat
   api: {endpoint: null, method: GET, items_path: null, body: null}
   selectors: {}                  # not used: scanner.py reads the embedded JSON instead of HTML
-  pagination: {type: page_param, param: page, max_pages: 5}   # ~59 listings per page, newest first
+  pagination: {type: page_param, param: page, max_pages: 20}   # ~59 listings per page, newest first
   details: {enabled: false, max_per_run: 5}    # detail pages only for shortlisted listings, opened in the browser
 filter_map:
   max_rent_sek: {param: maxMonthlyCost, note: monthly cost incl. tenant fee (Qasa monthlyCost)}
@@ -44,13 +55,13 @@ pets:
 auth: {mode: none}               # search and listing pages are public; contacting a landlord needs a Qasa login (you, never the agent)
 politeness:
   min_delay_s: 3
-  max_pages_per_run: 5
+  max_pages_per_run: 20
   # robots.txt disallows find-home URLs with filter parameters (maxMonthlyCost, minRoomCount,
   # sharedHome, rules ...). Ignored on the user's explicit instruction (2026-10-31): personal,
   # low-volume use, at most 5 result pages per run, browsed page by page in the user's browser.
   respect_robots: false
   user_agent: findhome/0.1 (personal home search)
-schedule: {interval: 6h}         # suggestion for your external scheduler
+schedule: {interval: null}       # started by hand only (risk_note)
 notes: >-
   Second-hand (andrahand) and some first-hand rentals, Sweden-wide; includes Blocket Bostad listings.
   Strong pets support: filter "Husdjur tillåtet" (rules=pets) and petsAllowed per listing.

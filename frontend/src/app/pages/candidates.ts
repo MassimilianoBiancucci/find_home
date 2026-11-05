@@ -1,14 +1,17 @@
 import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
+import { PetBadge } from '../components/pet-badge';
 import { ScoreTip } from '../components/score-tip';
+import { SiteLogo } from '../components/site-logo';
 import { ZoneMinimap } from '../components/zone-minimap';
 import { ValueScaleStore, valueOf } from '../value-scale';
 import { indexColour } from '../house/house-bubbles';
 import { Listing } from '../models';
 import { ApiService, apiError } from '../services/api.service';
+import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
 type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | null;
@@ -19,7 +22,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe],
+  imports: [FormsModule, RouterLink, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -35,6 +38,15 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       <span class="fh-kbd">s</span> shortlist · <span class="fh-kbd">l</span> like · <span class="fh-kbd">r</span> reject · <span class="fh-kbd">a</span> archive
     </span>
   </div>
+  @if (scope().length) {
+    <div class="d-flex flex-wrap gap-2 mb-2">
+      @for (c of scope(); track c.key) {
+        <span class="fh-filter-on">
+          @if (c.slug) { <fh-site-logo [slug]="c.slug" /> }{{ c.label }}
+          <button type="button" (click)="clearScope(c.key)" [attr.aria-label]="'Remove filter ' + c.label" title="Remove this filter">✕</button></span>
+      }
+    </div>
+  }
   @if (message()) { <div class="alert alert-info py-1 small">{{ message() }}</div> }
   @if (error()) { <div class="alert alert-danger py-1 small" style="white-space:pre-wrap">{{ error() }}</div> }
 
@@ -71,14 +83,14 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}@if (r.house_estimated) { <i class="fh-est-dot inline"></i> }</td>
             <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td>
             <td>{{ r.status }}</td>
-            <td>{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
+            <td>@if (r.origin_site) { <fh-site-logo class="me-1" [slug]="r.origin_site" [title]="originTip(r)" /> }{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
             @let ro = values.rate(r, 'rooms_rok'); @let rs = values.rate(r, 'size_m2');
             @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2');
             <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
             <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td>
             <td [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
             <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
-            <td><span class="badge" [class]="pet(r.pet_status)">{{ r.pet_status }}</span></td>
+            <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td>
             <td class="small">{{ r.contract_type ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
           </tr>
         }
@@ -110,7 +122,9 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             services <b [style.color]="idx(t.house_services)">{{ int(t.house_services) }}</b></span>
         }
         <span>Building</span><span>floor {{ t.floor ?? '?' }}{{ t.has_elevator ? ', lift' : '' }}{{ t.has_balcony ? ', balcony' : '' }}{{ t.build_year ? ' · built ' + t.build_year : '' }}</span>
-        <span>Pets</span><span><span class="badge" [class]="pet(t.pet_status)">{{ t.pet_status }}</span></span>
+        <span>Pets</span><span><fh-pet-badge [status]="t.pet_status" [source]="t.pet_source" />
+          @if (t.pet_evidence) { <span class="text-body-secondary"> “{{ t.pet_evidence }}”</span> }</span>
+        @if (t.origin_site) { <span>Origin</span><span><fh-site-logo [slug]="t.origin_site" [withName]="true" /></span> }
         <span>Contract</span><span>{{ t.contract_type ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}{{ t.available_from ? ' · from ' + t.available_from : '' }}</span>
         <span>Status</span><span>{{ t.status }} · seen {{ t.first_seen_at | date: 'mediumDate' }}</span>
         @if (t.rejected_by?.length) { <span>Rejected by</span><span class="text-danger">{{ t.rejected_by!.join(', ') }}</span> }
@@ -123,7 +137,18 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
 export class CandidatesPage implements OnInit {
   private api = inject(ApiService);
   private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  protected sites = inject(SitesStore);
   protected tags = inject(TagsStore);
+  /** Scope from the link that opened the page (?origin= / ?site= / ?scan_run=), shown as removable chips. */
+  protected origin = signal('');
+  protected site = signal('');
+  protected scanRun = signal('');
+  protected scope = computed(() => [
+    ...(this.origin() ? [{ key: 'origin', slug: this.origin(), label: `First published on ${this.sites.name(this.origin())}` }] : []),
+    ...(this.site() ? [{ key: 'site', slug: this.site(), label: `Found on ${this.sites.name(this.site())}` }] : []),
+    ...(this.scanRun() ? [{ key: 'scan_run', slug: '', label: `From scan run ${this.scanRun().slice(0, 8)}` }] : []),
+  ]);
   protected rows = signal<Listing[]>([]);
   protected cursor = signal(0);
   protected loading = signal(false);
@@ -149,7 +174,25 @@ export class CandidatesPage implements OnInit {
   }
   protected kr = fmtKr; protected num = fmtNum; protected score = fmtScore; protected pet = petClass; protected color = scoreColor;
 
-  ngOnInit(): void { this.load(); this.values.load(); }
+  ngOnInit(): void {
+    this.sites.load();
+    this.values.load();
+    this.route.queryParamMap.subscribe((q) => {
+      this.origin.set(q.get('origin') ?? '');
+      this.site.set(q.get('site') ?? '');
+      this.scanRun.set(q.get('scan_run') ?? '');
+      this.load();
+    });
+  }
+  protected clearScope(key: string): void { this.router.navigate([], { queryParams: { [key]: null }, queryParamsHandling: 'merge' }); }
+  /** "HomeQ · found on Qasa": where the home was first published and the site we found it on. */
+  protected originTip(l: Listing): string {
+    const o = l.origin_site!;
+    const found = (l.found_on ?? []).map((s) => this.sites.name(s));
+    const via = found.length ? found.join(', ')
+      : (this.sites.bySlug().get(o)?.role === 'origin' ? this.sites.aggregatorOf(o)?.name : null) ?? this.sites.name(o);
+    return `${this.sites.name(o)} · found on ${via}`;
+  }
 
   protected hoverIn(r: Listing, ev: MouseEvent): void {
     if (this.tipTimer) clearTimeout(this.tipTimer);
@@ -177,7 +220,8 @@ export class CandidatesPage implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.hideRejected }).subscribe({
+    this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.hideRejected,
+      origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
       next: (res) => { this.rows.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set(''); },
       error: (e) => { this.error.set(apiError(e)); this.loading.set(false); },
     });

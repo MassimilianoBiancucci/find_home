@@ -1,0 +1,12 @@
+[
+  {"AnnonsId": 900001, "LagenhetId": 700001, "Url": "/bostad/700001/", "Gatuadress": "Påhittade gatan 3", "Kommun": "Stockholm",
+   "Stadsdel": "Testholmen", "AntalRum": 2, "Yta": 52, "Hyra": 9850, "Vaning": 3, "Hiss": true, "Balkong": false,
+   "KoordinatLatitud": 59.31, "KoordinatLongitud": 18.07, "AnnonseradFran": "2026-11-01", "AnnonseradTill": "2026-11-10",
+   "Vanlig": true, "Student": false, "Ungdom": false, "Senior": false, "Korttid": false, "LiknadeLagenhetStatistik": "8 år", "Lagenhetstyp": "Hyresrätt"},
+  {"AnnonsId": 900002, "LagenhetId": 700002, "Url": "/bostad/700002/", "Gatuadress": "Exempelvägen 10", "Kommun": "Stockholm",
+   "Stadsdel": "Provby", "AntalRum": 1, "Yta": 28, "Hyra": 6100, "KoordinatLatitud": 59.33, "KoordinatLongitud": 18.05,
+   "Vanlig": false, "Student": true},
+  {"AnnonsId": 900003, "LagenhetId": 700003, "Url": "/bostad/700003/", "Gatuadress": "Fiktivgränd 1", "Kommun": "Solna",
+   "Stadsdel": "Låtsasberg", "AntalRum": 3, "Yta": 71, "Hyra": 12400, "Vanlig": true, "Korttid": true},
+  {"Url": "/bostad/broken/", "Kommun": "Stockholm"}
+]

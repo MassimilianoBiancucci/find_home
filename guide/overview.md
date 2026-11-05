@@ -7,7 +7,9 @@ the same commit as the code it describes; the [guide skill](../.agents/skills/gu
 Read [architecture/introduction.md](architecture/introduction.md) before any code change. Read
 [architecture/config_and_locations.md](architecture/config_and_locations.md) before changing a config file's
 shape, the commute matrix or scoring. Read [architecture/agent_contract.md](architecture/agent_contract.md) before
-changing the CLI, the ingest/digest endpoints or the `find-home` skill. Read
+changing the CLI, the ingest/digest endpoints, the run records, the agent launcher or the `find-home` skill. Read
+[architecture/pets.md](architecture/pets.md) before changing how pet statuses are written, and
+[architecture/jobs.md](architecture/jobs.md) before adding or changing a job. Read
 [principles/personal_data.md](principles/personal_data.md) before adding or renaming a config or env file, and
 before writing test data, docs or notes: personal data is never committed.
 Read [documentation/api_keys.md](documentation/api_keys.md) to set up or debug provider keys, and
@@ -40,8 +42,10 @@ an OSM-based vector map style.
 | [`backend/src/findhome/geo/`](../backend/src/findhome/geo/area.py) | zones, the search area function, geodata builders (`data/geo/`, gitignored) |
 | [`backend/src/findhome/zone/`](../backend/src/findhome/zone/network.py) | zone analysis: walking / cycling network, target sets, heatmap engine (`zone.yaml`) |
 | [`backend/src/findhome/scanning/`](../backend/src/findhome/scanning/runner.py) | scripted site scans and the onboarding probe |
+| [`backend/src/findhome/pets/`](../backend/src/findhome/pets/apply.py) | pet wording rules and who decides a listing's pet status |
+| [`backend/src/findhome/jobs/`](../backend/src/findhome/jobs/service.py) | jobs: analyses over a subset of listings (pet checks) |
 | [`backend/src/findhome/digest/`](../backend/src/findhome/digest/history.py) | history and listing digests for agents |
-| [`backend/src/findhome/agentrun/`](../backend/src/findhome/agentrun/launcher.py) | run folders and the external agent launcher |
+| [`backend/src/findhome/agentrun/`](../backend/src/findhome/agentrun/launcher.py) | run folders and the external agent launcher (headless CLI or a VS Code link) |
 | [`backend/src/findhome/db/`](../backend/src/findhome/db/repo.py) | SQL access and the migration runner |
 | [`backend/src/findhome/cli/`](../backend/src/findhome/cli/main.py) | the `findhome` CLI |
 | [`backend/migrations/`](../backend/migrations/001_init.sql) | plain SQL migrations |
@@ -61,7 +65,9 @@ an OSM-based vector map style.
 
 - [architecture/introduction.md](architecture/introduction.md): components and the main flows.
 - [architecture/config_and_locations.md](architecture/config_and_locations.md): config files, points, trips and windows, config hash, commute matrix, zones and the search area, walking network and timetable data, zone analysis (heatmaps), scoring.
-- [architecture/agent_contract.md](architecture/agent_contract.md): how the agent reads and writes through the CLI and API.
+- [architecture/agent_contract.md](architecture/agent_contract.md): how the agent reads and writes through the CLI and API; run records and the agent launchers.
+- [architecture/pets.md](architecture/pets.md): pet statuses, who decides them (user > agent > site > keywords), the wording rules.
+- [architecture/jobs.md](architecture/jobs.md): jobs over a subset of listings, the agent pet check, undo.
 - [principles/personal_data.md](principles/personal_data.md): personal files are gitignored, dummy examples are committed, tests and docs use fictional data.
 - [documentation/api_keys.md](documentation/api_keys.md): how to get and configure the Trafiklab (ResRobot, GTFS), OpenRouteService, Google Maps Platform and Nominatim credentials.
 - [documentation/providers.md](documentation/providers.md): what each provider does, limits and cache behaviour.

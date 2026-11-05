@@ -86,11 +86,19 @@ def test_history_digest_sections(client, sample_listings):
 
 def test_sites_and_scan_guards(client):
     sites = {s["slug"]: s for s in client.get("/api/sites").json()["items"]}
-    assert set(sites) == {"qasa", "blocket-bostad", "samtrygg", "bostadsformedlingen"}
+    assert {"qasa", "blocket-bostad", "homeq", "samtrygg", "bostadsformedlingen"} <= set(sites)
     assert sites["qasa"]["status"] == "active"
-    assert all(s["status"] == "unverified" for k, s in sites.items() if k != "qasa")
-    res = client.post("/api/scans", json={"site": "samtrygg"})
-    assert res.status_code == 422 and "unverified" in res.json()["detail"]
+    assert sites["blocket-bostad"]["role"] == "origin" and sites["homeq"]["role"] == "origin"
+    # Qasa keeps a scanner.py but refuses scripts (429): the scripted scan is off with a reason, the browser is on
+    qasa = sites["qasa"]["scan"]
+    assert qasa["script"]["enabled"] is False and "429" in qasa["script"]["reason"]
+    assert qasa["browser"]["enabled"] is True and qasa["browser"]["max_pages"] == 20
+    res = client.post("/api/scans", json={"site": "qasa"})
+    assert res.status_code == 422 and "429" in res.json()["detail"]
+    assert client.get("/api/runs").json()["scan_runs"] == []          # refused before any run row
+    res = client.post("/api/scans", json={"site": "blocket-bostad", "dry_run": True})
+    assert res.status_code == 422 and "origin-only" in res.json()["detail"]
+    assert all(r["site"] != "qasa" for r in client.post("/api/scans", json={"site": "all"}).json()["results"])
 
 
 def test_scan_qasa_with_mocked_http(client, monkeypatch):
@@ -115,6 +123,9 @@ def test_scan_qasa_with_mocked_http(client, monkeypatch):
     def fake_make(site):
         return mod.QasaScanner(site, client=httpx.AsyncClient(transport=httpx.MockTransport(handler)), save_raw=False)
 
+    from findhome.config.models import SiteConfig
+
+    monkeypatch.setattr(SiteConfig, "script_scan", lambda self: (True, None))   # the HTTP path, as if allowed
     monkeypatch.setattr(runner, "make_scanner", fake_make)
     monkeypatch.setattr(runner.asyncio, "sleep", _no_sleep)
     dry = client.post("/api/scans", json={"site": "qasa", "dry_run": True}).json()["results"][0]
@@ -209,7 +220,7 @@ def test_inbox_import_and_state(client, monkeypatch, tmp_path):
     assert (tmp_path / "inbox" / "failed" / "bad.error.txt").exists()
     state = json.loads((tmp_path / "state" / "qasa.json").read_text())
     assert state["known_listings"] == 3 and state["last_published"] == "2026-10-31T14:24:45Z"
-    assert state["scan_urls"][0].startswith("https://qasa.com/se/sv/find-home?") and len(state["scan_urls"]) == 5
+    assert state["scan_urls"][0].startswith("https://qasa.com/se/sv/find-home?") and len(state["scan_urls"]) == 20
     rows = client.get("/api/listings").json()["items"]
     assert {r["short_id"] for r in rows} and all(r["status"] == "new" for r in rows)
     again = client.post("/api/inbox/import").json()["results"]

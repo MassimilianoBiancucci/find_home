@@ -47,6 +47,11 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 [`007_centroid_commute.sql`](../../backend/migrations/007_centroid_commute.sql) adds `centroid_commute` (station commutes) and
 `zone_pattern` (where each zone's best trips start).
 [`009_listing_location.sql`](../../backend/migrations/009_listing_location.sql) adds `listing_location` (house analysis cache).
+[`010_run_records.sql`](../../backend/migrations/010_run_records.sql) extends `scan_runs` and `agent_runs` into run
+records for every scan and agent session; [`011_listing_origin.sql`](../../backend/migrations/011_listing_origin.sql)
+adds `listings.origin_site`; [`012_pets.sql`](../../backend/migrations/012_pets.sql) adds the `conflict` pet status,
+`pet_source` and `pet_checked_at`; [`013_jobs.sql`](../../backend/migrations/013_jobs.sql) adds `jobs`, `job_runs`
+and `job_items`.
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -56,19 +61,32 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 (site, external id), then across sites by the dedupe key from
 [`domain/normalize.py`](../../backend/src/findhome/domain/normalize.py) (normalised street and number, floor,
 rounded size, 500 SEK price band, plus a fuzzy address check). Change detection uses the source's own content
-hash, so two sites listing the same flat do not overwrite each other on every scan. A known pet status is never
-downgraded to `unknown`.
+hash, so two sites listing the same flat do not overwrite each other on every scan. Each listing records its
+`origin_site`, the site it was first published on: an aggregator's `platforms` map turns `attributes.platform`
+into a site slug (Qasa carries HomeQ and Blocket Bostad homes), otherwise the site it was found on. The pet status
+is decided at ingest by source precedence ([pets.md](pets.md)). Ingest with a scan run id links each source to it
+([agent_contract.md](agent_contract.md#runs)).
+
+**Sites.** Each `sites/<slug>/site.yaml` says what may scan the site and why not:
+`scan.script` (a scripted scanner) and `scan.browser` (the browser agent in your Chrome), each with `enabled` and
+a `reason` the UI shows; `role: origin` marks a site that is never scanned and only names where listings found on
+an aggregator were first published (Blocket Bostad, HomeQ); `risk_note` records a decision to scan despite
+robots.txt or terms. [`SiteConfig.script_scan()`](../../backend/src/findhome/config/models.py) and `browser_scan()`
+answer both questions for the engine, the API and the launcher. Registry rules: [`sites/README.md`](../../sites/README.md).
 
 **Scanning.** [`scanning/runner.py`](../../backend/src/findhome/scanning/runner.py) scans one site: status check,
-robots.txt, filters resolved through the site's `filter_map` ([`scanning/filters.py`](../../backend/src/findhome/scanning/filters.py)),
-pages fetched with the site's delay, items parsed by
-[`scanning/generic.py`](../../backend/src/findhome/scanning/generic.py) (HTML selectors or a JSON API with a field
-map) or by an optional `sites/<slug>/scanner.py` (for example [`sites/qasa/scanner.py`](../../sites/qasa/scanner.py),
-which reads the JSON embedded in Qasa's result pages; Qasa answers scripted requests with 429, so that site
-runs as `agent_browser`). A scanner may also implement `enrich`: the runner calls it
-for listings not seen before, up to `fetch.details.max_per_run`, and hashes the list-page view so later scans of
-the same listing stay `unchanged`. Then the items are ingested. Raw pages are saved under `data/raw/`. Only
-`active` sites are scanned; a dry run works on any site and stores nothing.
+the site's capability check (a scripted scan refused or disabled stops here, before any run row or request, even
+when the site keeps a `scanner.py`), robots.txt, filters resolved through the site's `filter_map`
+([`scanning/filters.py`](../../backend/src/findhome/scanning/filters.py)), pages fetched with the site's delay,
+items parsed by [`scanning/generic.py`](../../backend/src/findhome/scanning/generic.py) (HTML selectors or a JSON
+API with a field map) or by an optional `sites/<slug>/scanner.py` (for example
+[`sites/bostadsformedlingen/scanner.py`](../../sites/bostadsformedlingen/scanner.py), one request for the whole
+region's feed). `local_filter.search_area_buffer_m` drops items farther than that from the search area. A scanner
+may also implement `enrich`: the runner calls it for listings not seen before, up to `fetch.details.max_per_run`,
+and hashes the list-page view so later scans of the same listing stay `unchanged`. Then the items are ingested
+into a scan run. Raw pages are saved under `data/raw/`. Only `active` sites are scanned; a dry run works on any
+scriptable site and stores nothing. Browser-only sites (Qasa: 429 to scripts) are scanned by the browser agent
+([agent_contract.md](agent_contract.md#runs)).
 [`scanning/probe.py`](../../backend/src/findhome/scanning/probe.py) inspects a new site and recommends a fetch method.
 
 **Commute and scoring.** [`domain/commute.py`](../../backend/src/findhome/domain/commute.py) and
@@ -79,10 +97,16 @@ the same listing stay `unchanged`. Then the items are ingested. Raw pages are sa
 [`digest/listing.py`](../../backend/src/findhome/digest/listing.py) render compact text for agents and for the UI's
 copy button. See [agent_contract.md](agent_contract.md).
 
-**Agent runs.** [`agentrun/launcher.py`](../../backend/src/findhome/agentrun/launcher.py) starts a command from
-`config/agent.yaml` as a subprocess (no shell), in a run folder prepared by
-[`agentrun/rundir.py`](../../backend/src/findhome/agentrun/rundir.py), streams its output to `log.jsonl` and records
-it in `agent_runs`. One run per profile at a time; a timeout kills it.
+**Agent runs.** [`agentrun/launcher.py`](../../backend/src/findhome/agentrun/launcher.py) registers a run, then
+starts a profile from `config/agent.yaml` headless (no shell; output to `log.jsonl`, the final result event
+stored) or returns a VS Code link that opens a prefilled Claude Code tab. Run folders come from
+[`agentrun/rundir.py`](../../backend/src/findhome/agentrun/rundir.py); run records from
+[`db/runs_repo.py`](../../backend/src/findhome/db/runs_repo.py). One run per profile and site at a time; a timeout
+kills it. See [agent_contract.md](agent_contract.md#runs).
+
+**Jobs.** [`jobs/`](../../backend/src/findhome/jobs/service.py) runs named analyses over a subset of listings
+(pet wording rules in the app, pet policy check by the agent), each execution with a reviewable, undoable result
+per listing. See [jobs.md](jobs.md).
 
 **CLI.** [`cli/main.py`](../../backend/src/findhome/cli/main.py) is a Typer app. Most commands call the API through
 [`cli/client.py`](../../backend/src/findhome/cli/client.py); `db`, `config validate|hash|show|schema` and
@@ -90,9 +114,25 @@ it in `agent_runs`. One run per profile at a time; a timeout kills it.
 
 **Frontend.** Angular standalone components with signals in
 [`frontend/src/app/`](../../frontend/src/app/app.routes.ts). One file per page (candidates, detail, locations,
-sites, runs, settings) and a folder for the map. [`services/api.service.ts`](../../frontend/src/app/services/api.service.ts) wraps the API;
+sites, runs, jobs, job, settings) and a folder for the map. [`services/api.service.ts`](../../frontend/src/app/services/api.service.ts) wraps the API;
 [`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF).
 Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
+
+**Sites, Runs and Jobs.** [`sites.ts`](../../frontend/src/app/pages/sites.ts) shows one fixed-size
+[`site-card`](../../frontend/src/app/pages/site-card.ts) per site (scannable, to onboard, then a collapsed
+origin-only section): status and role chips, one row per scan method with the reason when it is off, counts that
+open Candidates filtered by site or origin, the last scan, and the actions (scripted scan, dry run, browser agent
+with a pages stepper, onboarding). Long text and errors stay behind a click
+([`fh-popover`](../../frontend/src/app/components/popover.ts)), so cards never grow.
+[`runs.ts`](../../frontend/src/app/pages/runs.ts) is the run timeline with filters and a drawer
+([`run-drawer.ts`](../../frontend/src/app/pages/run-drawer.ts): handover, counts, cost, permission denials, live log,
+listings of a scan run); `?agent=`, `?scan=` and `?job=` open a run directly. [`jobs.ts`](../../frontend/src/app/pages/jobs.ts)
+lists the jobs; [`job.ts`](../../frontend/src/app/pages/job.ts) shows a job's executions and items (before → after,
+evidence, undo) with the settings panel ([`job-settings.ts`](../../frontend/src/app/pages/job-settings.ts): subset,
+live match count, N, launcher). Agent launches go through
+[`fh-launch-button`](../../frontend/src/app/components/launch-button.ts) (CLI, or VS Code: opens the prefilled tab
+and copies the prompt). Pet badges ([`fh-pet-badge`](../../frontend/src/app/components/pet-badge.ts)) show who set
+the status (U / A / S / K) and the evidence; the detail page lets you set your own answer.
 
 **Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) (PDF floor plans as links) shows a listing's `photo_urls` and
 `floorplan_urls` (Photos / Floor plans tabs, thumbnails, a full-screen viewer with arrow keys, Esc, swipe and
@@ -324,7 +364,8 @@ flowchart LR
   API --> Score[domain.scoring] --> PG
   PG --> Digest[digest] --> A1
   UI[Angular :4400] -->|/api proxy| API
-  UI -->|Run agent| Launcher[agentrun.launcher] --> Agent
+  UI -->|Browser agent / job| Launcher[agentrun.launcher] --> Agent
+  Agent -->|inbox files| Inbox[inbox import] --> Repo
 ```
 
 ```mermaid
@@ -347,6 +388,7 @@ flowchart LR
 | Config endpoints | [`api/routers/config.py`](../../backend/src/findhome/api/routers/config.py) |
 | Sites and scans | [`api/routers/sites.py`](../../backend/src/findhome/api/routers/sites.py) |
 | Runs and agent launch | [`api/routers/runs.py`](../../backend/src/findhome/api/routers/runs.py) |
+| Jobs | [`api/routers/jobs.py`](../../backend/src/findhome/api/routers/jobs.py) |
 | Map GeoJSON | [`api/routers/map.py`](../../backend/src/findhome/api/routers/map.py) |
 | Zones, search area, brush | [`api/routers/geo.py`](../../backend/src/findhome/api/routers/geo.py) |
 | POIs, test point, saved test points | [`api/routers/probe.py`](../../backend/src/findhome/api/routers/probe.py) |

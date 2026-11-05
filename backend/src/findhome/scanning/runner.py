@@ -34,21 +34,22 @@ class ScanError(Exception):
 
 
 def make_scanner(site: SiteConfig):
+    """The scripted scanner of a site. The site's capability check comes first, so a site whose scripted access is
+    refused or disabled (e.g. Qasa: 429) is never fetched by script, even when it keeps a scanner.py."""
+    allowed, why = site.script_scan()
+    if not allowed:
+        raise ScanError(f"{site.slug}: {why}")
     custom = sites_dir() / site.slug / "scanner.py"
     if custom.exists():
         spec = importlib.util.spec_from_file_location(f"findhome_site_{site.slug.replace('-', '_')}", custom)
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(module)
-        return module.make_scanner(site)
-    method = site.fetch.get("method")
-    if method in ("http", "api"):
+        if hasattr(module, "make_scanner"):
+            return module.make_scanner(site)
+    if site.fetch.get("method") in ("http", "api"):
         return HttpListScanner(site)
-    if method == "playwright":
-        raise ScanError(f"{site.slug}: playwright method needs sites/{site.slug}/scanner.py (make_scanner)")
-    if method == "agent_browser":
-        raise ScanError(f"{site.slug}: agent_browser site — scan it with the agent (prompts/browser_scan.md)")
-    raise ScanError(f"{site.slug}: fetch.method not set (site status {site.status}); onboard it first")
+    raise ScanError(f"{site.slug}: playwright method needs sites/{site.slug}/scanner.py (make_scanner)")
 
 
 async def robots_allows(url: str, user_agent: str) -> bool:
@@ -123,18 +124,46 @@ async def collect(site: SiteConfig, bundle: ConfigBundle, max_pages: int | None 
                 stats.parse_errors += 1
                 if len(stats.errors) < 5:
                     stats.errors.append(f"parse: {exc}")
-    return items, stats, {"params": filters.params, "local_only": filters.local_only, "unmapped": filters.unmapped}
+    items, outside = _within_search_area(site, bundle, items)
+    filtered = {**getattr(scanner, "filtered", {}), **({"outside search area": outside} if outside else {})}
+    return items, stats, {"params": filters.params, "local_only": filters.local_only, "unmapped": filters.unmapped,
+                          "filtered": filtered}
+
+
+def _within_search_area(site: SiteConfig, bundle: ConfigBundle, items: list[ListingIn]) -> tuple[list[ListingIn], int]:
+    """local_filter.search_area_buffer_m: drop listings whose coordinates lie farther than that from the search
+    area (sites whose feed covers a whole region). Listings without coordinates are kept; the score decides."""
+    buffer_m = (site.local_filter or {}).get("search_area_buffer_m")
+    if buffer_m is None:
+        return items, 0
+    from findhome.geo.area import area_eval, compiled_for
+
+    area = compiled_for(bundle.raw.get("search_area"))
+    if not area.defined:
+        return items, 0
+    keep = [i for i in items if i.lat is None or i.lon is None
+            or area_eval(area, i.lat, i.lon).distance_m <= float(buffer_m)]
+    return keep, len(items) - len(keep)
+
+
+def scriptable(bundle: ConfigBundle) -> list[str]:
+    """Active sites a scripted scan may fetch ("scan all")."""
+    return [s for s, cfg in bundle.sites.items() if cfg.status == "active" and cfg.script_scan()[0]]
 
 
 async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False, max_pages: int | None = None,
-                    trigger: str = "api") -> dict[str, Any]:
+                    trigger: str = "app") -> dict[str, Any]:
     site = bundle.sites.get(slug)
     if site is None:
         raise ScanError(f"unknown site '{slug}'")
     if site.status != "active" and not dry_run:
         raise ScanError(f"{slug} is '{site.status}': only active sites are scanned (use --dry-run while onboarding)")
+    allowed, why = site.script_scan()
+    if not allowed:                       # refused before any run row or request
+        raise ScanError(f"{slug}: {why}")
     t0 = time.monotonic()
-    run_id = None if dry_run else await repo.create_scan_run(conn, slug, site.fetch.get("method") or "?", trigger, False)
+    run_id = None if dry_run else await repo.create_scan_run(conn, slug, site.fetch.get("method") or "?", trigger, False,
+                                                             params={"max_pages": max_pages})
     try:
         scanner = make_scanner(site)
         items, stats, filt = await collect(site, bundle, max_pages, scanner=scanner)
@@ -145,6 +174,7 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
         raise
     summary: dict[str, Any] = {"site": slug, "method": site.fetch.get("method"), "dry_run": dry_run,
                                "pages": stats.pages, "seen": stats.items, "parsed": stats.parsed,
+                               "filtered": sum(filt.get("filtered", {}).values()),
                                "parse_errors": stats.parse_errors, "errors": stats.errors, "filters": filt,
                                "enriched": enriched}
     if dry_run:
@@ -153,18 +183,20 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
         res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
         summary.update(new=res.created, changed=res.updated, unchanged=res.unchanged, dup_cross_site=res.duplicate,
                        short_ids_new=[i.short_id for i in res.items if i.outcome == "created"][:50])
-        await repo.finish_scan_run(conn, run_id, "error" if stats.errors and not items else "ok",
+        await repo.finish_scan_run(conn, run_id, "error" if stats.errors and not items else
+                                   "partial" if stats.errors else "ok",
                                    {k: v for k, v in summary.items() if k not in ("filters", "short_ids_new")},
-                                   "; ".join(stats.errors) or None)
+                                   "; ".join(stats.errors) or None, pages=stats.pages)
     summary["seconds"] = round(time.monotonic() - t0, 1)
     return summary
 
 
 def summary_line(s: dict[str, Any]) -> str:
     if s.get("dry_run"):
-        return (f"{s['site']}: DRY RUN {s['seen']} seen, {s['parsed']} parsed, {s['parse_errors']} parse errors "
-                f"(method={s['method']}, {s.get('seconds', 0)}s)") + "".join(f"\n  ! {e}" for e in s.get("errors", []))
-    line = (f"{s['site']}: {s['seen']} seen, {s.get('new', 0)} new, {s.get('changed', 0)} changed, "
+        return (f"{s['site']}: DRY RUN {s['seen']} seen, {s['parsed']} parsed, {s.get('filtered', 0)} filtered out, "
+                f"{s['parse_errors']} parse errors (method={s['method']}, {s.get('seconds', 0)}s)") + "".join(f"\n  ! {e}" for e in s.get("errors", []))
+    line = (f"{s['site']}: {s['seen']} seen, {s.get('filtered', 0)} filtered out, {s.get('new', 0)} new, "
+            f"{s.get('changed', 0)} changed, "
             f"{s.get('dup_cross_site', 0)} dup-cross-site, {s.get('unchanged', 0)} unchanged, "
             f"{s['parse_errors']} parse errors (method={s['method']}, {s.get('seconds', 0)}s)")
     return line + "".join(f"\n  ! {e}" for e in s.get("errors", []))

@@ -92,6 +92,10 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
                                     "smokingAllowed", "wheelchairAccessible", "studentHome", "seniorHome",
                                     "corporateHome", "instantSign", "publishedAt") if doc.get(k) is not None}
     attrs["qasa_pets_allowed"] = pets
+    # Qasa sets petsAllowed from the landlord's house rules. False is not proof of "no pets" (it is also the
+    # default), so only true is a site flag; the description is checked against it at ingest (findhome.pets).
+    if pets is True:
+        attrs["pets_flag"] = {"value": True, "evidence": "Qasa house rules: pets allowed (petsAllowed=true)"}
     attrs["photo_count"] = len(photos)     # tells the UI the gallery is complete (older scans kept only 6)
     if doc.get("endDate") is None:
         attrs["open_ended"] = True     # "Tillsvidare"
@@ -112,10 +116,6 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
         contract_start=_date(doc.get("startDate")),
         contract_end=_date(doc.get("endDate")),
         available_from=_date(doc.get("startDate")),
-        # Qasa sets petsAllowed from the landlord's house rules. False is not proof of "no pets"
-        # (it is also the default), so it stays "unknown" and the agent asks.
-        pet_status="yes" if pets is True else "unknown",
-        pet_evidence="Qasa house rules: pets allowed (petsAllowed=true)" if pets is True else None,
         description_excerpt=(doc.get("description") or "")[:1200] or None,
         photo_urls=photos,
         floorplan_urls=plans,
@@ -175,8 +175,8 @@ class QasaScanner(HttpListScanner):
             update["attributes"]["building_floors"] = facts["buildingFloors"]
         update["has_balcony"] = bool(traits & {"balcony", "french_balcony", "patio"}) if traits else None
         update["has_elevator"] = ("elevator" in traits) if traits else None
-        if "pets" in traits and item.pet_status != "yes":
-            update["pet_status"], update["pet_evidence"] = "yes", "Qasa listing traits include 'pets'"
+        if "pets" in traits and not (item.attributes.get("pets_flag") or {}).get("value"):
+            update["attributes"]["pets_flag"] = {"value": True, "evidence": "Qasa listing traits include 'pets'"}
         return item.model_copy(update=update)
 
 

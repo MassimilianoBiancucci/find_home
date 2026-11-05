@@ -11,7 +11,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 Mode = Literal["transit", "walk", "bike", "drive"]
-PetStatus = Literal["yes", "no", "ask", "unknown"]
+PetStatus = Literal["yes", "no", "ask", "unknown", "conflict"]
 ListingKind = Literal["rent", "buy"]
 
 
@@ -150,11 +150,24 @@ class Providers(_Base):
     map: dict[str, Any]
 
 
+class PetRules(_Base):
+    version: int
+    evidence: dict[str, Any] = Field(default_factory=dict)
+    languages: dict[str, dict[str, list[str]]]
+
+
 class AgentProfile(_Base):
     label: str | None = None
+    kind: Literal["scan", "job", "onboarding", "evaluate", "other"] = "other"
     command: str
     args: list[str]
-    prompt_file: str
+    prompt_file: str | None = None
+    prompt: str | None = None
+    params: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    allowed_tools: list[str] = Field(default_factory=list)
+    max_turns: int | None = None
+    turns_per: dict[str, Any] = Field(default_factory=dict)
+    launchers: list[Literal["cli", "vscode"]] = Field(default_factory=lambda: ["cli"])
     timeout_min: int
     env_passthrough: list[str] = Field(default_factory=list)
 
@@ -235,6 +248,12 @@ class SiteConfig(_Base):
     url: str
     kinds: list[ListingKind]
     status: Literal["unverified", "active", "broken", "disabled"]
+    role: Literal["scanned", "origin"] = "scanned"
+    brand: dict[str, Any] = Field(default_factory=dict)
+    scan: dict[str, Any] = Field(default_factory=dict)
+    platforms: dict[str, str] = Field(default_factory=dict)
+    risk_note: str | None = None
+    local_filter: dict[str, Any] = Field(default_factory=dict)
     fetch: dict[str, Any]
     filter_map: dict[str, dict[str, Any]]
     field_map: dict[str, Any] = Field(default_factory=dict)
@@ -244,3 +263,34 @@ class SiteConfig(_Base):
     schedule: dict[str, Any] = Field(default_factory=dict)
     notes: str = ""
     last_verified: str | None = None
+
+    def script_scan(self) -> tuple[bool, str | None]:
+        """Whether a scripted scanner may scan this site, and why not."""
+        if self.role == "origin":
+            return False, "origin-only site: its listings arrive through an aggregator; never scanned"
+        cap = self.scan.get("script") or {}
+        if cap.get("enabled") is False:
+            return False, cap.get("reason") or "scripted scan disabled in site.yaml"
+        method = self.fetch.get("method")
+        if method == "agent_browser":
+            return False, "browser-only site: scan it with the browser agent"
+        if method not in ("api", "http", "playwright"):
+            return False, f"fetch.method not set (status {self.status}): onboard the site first"
+        return True, None
+
+    def browser_scan(self) -> tuple[bool, str | None]:
+        """Whether the browser agent may scan this site, and why not."""
+        if self.role == "origin":
+            return False, "origin-only site: never scanned"
+        cap = self.scan.get("browser") or {}
+        if cap.get("enabled") is False:
+            return False, cap.get("reason") or "browser scan disabled in site.yaml"
+        if cap.get("enabled") or self.fetch.get("method") == "agent_browser":
+            return True, None
+        return False, "no browser extractor configured (scan.browser)"
+
+    def browser_pages(self) -> tuple[int, int]:
+        """(default, max) result pages for a browser scan."""
+        cap = self.scan.get("browser") or {}
+        mx = int(cap.get("max_pages") or self.politeness.get("max_pages_per_run") or 5)
+        return min(int(cap.get("default_pages") or mx), mx), mx

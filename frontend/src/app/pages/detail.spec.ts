@@ -18,6 +18,7 @@ describe('DetailPage', () => {
       listingTransit: vi.fn(() => of({ destinations: 0, calls: 0, cached: 0, ttl_days: 30, provider: 'resrobot' })),
       listingScale: vi.fn(() => of({ n: 0, fields: {} })),
       config: vi.fn(() => of({ data: { statuses: { default: ['new'] }, tags: { positive: {}, negative: {} } } })),
+      sites: vi.fn(() => of({ items: [] })),
     };
     TestBed.configureTestingModule({ imports: [DetailPage], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });
     TestBed.overrideComponent(DetailPage, { set: { template: '' } });   // the reload loop lives in the effect, not the template
@@ -40,6 +41,7 @@ describe('DetailPage', () => {
       digest: vi.fn(() => of('digest')), listingLocation: vi.fn(() => of({ listing: { short_id: 'L-TEST' } })),
       listingScale: vi.fn(() => of({ n: 0, fields: {} })), computeCommute: commute, recompute: vi.fn(() => of({})),
       config: vi.fn(() => of({ data: { statuses: { default: ['new'] }, tags: { positive: {}, negative: {} } } })),
+      sites: vi.fn(() => of({ items: [] })),
     };
     TestBed.configureTestingModule({ imports: [DetailPage], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });
     TestBed.overrideComponent(DetailPage, { set: { template: '' } });

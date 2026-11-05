@@ -28,7 +28,9 @@ def test_search_page_documents_and_mapping():
     assert a.source.external_id == "1497003" and a.source.url == "https://qasa.com/se/sv/home/1497003"
     assert a.rent_sek == 19600 and a.attributes["rent"] == 18500 and a.attributes["tenantBaseFee"] == 1100
     assert a.rooms_rok == 4 and a.size_m2 == 94 and a.attributes["bedroomCount"] == 3
-    assert a.pet_status == "yes" and "petsAllowed" in a.pet_evidence
+    assert a.attributes["pets_flag"]["value"] is True and "petsAllowed" in a.attributes["pets_flag"]["evidence"]
+    from findhome.pets import ingest_candidate
+    assert ingest_candidate(a)[0::2] == ("yes", "site")      # Qasa's flag is the site's answer, not the agent's
     assert a.contract_type == "second_hand" and str(a.contract_end) == "2027-02-28"
     assert a.address_raw == "Valla torg, Årsta" and a.area == "Årsta" and a.lat == pytest.approx(59.294, abs=1e-3)
     assert a.floorplan_urls and a.photo_urls and a.floorplan_urls[0] not in a.photo_urls
@@ -103,7 +105,7 @@ def test_cli_parser_converts_extract_output(tmp_path, monkeypatch):
     convert = cli._site_parser("qasa")
     items = [convert(n) for n in nodes]
     assert [i.source.method for i in items] == ["agent_browser"] * 3
-    assert items[0].rent_sek == 19600 and items[0].pet_status == "yes"
+    assert items[0].rent_sek == 19600 and items[0].attributes["pets_flag"]["value"] is True
 
 
 def test_summary_line_shows_fetch_errors():

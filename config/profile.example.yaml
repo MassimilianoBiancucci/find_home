@@ -43,7 +43,7 @@ kinds:
         enabled: true
         weight: 3
         params:
-          pet_status_score: {"yes": 1.0, ask: 0.5, unknown: 0.4}
+          pet_status_score: {"yes": 1.0, ask: 0.5, unknown: 0.4, conflict: 0.4}
           balcony_bonus: 0.15
           low_floor_or_elevator_bonus: 0.1
       building_comfort:

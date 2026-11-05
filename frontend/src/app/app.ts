@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { BubbleComponent } from './components/bubble';
 import { InfoButton } from './components/info';
+import { Toasts } from './components/toasts';
 import { Health } from './models';
 import { ApiService } from './services/api.service';
 import { LayoutService } from './services/layout.service';
@@ -13,7 +14,7 @@ interface NavItem { path: string; label: string; key: string; children?: { path:
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgTemplateOutlet, BubbleComponent, InfoButton],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgTemplateOutlet, BubbleComponent, InfoButton, Toasts],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -34,6 +35,7 @@ export class App implements OnInit {
     { path: '/locations', label: 'Locations', key: 'L' },
     { path: '/sites', label: 'Sites', key: 'S' },
     { path: '/runs', label: 'Runs', key: 'R' },
+    { path: '/jobs', label: 'Jobs', key: 'J' },
     { path: '/settings', label: 'Settings', key: 'G' },
   ];
 

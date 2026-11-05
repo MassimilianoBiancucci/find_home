@@ -1,5 +1,9 @@
 # Qasa browser scan (small model friendly)
 
+When the app started you with `site=… pages=… run=…`, follow [browser_scan_site.md](browser_scan_site.md)
+instead: it is the same scan for any site and records it in your run. This page stays for the Claude desktop
+app (Cowork), which works through the folder without a run id.
+
 Goal: put new Qasa listings into find_home. You use a browser tool (Claude in Chrome, or the Claude desktop
 built-in browser) and the find_home folder. You never call the app's API; you write a file into `inbox/` and
 the app imports it. Paths below are relative to the find_home folder: in Claude Code that is the current
@@ -26,7 +30,9 @@ output: inbox/qasa-<UTC yyyymmddThhmmss>-p<N>.json per page with new listings; a
    d. If `on_page` is 0: navigate to the same URL once more and repeat b–c. Still 0: the page did not load or
       Qasa refused it. Stop and report that.
    e. If `new_count` > 0: write the file `inbox/qasa-<UTC yyyymmddThhmmss>-p<page>.json` containing
-      `{"site": "qasa", "parser": "qasa", "source": "agent_browser", "page": <page>, "docs": <docs>}`.
+      `{"site": "qasa", "parser": "qasa", "source": "agent_browser", "run": "<batch>", "page": <page>, "docs": <docs>}`,
+      where `<batch>` is the UTC timestamp of your first file (the same value in every file of this scan, so the
+      app records them as one scan).
       Copy `docs` exactly; do not edit, summarise or reformat the listings.
    f. If `older_reached` is true or `new_count` is 0: stop, the next pages hold nothing new.
 5. Close the tab you opened.

@@ -1,0 +1,50 @@
+# yaml-language-server: $schema=./schemas/pet_rules.schema.json
+# ─────────────────────────────────────────────────────────────
+#  Pet wording rules (findhome.pets). Not personal: committed.
+#  Each language pack has phrases for `no`, `ask` and `yes`, plus `exceptions`: phrases that contain a
+#  rule's words but mean something else (they are blanked out before matching).
+#  Patterns are Python regexes matched on lower-case text with å/ä → a and ö → o, so write
+#  "tillatna" for "tillåtna". Keep them explicit: a bare word ("djur", "pets") never decides.
+#  Decision: no + yes in the same text → conflict; else no → no; ask → ask (also with yes); yes → yes.
+#  Ambiguous wording (allergy-adapted flats, "by agreement") is `ask`, never `no`.
+# ─────────────────────────────────────────────────────────────
+version: 1
+evidence: {max_chars: 160}
+languages:
+  sv:
+    'no':
+      - '\b(inga|ej|inte)\s+(husdjur|djur|katter|hundar)\b'
+      - '\b(husdjur|djur)\s+(ar\s+)?(ej|inte)\s+(tillatna|tillatet|tillatna\s+i\s+lagenheten|ok|valkomna)\b'
+      - '\b(husdjur|djurhallning)\s+(ar\s+)?(forbjudet|forbjudna|ej\s+tillatet|inte\s+tillatet)\b'
+      - '\bdjurfri(tt|a)?\s+(lagenhet|boende|hem|hus)\b'
+      - '\btyvarr\s+(inga\s+)?husdjur\b'
+    ask:
+      - '\ballergi(anpassad|vanlig|sanerad)\b'
+      - '\b(husdjur|djur|katt(er)?|hund(ar)?)\s+(enligt|efter)\s+overenskommelse\b'
+      - '\b(husdjur|djur)\s+kan\s+(diskuteras|ga\s+bra|vara\s+ok)\b'
+      - '\b(husdjur|djur)\s+efter\s+(samrad|godkannande)\b'
+      - '\bfraga\s+om\s+husdjur\b'
+    'yes':
+      - '\b(husdjur|djur|katt(er)?|hund(ar)?)\s+(ar\s+)?(tillatna|tillatet|tillaten|valkomna|valkommen|ok)\b'
+      - '\b(husdjur|djur)\s+tillats\b'
+      - '\bhusdjursvanlig\b'
+    exceptions:
+      - '\binga\s+problem\s+med\s+(husdjur|djur|katter|hundar)\b'
+      - '\b(husdjur|djur)\s+(ar\s+)?(ej|inte)\s+tillatna\s+i\s+(tvattstugan|trapphuset|garaget|gemensamma\s+utrymmen|forradet)\b'
+      - '\binga\s+djur\s+i\s+(tvattstugan|trapphuset|garaget)\b'
+  en:
+    'no':
+      - '\bno\s+(pets|animals|cats|dogs)\b'
+      - '\b(pets|animals|cats|dogs)\s+(are\s+)?not\s+(allowed|permitted|accepted)\b'
+      - '\bpet[- ]free\s+(apartment|flat|home|building|property)\b'
+      - '\bpets\s+(are\s+)?(prohibited|forbidden)\b'
+    ask:
+      - '\ballergy[- ](friendly|adapted)\b'
+      - '\b(pets|animals|cats|dogs)\s+(negotiable|on\s+request|by\s+agreement|upon\s+agreement)\b'
+      - '\b(pets|animals)\s+(may\s+be|can\s+be)\s+(discussed|allowed\s+upon\s+request)\b'
+    'yes':
+      - '\b(pets|animals|cats?|dogs?)\s+(are\s+|is\s+)?(allowed|welcome|permitted|accepted|ok|okay)\b'
+      - '\bpet[- ]friendly\b'
+    exceptions:
+      - '\bno\s+pets?\s+(problem|issue)s?\b'
+      - '\b(pets|animals)\s+(are\s+)?not\s+allowed\s+in\s+the\s+(laundry|stairwell|garage|common\s+areas)\b'

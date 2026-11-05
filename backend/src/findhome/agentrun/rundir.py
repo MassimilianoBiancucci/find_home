@@ -43,7 +43,11 @@ Profile: {profile} · prompt: {prompt_file} · started {started} UTC
 def new_run_dir(profile: str, prompt_file: str = "", started_by: str = "cli") -> Path:
     now = datetime.now(UTC)
     run_id = f"{now:%Y%m%dT%H%M%SZ}-{profile}"
-    path = runs_dir() / run_id
+    path, n = runs_dir() / run_id, 1
+    while path.exists():                       # two runs started in the same second
+        n += 1
+        path = runs_dir() / f"{run_id}-{n}"
+    run_id = path.name
     (path / "context").mkdir(parents=True, exist_ok=False)
     YAML().dump({"run_id": run_id, "profile": profile, "prompt_file": prompt_file, "started_by": started_by,
                  "started_at": now.isoformat()}, path / "run.yaml")

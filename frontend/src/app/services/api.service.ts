@@ -3,10 +3,11 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
-  AddressSuggestion, AgentProfile, AgentRun, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
+  AddressSuggestion, AgentProfile, AgentRun, AgentStart, Job, JobPreview, JobRun, JobRunDetail, JobRunStart, JobSettings, Launcher,
+  RunsTimeline, ScanRunDetail, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, HouseLocation, Listing, ListingDetail, TransitResult, ZoneStats,
-  PoiCategory, ProbeResult, SavedProbe, ScanRun, Site, TransitLine, TransitMeta, ZoneCommute,
+  PoiCategory, ProbeResult, SavedProbe, Site, TransitLine, TransitMeta, ZoneCommute,
   IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef,
 } from '../models';
 
@@ -17,10 +18,13 @@ export class ApiService {
 
   health(): Observable<Health> { return this.http.get<Health>('/health'); }
 
-  listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number } = {}) {
+  listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number; origin?: string; site?: string; scanRun?: string } = {}) {
     let p = new HttpParams().set('limit', String(opts.limit ?? 300));
     if (opts.status) p = p.set('status', opts.status);
     if (opts.q) p = p.set('q', opts.q);
+    if (opts.origin) p = p.set('origin', opts.origin);
+    if (opts.site) p = p.set('site', opts.site);
+    if (opts.scanRun) p = p.set('scan_run', opts.scanRun);
     if (opts.includeRejected === false) p = p.set('include_rejected', 'false');
     return this.http.get<{ config_hash: string; items: Listing[] }>('/api/listings', { params: p });
   }
@@ -30,6 +34,10 @@ export class ApiService {
   }
   feedback(id: string, polarity: 'like' | 'dislike' | 'neutral', tags: string[], note?: string) {
     return this.http.post(`/api/listings/${id}/feedback`, { polarity, tags, note });
+  }
+  /** Your own answer on the pet policy (wins over agent, site and rules); 'unknown' clears your answer. */
+  setPet(id: string, status: 'yes' | 'no' | 'ask' | 'unknown', note?: string) {
+    return this.http.post<{ short_id: string; cleared?: boolean }>(`/api/listings/${id}/pet`, { status, note: note || undefined });
   }
   digest(id: string, full = false) {
     return this.http.get(`/api/digest/listing/${id}`, { params: { full: String(full) }, responseType: 'text' });
@@ -44,14 +52,40 @@ export class ApiService {
   commute(id: string) { return this.http.get<{ items: CommuteRow[] }>(`/api/commute/${id}`); }
 
   sites() { return this.http.get<{ items: Site[] }>('/api/sites'); }
-  scan(site: string, dryRun: boolean) {
-    return this.http.post<{ results: { line: string; error?: string }[] }>('/api/scans', { site, dry_run: dryRun, max_pages: dryRun ? 1 : null });
+  scan(site: string, dryRun: boolean, maxPages?: number | null) {
+    return this.http.post<{ results: { line: string; error?: string; [k: string]: unknown }[] }>('/api/scans',
+      { site, dry_run: dryRun, max_pages: maxPages ?? (dryRun ? 1 : null), trigger: 'app' });
   }
 
-  runs() { return this.http.get<{ scan_runs: ScanRun[]; agent_runs: AgentRun[] }>('/api/runs'); }
+  runs(f: { limit?: number; site?: string; status?: string; kind?: string } = {}) {
+    let p = new HttpParams().set('limit', String(f.limit ?? 50));
+    if (f.site) p = p.set('site', f.site);
+    if (f.status) p = p.set('status', f.status);
+    if (f.kind) p = p.set('kind', f.kind);
+    return this.http.get<RunsTimeline>('/api/runs', { params: p });
+  }
+  scanRun(id: string) { return this.http.get<ScanRunDetail>(`/api/runs/scan/${id}`); }
+  agentRun(id: string) { return this.http.get<AgentRun>(`/api/agent-runs/${id}`); }
   profiles() { return this.http.get<{ items: AgentProfile[] }>('/api/agent-profiles'); }
-  startAgent(profile: string) { return this.http.post<{ id: string; run_dir: string }>('/api/agent-runs', { profile }); }
-  cancelAgent(profile: string) { return this.http.post<{ cancelled: boolean }>(`/api/agent-runs/${profile}/cancel`, {}); }
+  startAgent(profile: string, params: Record<string, unknown> = {}, launcher: Launcher = 'cli') {
+    return this.http.post<AgentStart>('/api/agent-runs', { profile, params, launcher });
+  }
+  /** Cancel one run (its id) or every running run of a profile (its name). */
+  cancelAgent(target: string) { return this.http.post<{ cancelled: boolean | number }>(`/api/agent-runs/${target}/cancel`, {}); }
+
+  jobs() { return this.http.get<{ items: Job[] }>('/api/jobs'); }
+  job(key: string) { return this.http.get<Job>(`/api/jobs/${key}`); }
+  saveJob(key: string, settings: Partial<JobSettings>) { return this.http.patch<Job>(`/api/jobs/${key}`, { settings }); }
+  previewJob(key: string, settings: Partial<JobSettings>) { return this.http.post<JobPreview>(`/api/jobs/${key}/preview`, { settings }); }
+  runJob(key: string, settings?: Partial<JobSettings>, launcher?: Launcher) {
+    return this.http.post<JobRunStart>(`/api/jobs/${key}/run`, { settings: settings ?? {}, launcher: launcher ?? null });
+  }
+  jobRuns(key: string, limit = 50) { return this.http.get<{ items: JobRun[] }>(`/api/jobs/${key}/runs`, { params: { limit: String(limit) } }); }
+  jobRun(id: string, outcome?: string) {
+    return this.http.get<JobRunDetail>(`/api/job-runs/${id}`, { params: outcome ? { outcome } : {} });
+  }
+  cancelJobRun(id: string) { return this.http.post<JobRun>(`/api/job-runs/${id}/cancel`, {}); }
+  undoJobItem(id: number) { return this.http.post<unknown>(`/api/job-items/${id}/undo`, {}); }
 
   configStatus() { return this.http.get<ConfigStatus>('/api/config'); }
   config<T = any>(name: string) { return this.http.get<ConfigFile<T>>(`/api/config/${name}`); }

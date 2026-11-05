@@ -21,7 +21,8 @@ checklist: [personal_data.md](../principles/personal_data.md); setup: [`config/R
 | [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, walking threshold, map icon and colour) |
 | [`tags.yaml`](../../config/tags.yaml) | lifecycle statuses (per kind) and feedback reason tags |
 | [`providers.yaml`](../../config/providers.yaml) | routing, geocoding, POI providers, mode priority, budget, cache, prefilter, map style |
-| [`agent.yaml`](../../config/agent.yaml) | headless agent commands for the Run agent button |
+| [`agent.yaml`](../../config/agent.yaml) | agent profiles the app starts (browser scan, onboarding, pet job, scan, evaluate): command, prompt, parameters, allowed tools, launchers ([agent_contract.md](agent_contract.md#runs)) |
+| [`pet_rules.yaml`](../../config/pet_rules.yaml) | pet wording rules per language ([pets.md](pets.md)); applied at ingest, not part of the config hash |
 | [`geo.yaml`](../../config/geo.yaml) | geodata region (municipalities) and dataset sources for `data/geo/` |
 | `search_area.yaml` (personal; [example](../../config/search_area.example.yaml)) | the search area: weighted pieces, erasers, buffer (edited in Map → Area) |
 | [`area_aliases.yaml`](../../config/area_aliases.yaml) | popular area names → zone ids (seeded from OSM place names) |
@@ -32,7 +33,8 @@ checklist: [personal_data.md](../principles/personal_data.md); setup: [`config/R
 [`config/schemas/<name>.schema.json`](../../config/schemas/profile.schema.json), validates every
 `sites/*/site.yaml` (folders starting with `_` are templates), then runs cross-file checks: hard-filter keys exist
 in the catalog for that kind, point categories exist, trip day types exist in the time model, mode priorities name
-known providers, site `filter_map` keys exist in the catalog, site slugs match their folders, search-area piece ids
+known providers, site `filter_map` keys exist in the catalog, site slugs match their folders, a site's `platforms`
+name registered sites and an origin-only site is not `active`, search-area piece ids
 are unique and their geometries valid, and (when `data/geo/zones.geojson` exists) zone ids in the search area and
 the aliases exist. All errors are
 collected and returned together. [`config/models.py`](../../backend/src/findhome/config/models.py) gives typed
@@ -520,7 +522,8 @@ comes from filtering on posting dates.
 [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) `score_listing`:
 
 - Hard filters from the listing kind's profile gate the listing. Any failure gives `total = null` and lists the
-  reasons in `rejected_by`. `pet_status_exclude` defaults to `["no"]`. A sleeping alcove adds one room only when
+  reasons in `rejected_by`. `pet_status_exclude` defaults to `["no"]`; the pet status itself is decided at ingest
+  ([pets.md](pets.md)), and `cat_suitability` reads `pet_status_score` (`conflict` defaults to 0.4). A sleeping alcove adds one room only when
   `accept_sovalkov` is true. `max_commute_min_by_category` uses the best median of that category's points.
 - Each enabled preference group returns a 0..1 score or `None` when its data is missing (for example cost while
   `max_rent_sek` and `ideal_rent_sek` are unset). The total is the weighted mean of the groups that returned a

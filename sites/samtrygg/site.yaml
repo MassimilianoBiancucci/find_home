@@ -1,18 +1,29 @@
 # yaml-language-server: $schema=../../config/schemas/site.schema.json
 # ─────────────────────────────────────────────────────────────
-#  Samtrygg — UNVERIFIED stub (init-project). Nothing here has been checked on the
-#  live site yet; see tasks/BACKLOG.md → verify-sites. Every site-specific value is a hypothesis.
+#  Samtrygg — browser-only, waiting for its onboarding session (prompts/site_onboarding.md, started
+#  from the Sites page with the "site_onboarding" profile, in your Chrome).
+#  Probe 2026-11-05: plain GETs are answered (no bot protection), but robots.txt disallows the search
+#  pages (/RentalObject/Search, /RentalObject/NewSearch) and the city page /hyra-bostad/stockholm is
+#  filled by JavaScript. So no scripted scanner: the onboarding writes sites/samtrygg/extract.js that
+#  reads the RENDERED city page, plus to_listing() in scanner.py, then turns scan.browser on.
+#  Each listing shows a "Husdjur ok" badge: extract.js returns it as the site's pet flag.
 # ─────────────────────────────────────────────────────────────
 slug: samtrygg
 name: Samtrygg
-url: https://www.samtrygg.se                # UNVERIFIED
-kinds: [rent]                   # rent | buy
-status: unverified              # unverified | active | broken | disabled
-last_verified: null             # agent run id or date of the last verification
+url: https://www.samtrygg.se
+kinds: [rent]
+status: unverified
+role: scanned
+brand: {logo: null, colour: "#2a7de1"}
+scan:
+  script: {enabled: false, reason: "robots.txt disallows the search pages; listings are rendered by JavaScript"}
+  browser: {enabled: false, reason: "not onboarded yet: run the onboarding to create extract.js", extractor: extract.js,
+            default_pages: 3, max_pages: 5}
+last_verified: '2026-11-05 (probe: robots.txt + home + city page; no listing data in the HTML)'
 fetch:
-  order: [api, http, playwright, agent_browser]   # cheapest first
-  method: null                 # chosen after probe/verification
-  list_url_template: null      # e.g. "https://.../search?area=stockholm&page={page}" ({page} optional)
+  order: [api, http, playwright, agent_browser]
+  method: agent_browser
+  list_url_template: https://www.samtrygg.se/hyra-bostad/stockholm   # allowed by robots.txt
   api: {endpoint: null, method: GET, items_path: null, body: null}
   selectors:                   # http method: CSS relative to the item; "css@attr" for attributes
     item: null

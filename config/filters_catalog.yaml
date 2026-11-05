@@ -16,7 +16,7 @@ filters:
   areas_exclude: {type: string_list, kinds: [rent, buy], description: Areas or districts to drop}
   contract_types: {type: enum_list, values: [first_hand, second_hand, sublet], kinds: [rent], description: Accepted 
       contract types}
-  pet_status_exclude: {type: enum_list, values: ["yes", "no", ask, unknown], kinds: [rent, buy], description: Pet 
+  pet_status_exclude: {type: enum_list, values: ["yes", "no", ask, unknown, conflict], kinds: [rent, buy], description: Pet 
       statuses that exclude a listing}
   pets_allowed: {type: boolean, kinds: [rent, buy], derived_from: pet_status_exclude, description: "Site-side 'pets allowed'
       filter; true when 'no' is excluded"}

@@ -15,7 +15,7 @@ from psycopg_pool import PoolTimeout
 
 from findhome import __version__, inbox
 from findhome.api.routers import config as config_router
-from findhome.api.routers import digest, ingest, listings, map as map_router, runs, scoring, sites
+from findhome.api.routers import digest, ingest, jobs, listings, map as map_router, runs, scoring, sites
 from findhome.api.routers import geocode as geocode_router
 from findhome.api.routers import geo as geo_router
 from findhome.api.routers import probe as probe_router
@@ -132,6 +132,6 @@ async def health():
     return JSONResponse(status_code=200 if db_ok and store.bundle else 503, content=body)
 
 
-for r in (config_router, listings, ingest, scoring, digest, sites, runs, map_router, geocode_router, geo_router,
+for r in (config_router, listings, ingest, scoring, digest, sites, runs, jobs, map_router, geocode_router, geo_router,
           probe_router, connectivity_router, zone_router, house_router):
     app.include_router(r.router)

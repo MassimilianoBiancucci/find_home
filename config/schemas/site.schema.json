@@ -33,6 +33,113 @@
         "disabled"
       ]
     },
+    "role": {
+      "enum": [
+        "scanned",
+        "origin"
+      ],
+      "default": "scanned",
+      "description": "scanned: listings are collected from this site. origin: never scanned; the site only identifies where listings found on an aggregator were first published (see the aggregator's `platforms`)."
+    },
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "logo": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "File in this site folder (logo.svg/png), served at /api/sites/<slug>/logo; the favicon is the fallback"
+        },
+        "colour": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "favicon": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Icon URL used when no logo file exists (default: https://<host of url>/favicon.ico)"
+        }
+      }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What may scan this site: a scripted scanner (api/http/playwright) and/or the browser agent in the user's own browser",
+      "properties": {
+        "script": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Why the method is off (shown in the UI and in scan errors)"
+            }
+          }
+        },
+        "browser": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "reason": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Why the method is off (shown in the UI and in scan errors)"
+            },
+            "extractor": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "JS file in the site folder run on each loaded result page"
+            },
+            "default_pages": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "max_pages": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "platforms": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Aggregators only: value of the listing's attributes.platform → slug of the site it was first published on"
+    },
+    "risk_note": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "A recorded decision to scan despite robots.txt or terms (who, when, limits)"
+    },
+    "local_filter": {
+      "type": "object",
+      "description": "Scanner-specific local filters applied before ingest (e.g. type flags to exclude)"
+    },
     "last_verified": {
       "type": [
         "string",

@@ -48,29 +48,13 @@ def parse_rooms(text: str | None) -> tuple[float | None, bool | None]:
     return parse_number(lower), sovalkov
 
 
-PET_PATTERNS: list[tuple[str, str]] = [
-    # order matters: negative phrases first
-    (r"(inga|ej|inte|no)\s+(husdjur|djur|pets)", "no"),
-    (r"husdjur\s+(ej|inte)\s+(till[aå]tna|ok)", "no"),
-    (r"pets\s+not\s+allowed", "no"),
-    (r"(husdjur|djur)\s+(enligt\s+överenskommelse|efter\s+överenskommelse|kan\s+diskuteras)", "ask"),
-    (r"pets\s+(negotiable|on\s+request)", "ask"),
-    (r"(husdjur|djur|katt(er)?)\s+(är\s+)?(till[aå]tna|välkomna|ok)", "yes"),
-    (r"pets\s+(allowed|welcome|ok)", "yes"),
-]
-
-
 def pet_status_from_text(text: str | None) -> tuple[str, str | None]:
-    """Map listing wording to (pet_status, evidence). No match → ('unknown', None)."""
-    if not text:
-        return "unknown", None
-    lower = text.lower()
-    for pattern, status in PET_PATTERNS:
-        m = re.search(pattern, lower)
-        if m:
-            start = max(0, m.start() - 20)
-            return status, text[start:m.end() + 20].strip()
-    return "unknown", None
+    """(pet_status, evidence) from listing wording, with the strict rules of config/pet_rules.yaml (findhome.pets).
+    No explicit phrase → ('unknown', None)."""
+    from findhome.pets import detect
+
+    found = detect(text)
+    return found.status, found.evidence
 
 
 CONTRACT_WORDS = {

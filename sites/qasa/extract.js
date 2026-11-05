@@ -7,8 +7,9 @@
 // following pages hold nothing new: stop paging.
 //
 // Output: {page, totalCount, pagesCount, on_page, new_count, older_reached, docs}. Save it as
-// inbox/qasa-<UTC yyyymmddThhmmss>-p<page>.json with "site":"qasa","parser":"qasa","source":"agent_browser"
-// added (or ingest it: scripts/findhome ingest listings -f <file> --parser qasa --source agent_browser).
+// inbox/qasa-<UTC yyyymmddThhmmss>-p<page>.json with "site":"qasa","parser":"qasa","source":"agent_browser" and
+// "run":"<run id>" added (prompts/browser_scan_site.md), or ingest it:
+// scripts/findhome ingest listings -f <file> --parser qasa --source agent_browser --run <run id>.
 (() => {
   const MAX_UPLOADS = 40;   // per type (photos, floor plans)
   const since = window.FH_SINCE ? Date.parse(window.FH_SINCE) : null;

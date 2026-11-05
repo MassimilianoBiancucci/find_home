@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://findhome.local/schemas/pet_rules.schema.json",
+  "title": "Pet wording rules per language (findhome.pets)",
+  "type": "object",
+  "required": ["version", "languages"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {"max_chars": {"type": "integer", "minimum": 40, "maximum": 400}}
+    },
+    "languages": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "no": {"$ref": "#/$defs/patterns"},
+          "ask": {"$ref": "#/$defs/patterns"},
+          "yes": {"$ref": "#/$defs/patterns"},
+          "exceptions": {"$ref": "#/$defs/patterns"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "patterns": {"type": "array", "items": {"type": "string", "minLength": 3}}
+  }
+}

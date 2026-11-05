@@ -32,6 +32,9 @@ you (agent) ──scripts/findhome──▶ local API :8200 ──▶ Postgres �
    YAML files under `config/` and `sites/` - then `scripts/findhome config validate`.
 7. **Hand over**: fill the scratchpad's Handover (3-6 lines), then `scripts/findhome run close`.
 
+When the app started you, your prompt carries `run=<id>`: run `scripts/findhome run attach <id>` first (instead of
+preflight's new run folder) and `scripts/findhome run close --run <id>` at the end, so the run is recorded.
+
 ## Which prompt to follow
 
 | Task | Prompt |
@@ -41,7 +44,9 @@ you (agent) ──scripts/findhome──▶ local API :8200 ──▶ Postgres �
 | Add a website | [prompts/site_onboarding.md](prompts/site_onboarding.md) |
 | A site's scan broke | [prompts/site_repair.md](prompts/site_repair.md) |
 | Scan a site that needs a browser | [prompts/browser_scan.md](prompts/browser_scan.md) |
-| Qasa scan in a browser, writing to `inbox/` (Claude desktop app, or the app's "Claude in Chrome (Haiku)" run profile; fine on Haiku) | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
+| Browser scan of one site started by the app (`site=… pages=… run=…`), writing to `inbox/`; fine on Haiku | [prompts/browser_scan_site.md](prompts/browser_scan_site.md) |
+| Qasa scan in the Claude desktop app (Cowork), writing to `inbox/` | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
+| Check pet policies for a job run started by the app (`job_run=… n=… run=…`) | [prompts/pet_agent_check.md](prompts/pet_agent_check.md) |
 | Ask a landlord about the two cats | [prompts/pet_inquiry.md](prompts/pet_inquiry.md) |
 | Turn feedback into search changes | [prompts/research_guidance.md](prompts/research_guidance.md) |
 

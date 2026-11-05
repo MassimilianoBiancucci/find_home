@@ -1,42 +1,33 @@
 # yaml-language-server: $schema=../../config/schemas/site.schema.json
 # ─────────────────────────────────────────────────────────────
-#  Blocket Bostad — UNVERIFIED stub (init-project). Nothing here has been checked on the
-#  live site yet; see tasks/BACKLOG.md → verify-sites. Every site-specific value is a hypothesis.
+#  Blocket Bostad — origin-only. bostad.blocket.se serves Qasa's app (same robots.txt, same bot
+#  checkpoint) and its rentals are published on Qasa with attributes.platform = "blocket". The site
+#  is never scanned: it is registered so listings found on Qasa show where they were first published
+#  (sites/qasa/site.yaml `platforms`). Probe notes: tasks/ planning folder, 2026-11-05.
 # ─────────────────────────────────────────────────────────────
 slug: blocket-bostad
 name: Blocket Bostad
-url: https://bostad.blocket.se                # UNVERIFIED
-kinds: [rent]                   # rent | buy
-status: unverified              # unverified | active | broken | disabled
-last_verified: null             # agent run id or date of the last verification
+url: https://bostad.blocket.se
+kinds: [rent]
+status: disabled
+role: origin
+brand: {logo: null, colour: "#e5352d", favicon: "https://www.blocket.se/favicon.ico"}
+scan:
+  script: {enabled: false, reason: "served by Qasa's app (429 bot checkpoint); listings arrive through qasa"}
+  browser: {enabled: false, reason: "listings arrive through the qasa scan (platform=blocket)"}
+last_verified: '2026-11-05 (domain serves the Qasa app; housing listings published on Qasa)'
 fetch:
-  order: [api, http, playwright, agent_browser]   # cheapest first
-  method: null                 # chosen after probe/verification
-  list_url_template: null      # e.g. "https://.../search?area=stockholm&page={page}" ({page} optional)
+  order: [api, http, playwright, agent_browser]
+  method: null
+  list_url_template: null
   api: {endpoint: null, method: GET, items_path: null, body: null}
-  selectors:                   # http method: CSS relative to the item; "css@attr" for attributes
-    item: null
-    external_id: null
-    url: null
-    title: null
-    rent_sek: null
-    size_m2: null
-    rooms: null
-    address_raw: null
-    area: null
-  pagination: {type: page_param, param: page, max_pages: 5}
-filter_map:                     # canonical key (config/filters_catalog.yaml) → param | ui_step | local_only
-  max_rent_sek: {param: null, local_only: true}
-  min_size_m2: {param: null, local_only: true}
-  min_rooms_rok: {param: null, local_only: true}
-  pets_allowed: {param: null, local_only: true, note: verify whether the site exposes a pet filter}
-  areas_include: {param: null, local_only: true}
-  contract_types: {param: null, local_only: true}
-  move_in_from: {param: null, local_only: true}
-field_map: {}                   # api method: ListingIn field → JSON path, e.g. rent_sek: price.amount
+  selectors: {}
+  pagination: {type: page_param, param: page, max_pages: 1}
+filter_map: {}
+field_map: {}
 pets: {filter_available: unknown, typical_wording: []}
-auth: {mode: none}              # none | browser_session (agent uses your logged-in browser; never store credentials)
-politeness: {min_delay_s: 3, max_pages_per_run: 10, respect_robots: true, user_agent: findhome/0.1 (personal use)}
-schedule: {interval: null}      # read by an external scheduler (Claude/Codex); the app never schedules
+auth: {mode: none}
+politeness: {min_delay_s: 3, max_pages_per_run: 1, respect_robots: true, user_agent: findhome/0.1 (personal use)}
+schedule: {interval: null}
 notes: >-
-  Second-hand rental marketplace (Blocket). Hypothesis: has a pets filter and many Stockholm listings; check for a JSON API behind the result list.
+  Origin only: Blocket's housing listings are published on Qasa (platform=blocket) and found by the qasa scan.

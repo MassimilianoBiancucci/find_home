@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../../config/schemas/site.schema.json
+# ─────────────────────────────────────────────────────────────
+#  HomeQ (homeq.se) — origin-only. First-hand rentals from landlords, also published on Qasa with
+#  attributes.platform = "homeq" (the largest origin among Qasa listings). Registered so those
+#  listings show HomeQ as their origin (sites/qasa/site.yaml `platforms`). Scanning homeq.se
+#  directly would be a separate onboarding (prompts/site_onboarding.md).
+# ─────────────────────────────────────────────────────────────
+slug: homeq
+name: HomeQ
+url: https://www.homeq.se
+kinds: [rent]
+status: disabled
+role: origin
+brand: {logo: null, colour: "#1b3a6b"}
+scan:
+  script: {enabled: false, reason: "not onboarded; listings arrive through qasa (platform=homeq)"}
+  browser: {enabled: false, reason: "not onboarded; listings arrive through qasa (platform=homeq)"}
+last_verified: null
+fetch:
+  order: [api, http, playwright, agent_browser]
+  method: null
+  list_url_template: null
+  api: {endpoint: null, method: GET, items_path: null, body: null}
+  selectors: {}
+  pagination: {type: page_param, param: page, max_pages: 1}
+filter_map: {}
+field_map: {}
+pets: {filter_available: unknown, typical_wording: []}
+auth: {mode: none}
+politeness: {min_delay_s: 3, max_pages_per_run: 1, respect_robots: true, user_agent: findhome/0.1 (personal use)}
+schedule: {interval: null}
+notes: >-
+  Origin only: first-hand rentals from landlords, published on Qasa (platform=homeq) and found by the qasa scan.

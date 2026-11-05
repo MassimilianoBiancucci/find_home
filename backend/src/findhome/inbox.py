@@ -3,10 +3,11 @@ connected folder). The backend imports every inbox/*.json on startup and when fi
 file to inbox/processed/ (or inbox/failed/ with an .error.txt next to it).
 
 Accepted shapes:
-  {"site": "qasa", "parser": "qasa", "source": "agent_browser", "docs": [...raw site items...]}
-  {"listings": [ListingIn, ...]}            or a bare list of ListingIn
-After every import it refreshes runs/state/<site>.json (latest published timestamp, counts) so the next
-browser scan only extracts newer listings.
+  {"site": "qasa", "parser": "qasa", "source": "agent_browser", "run": "<id>", "page": 1, "docs": [...raw items...]}
+  {"listings": [ListingIn, ...], "run": "<id>"}   or a bare list of ListingIn
+Every file is recorded in a scan run: files that share a "run" value (the agent run id the app gave the agent, or
+any batch id) fill one scan run; a file without it gets its own. After every import it refreshes
+runs/state/<site>.json (latest published timestamp, counts) so the next browser scan only extracts newer listings.
 """
 from __future__ import annotations
 
@@ -14,17 +15,28 @@ import asyncio
 import importlib.util
 import json
 import logging
+import re
 import shutil
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
 from findhome.core.paths import inbox_dir, sites_dir, state_dir
-from findhome.db import repo
+from findhome.db import repo, runs_repo
 from findhome.domain.models import IngestRequest, ListingIn
 
 log = logging.getLogger(__name__)
-_lock = asyncio.Lock()
+_lock: tuple[asyncio.AbstractEventLoop, asyncio.Lock] | None = None
+
+
+def _import_lock() -> asyncio.Lock:
+    """One import at a time per event loop (the API's loop; tests start a new loop per client)."""
+    global _lock
+    loop = asyncio.get_running_loop()
+    if _lock is None or _lock[0] is not loop:
+        _lock = (loop, asyncio.Lock())
+    return _lock[1]
 
 
 def site_parser(slug: str):
@@ -56,6 +68,14 @@ def to_listings(data: Any) -> list[ListingIn]:
     return [ListingIn.model_validate(x) for x in raw]
 
 
+def file_meta(data: Any, items: list[ListingIn]) -> dict[str, Any]:
+    """Site, method and run id of an inbox file (for its scan run)."""
+    meta = data if isinstance(data, dict) else {}
+    site = meta.get("site") or meta.get("parser") or (items[0].source.site_slug if items else None)
+    method = meta.get("source") or (items[0].source.method if items else None) or "agent_browser"
+    return {"site": site, "method": method, "run": meta.get("run"), "page": meta.get("page")}
+
+
 def _move(path: Path, folder: str, error: str | None = None) -> None:
     dest = path.parent / folder
     dest.mkdir(exist_ok=True)
@@ -69,8 +89,15 @@ def _move(path: Path, folder: str, error: str | None = None) -> None:
 
 async def import_file(conn, path: Path) -> dict[str, Any]:
     try:
-        items = to_listings(json.loads(path.read_text(encoding="utf-8")))
-        res = await repo.ingest(conn, IngestRequest(listings=items))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        items = to_listings(data)
+        meta = file_meta(data, items)
+        run_id = None
+        if meta["site"]:
+            run_id = await runs_repo.batch_scan_run(conn, meta["site"], meta["method"], meta["run"], path.name)
+        res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
+        if run_id:
+            await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
         await conn.commit()
     except Exception as exc:  # noqa: BLE001 - a bad file must not stop the others
         await conn.rollback()
@@ -79,7 +106,7 @@ async def import_file(conn, path: Path) -> dict[str, Any]:
         return {"file": path.name, "error": str(exc)}
     _move(path, "processed")
     summary = {"file": path.name, "created": res.created, "updated": res.updated, "unchanged": res.unchanged,
-               "duplicate": res.duplicate}
+               "duplicate": res.duplicate, "scan_run_id": run_id}
     log.info("inbox: %s", summary)
     return summary
 
@@ -126,7 +153,7 @@ async def import_all(pool) -> list[dict[str, Any]]:
     folder = inbox_dir()
     if not folder.exists():
         return []
-    async with _lock:
+    async with _import_lock():
         results = []
         async with pool.connection() as conn:
             for path in sorted(folder.glob("*.json")):
@@ -151,3 +178,75 @@ async def watch(pool) -> None:
                 await import_all(pool)
             except Exception:  # noqa: BLE001
                 log.exception("inbox: import failed")
+
+
+_STAMPED = re.compile(r"^(?P<site>[a-z0-9-]+)-(?P<ts>\d{8}T\d{6})Z?-p(?P<page>\d+)\.json$")
+
+
+def _processed_batches(folder: Path, gap_s: int = 600) -> list[tuple[str, list[tuple[datetime, Path]]]]:
+    """inbox/processed files named <site>-<UTC yyyymmddThhmmss>-p<N>.json, grouped per site into scans: files less
+    than gap_s apart belong to the same scan."""
+    found: dict[str, list[tuple[datetime, Path]]] = {}
+    for p in sorted(folder.glob("*.json")):
+        m = _STAMPED.match(p.name)
+        if m:
+            ts = datetime.strptime(m["ts"], "%Y%m%dT%H%M%S").replace(tzinfo=UTC)
+            found.setdefault(m["site"], []).append((ts, p))
+    batches = []
+    for site, files in found.items():
+        files.sort()
+        group = [files[0]]
+        for prev, cur in pairwise(files):
+            if (cur[0] - prev[0]).total_seconds() > gap_s:
+                batches.append((site, group))
+                group = []
+            group.append(cur)
+        batches.append((site, group))
+    return batches
+
+
+async def backfill_runs(conn) -> list[dict[str, Any]]:
+    """Record a run for every past browser scan in inbox/processed that has none (imports made before inbox files
+    carried a run id). Idempotent: a batch already recorded (batch_id backfill:<first file>) is skipped."""
+    from psycopg.types.json import Jsonb
+
+    out = []
+    for site, files in _processed_batches(inbox_dir() / "processed"):
+        batch = f"backfill:{files[0][1].name}"
+        if await (await conn.execute("SELECT 1 FROM scan_runs WHERE batch_id = %s", (batch,))).fetchone():
+            continue
+        ids: list[str] = []
+        method = "agent_browser"
+        for _, path in files:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            items = to_listings(data)
+            method = file_meta(data, items)["method"]
+            ids += [it.source.external_id for it in items]
+        start, end = files[0][0], files[-1][0]
+        agent = await (await conn.execute(
+            """INSERT INTO agent_runs (profile, command, run_dir, started_by, launcher, kind, site_slug, status,
+                                       started_at, finished_at, summary)
+               VALUES (%s,'unknown','inbox/processed','cli','manual','scan',%s,'ok',%s,%s,%s) RETURNING id""",
+            (f"{site}_browser_scan", site, start, end,
+             (f"Backfilled from {len(files)} inbox files ({files[0][1].name} … {files[-1][1].name}); "
+              "the agent session itself was not recorded.")))).fetchone()
+        run = await (await conn.execute(
+            """INSERT INTO scan_runs (site_slug, method, trigger, agent_run_id, batch_id, pages, status, started_at,
+                                      finished_at, counts)
+               VALUES (%s,%s,'backfill',%s,%s,%s,'ok',%s,%s,%s) RETURNING id""",
+            (site, method, agent["id"], batch, len(files), start, end, Jsonb({"seen": len(ids)})))).fetchone()
+        linked = await (await conn.execute(
+            """UPDATE listing_sources SET scan_run_id = coalesce(scan_run_id, %s),
+                                          first_scan_run_id = coalesce(first_scan_run_id, %s)
+               WHERE site_slug = %s AND external_id = ANY(%s) AND first_scan_run_id IS NULL
+               RETURNING first_seen_at""",
+            (run["id"], run["id"], site, ids))).fetchall()
+        new = sum(1 for r in linked if start.timestamp() - 60 <= r["first_seen_at"].timestamp() <= end.timestamp() + 600)
+        await conn.execute("UPDATE scan_runs SET counts = %s WHERE id = %s",
+                           (Jsonb({"seen": len(ids), "new": new, "linked": len(linked)}), run["id"]))
+        await conn.execute("UPDATE sites SET last_scan_at = greatest(coalesce(last_scan_at, %s), %s), last_error = NULL "
+                           "WHERE slug = %s", (end, end, site))
+        out.append({"site": site, "files": len(files), "seen": len(ids), "linked": len(linked), "new": new,
+                    "scan_run_id": str(run["id"]), "agent_run_id": str(agent["id"])})
+    await conn.commit()
+    return out

@@ -57,7 +57,8 @@ async def test_generic_http_scanner_parses_items(tmp_repo, tmp_path, monkeypatch
     first = items[0]
     assert first.source.external_id == "a1" and first.source.url == "https://test.invalid/l/a1"
     assert first.rent_sek == 12900 and first.size_m2 == 48 and first.rooms_rok == 2
-    assert first.pet_status == "ask"
+    from findhome.pets import ingest_candidate
+    assert ingest_candidate(first)[0] == "ask"
     assert items[1].has_sovalkov is True
     assert "pets=1" in pages[0] and "page=1" in pages[0]
     assert first.source.raw_snapshot_path.endswith("page-1.html")

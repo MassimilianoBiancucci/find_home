@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-PetStatus = Literal["yes", "no", "ask", "unknown"]
+PetStatus = Literal["yes", "no", "ask", "unknown", "conflict"]
 ContractType = Literal["first_hand", "second_hand", "sublet", "unknown"]
 SourceMethod = Literal["script", "agent_browser", "manual"]
 
@@ -60,6 +60,8 @@ class ListingIn(BaseModel):
 class IngestRequest(BaseModel):
     listings: list[ListingIn]
     scan_run_id: str | None = None
+    run: str | None = Field(None, description="Agent run id or batch id: listings sent with the same value are "
+                                              "recorded in one scan run per site")
 
 
 class IngestItemResult(BaseModel):
@@ -101,6 +103,12 @@ class StatusChange(BaseModel):
     actor: Literal["user", "agent", "system"] = "user"
 
 
+class PetIn(BaseModel):
+    """Your own answer on a listing's pet policy (highest precedence)."""
+    status: Literal["yes", "no", "ask", "unknown"]
+    note: str | None = Field(None, max_length=400)
+
+
 class FeedbackIn(BaseModel):
     polarity: Literal["like", "dislike", "neutral"]
     tags: list[str] = Field(default_factory=list)
@@ -117,9 +125,12 @@ class CommuteRequest(BaseModel):
 
 class AgentRunRequest(BaseModel):
     profile: str
+    params: dict[str, Any] = Field(default_factory=dict, description="Profile parameters: site, pages, job_run ...")
+    launcher: Literal["cli", "vscode"] = "cli"
 
 
 class ScanRequest(BaseModel):
     site: str = Field(description="Site slug or 'all'")
     dry_run: bool = False
     max_pages: int | None = None
+    trigger: Literal["app", "cli", "agent"] = "app"

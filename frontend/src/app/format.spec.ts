@@ -14,3 +14,16 @@ describe('format helpers', () => {
     expect(petClass('yes')).toContain('success');
   });
 });
+
+describe('pet conflict and source marks', () => {
+  it('gives conflict its own striped style and marks who set the status', async () => {
+    const { petClass, petSourceMark, petSourceLabel } = await import('./format');
+    expect(petClass('conflict')).toBe('fh-pet-conflict');
+    expect(petSourceMark('user')).toBe('U');
+    expect(petSourceMark('agent')).toBe('A');
+    expect(petSourceMark('site')).toBe('S');
+    expect(petSourceMark('keywords')).toBe('K');
+    expect(petSourceMark(null)).toBe('');
+    expect(petSourceLabel('user')).toBe('your answer');
+  });
+});

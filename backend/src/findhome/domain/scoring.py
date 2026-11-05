@@ -104,7 +104,7 @@ def _commute(p, hf, L, commute: list[dict], bundle: ConfigBundle):
 
 
 def _cats(p, hf, L):
-    table = p.get("pet_status_score", {"yes": 1.0, "ask": 0.5, "unknown": 0.4})
+    table = {"conflict": 0.4, **p.get("pet_status_score", {"yes": 1.0, "ask": 0.5, "unknown": 0.4})}
     s = float(table.get(L.get("pet_status") or "unknown", 0.0))
     if L.get("has_balcony"):
         s += p.get("balcony_bonus", 0)

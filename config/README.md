@@ -45,4 +45,5 @@ put real values in them, and do not commit the real files: they are listed in `.
 ## Shared files (committed)
 
 `filters_catalog.yaml`, `time_model.yaml`, `poi.yaml`, `tags.yaml`, `providers.yaml`, `geo.yaml`, `agent.yaml`,
-`transit_colours.yaml`, `area_aliases.yaml` and `schemas/`. They describe how the app works, not who you are.
+`transit_colours.yaml`, `area_aliases.yaml`, `pet_rules.yaml` (pet wording rules per language) and `schemas/`. They
+describe how the app works, not who you are.
