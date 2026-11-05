@@ -62,7 +62,12 @@ when a file appears (watcher) and on `POST /api/inbox/import` (`findhome ingest 
 
 The API also writes `runs/state/<site>.json` (on startup, on config changes and after each inbox import):
 `last_published` (newest `attributes.publishedAt` seen), `known_listings`, and `scan_urls`, the result-page URLs
-(as many as the site's `politeness.max_pages_per_run`) built by the same filter mapping as the scripted scanner.
+(as many as the site's `politeness.max_pages_per_run`) built by the same filter mapping as the scripted scanner,
+and for sites whose result page has search fields (`scan.browser.inputs`), `inputs`, `input_sets` and
+`avoid_paths`: [`browser_inputs()`](../../backend/src/findhome/inbox.py) computes every value combination from
+the profile (a move-in field gets `move_in_from`, then the 1st of each month up to `move_in_to`), so the agent
+tries each set instead of the page's default, and closes the run as `failed` when the profile leaves them unset; and `next_page` when further result pages are reached inside the page
+(the agent then pages up to the requested number for every set).
 Browser prompts such as [`browser_scan_site.md`](../../.agents/skills/find-home/prompts/browser_scan_site.md) and
 [`qasa_browser_scan.md`](../../.agents/skills/find-home/prompts/qasa_browser_scan.md) (Claude desktop) read only
 this file and `extract.js`, so a small model can run them.
@@ -73,7 +78,7 @@ Every scan of a site is a **scan run** (`scan_runs`), whatever its method: a scr
 ([`scan_site()`](../../backend/src/findhome/scanning/runner.py)), the inbox import of a browser scan, or an
 agent's `ingest listings --run`. Every agent session is an **agent run** (`agent_runs`), and the scan runs and
 job runs it produced point to it. The Runs page shows them as one timeline
-([`timeline()`](../../backend/src/findhome/db/runs_repo.py#L165)); the Sites page's "last scan" is the latest scan
+([`timeline()`](../../backend/src/findhome/db/runs_repo.py#L184)); the Sites page's "last scan" is the latest scan
 run of the site.
 
 ```mermaid
@@ -83,43 +88,52 @@ stateDiagram-v2
   waiting --> running: findhome run attach (session id)
   waiting --> expired: not attached within 2 h
   waiting --> cancelled
-  running --> ok: run close / exit 0
-  running --> error: exit != 0 or is_error
+  running --> ok: run close --outcome ok
+  running --> partial: run close --outcome partial
+  running --> error: run close --outcome failed, exit != 0 or is_error
+  running --> ended_no_handover: exit 0 without run close, or SessionEnd hook
   running --> timeout
   running --> cancelled
-  running --> ended_no_handover: SessionEnd hook, run still open
 ```
+
+A clean process exit only says the CLI did not crash. The agent gives its own verdict when it closes the run
+(`findhome run close --outcome ok|partial|failed`, stored in `agent_runs.outcome`), and
+[`status_for()`](../../backend/src/findhome/db/runs_repo.py) turns exit and verdict into the final status: a process
+failure wins; after a clean exit the verdict decides; a run whose prompt asked the agent to close it (`{run_id}` in
+the profile's prompt) but was not closed ends as `ended_no_handover`. Profiles that never attach (no `{run_id}`) are
+`ok` on a clean exit. Refused tool calls are kept in `result.permission_denials` and shown with the verdict on the
+Runs page.
 
 **Starting an agent.** The app starts an agent only through
 [`launcher.start()`](../../backend/src/findhome/agentrun/launcher.py#L156), from a profile in `config/agent.yaml`.
-It validates the profile's parameters first ([`resolve_params()`](../../backend/src/findhome/agentrun/launcher.py#L47):
+It validates the profile's parameters first ([`resolve_params()`](../../backend/src/findhome/agentrun/launcher.py#L48):
 site exists and allows a browser scan, pages within the site's limit, job run id). Then it creates the run folder
 and the `agent_runs` row **before** the agent starts, so the run is recorded whatever the agent does. Two launchers:
 
 | Launcher | What the app does | How the run is recorded |
 |---|---|---|
-| `cli` | spawns `command args…` without a shell, `{prompt}`, `{run_id}`, `{session_id}`, `{max_turns}`, `{allowed_tools}` and the parameters substituted ([`build_argv()`](../../backend/src/findhome/agentrun/launcher.py#L125)); environment limited to `env_passthrough` plus `FINDHOME_RUN_DIR`, `FINDHOME_API`, `FINDHOME_AGENT_RUN_ID`, `FINDHOME_ROOT`; stdout to `log.jsonl` | status from the exit code and the final stream-json `result` event (cost, turns, `is_error`, permission denials) |
-| `vscode` | no process: returns `vscode://anthropic.claude-code/open?prompt=…` ([`vscode_link()`](../../backend/src/findhome/agentrun/launcher.py#L151)); the UI opens it, VS Code shows a Claude Code tab with the prompt filled in, you press Enter | `waiting` until the agent runs `findhome run attach <id>` (stores `CLAUDE_CODE_SESSION_ID`); `expired` after 2 h |
+| `cli` | spawns `command args…` without a shell, `{prompt}`, `{run_id}`, `{session_id}`, `{max_turns}`, `{allowed_tools}` and the parameters substituted ([`build_argv()`](../../backend/src/findhome/agentrun/launcher.py#L126)); environment limited to `env_passthrough` plus `FINDHOME_RUN_DIR`, `FINDHOME_API`, `FINDHOME_AGENT_RUN_ID`, `FINDHOME_ROOT`; stdout to `log.jsonl` | status from the exit code and the final stream-json `result` event (cost, turns, `is_error`, permission denials) |
+| `vscode` | no process: returns `vscode://anthropic.claude-code/open?prompt=…` ([`vscode_link()`](../../backend/src/findhome/agentrun/launcher.py#L152)); the UI opens it, VS Code shows a Claude Code tab with the prompt filled in, you press Enter | `waiting` until the agent runs `findhome run attach <id>` (stores `CLAUDE_CODE_SESSION_ID`); `expired` after 2 h |
 
 `claude` is found through `FINDHOME_CLAUDE_BIN`, else on the passed-through `PATH`
-([`resolve_command()`](../../backend/src/findhome/agentrun/launcher.py#L139)). One run at a time per profile and
+([`resolve_command()`](../../backend/src/findhome/agentrun/launcher.py#L140)). One run at a time per profile and
 site (or job run).
 
 **Browser scans and the inbox.** The `browser_scan` profile runs
 [`browser_scan_site.md`](../../.agents/skills/find-home/prompts/browser_scan_site.md): the agent attaches to its
 run, opens the URLs of `runs/state/<site>.json` in your Chrome, runs `sites/<site>/extract.js` on each loaded page
 and writes `inbox/<site>-<ts>-p<N>.json` with `"run": "<run id>"`.
-[`import_file()`](../../backend/src/findhome/inbox.py#L89) puts every file with the same `run` into one scan run
+[`import_file()`](../../backend/src/findhome/inbox.py#L90) puts every file with the same `run` into one scan run
 ([`batch_scan_run()`](../../backend/src/findhome/db/runs_repo.py#L55), linked to the agent run when `run` is one,
 otherwise a batch id) and adds its counts ([`add_to_scan_run()`](../../backend/src/findhome/db/runs_repo.py#L74)).
 A file without `run` is a scan run of its own. `listing_sources.scan_run_id` is the last run that saw a source,
 `first_scan_run_id` the run that found it. `findhome run backfill-inbox`
-([`backfill_runs()`](../../backend/src/findhome/inbox.py#L207)) records runs for older files in `inbox/processed`.
+([`backfill_runs()`](../../backend/src/findhome/inbox.py#L208)) records runs for older files in `inbox/processed`.
 
 **Runs started outside the app.** `findhome run new` registers a run (`POST /api/agent-runs/register`) and stores
-the session id when `CLAUDE_CODE_SESSION_ID` is set; `findhome run close [--run id] [--summary]` stores the
-handover. An optional SessionEnd hook in the project's personal `.claude/settings.local.json` posts to
-`POST /api/hooks/session-end` ([`session_ended()`](../../backend/src/findhome/db/runs_repo.py#L139)): it closes a run
+the session id when `CLAUDE_CODE_SESSION_ID` is set; `findhome run close --outcome ok|partial|failed [--run id] [--summary]`
+stores the handover and the verdict. An optional SessionEnd hook in the project's personal `.claude/settings.local.json` posts to
+`POST /api/hooks/session-end` ([`session_ended()`](../../backend/src/findhome/db/runs_repo.py#L158)): it closes a run
 of that session still open as `ended_no_handover` and ignores every other session (setup:
 [agent-permissions.md](../documentation/agent-permissions.md)).
 

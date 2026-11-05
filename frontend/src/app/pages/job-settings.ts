@@ -8,6 +8,7 @@ import { PetBadge } from '../components/pet-badge';
 import { SiteLogo } from '../components/site-logo';
 import { Job, JobPreview, JobSettings, JobSubset, Launcher } from '../models';
 import { ApiService, apiError } from '../services/api.service';
+import { MODEL_HINT, MODEL_LABEL, ProfilesStore } from '../services/profiles.store';
 import { SitesStore } from '../services/sites.store';
 
 const PET = ['unknown', 'conflict', 'ask', 'yes', 'no'];
@@ -115,6 +116,16 @@ export const parseIds = (t: string) => t.split(/[\s,;]+/).map((x) => x.trim().to
                     (click)="setLauncher(l)">{{ l === 'vscode' ? 'VS Code' : 'CLI' }}</button>
           }
         </div></div>
+      @if (models(); as mc) {
+        <div class="fh-field mb-0"><span class="fh-field-label">Model</span>
+          <div class="btn-group btn-group-sm">
+            @for (m of mc.choices; track m) {
+              <button type="button" class="btn" [class.btn-primary]="(form().model ?? mc.default) === m"
+                      [class.btn-outline-secondary]="(form().model ?? mc.default) !== m" [title]="modelHint(m)"
+                      (click)="setModel(m)">{{ modelName(m) }}</button>
+            }
+          </div></div>
+      }
     }
   </div>
   @if (error()) { <div class="fh-inline-err mb-2" style="max-width:none"><span>{{ error() }}</span></div> }
@@ -133,6 +144,7 @@ export const parseIds = (t: string) => t.split(/[\s,;]+/).map((x) => x.trim().to
 export class JobSettingsPanel implements OnChanges {
   private api = inject(ApiService);
   protected sites = inject(SitesStore);
+  private profiles = inject(ProfilesStore);
   readonly job = input.required<Job>();
   readonly saved = output<Job>();
   readonly ran = output<unknown>();
@@ -149,10 +161,14 @@ export class JobSettingsPanel implements OnChanges {
   private savedJson = signal('');
   private sub?: Subscription;
 
+  protected models = computed(() => (this.job().profile ? this.profiles.models(this.job().profile!) : null));
+  protected modelName = (m: string) => MODEL_LABEL[m] ?? m;
+  protected modelHint = (m: string) => MODEL_HINT[m] ?? '';
   protected scanned = computed(() => this.sites.sites().filter((s) => s.role !== 'origin'));
   protected payload = computed<JobSettings>(() => {
     const f = this.form();
-    return { subset: cleanSubset(f.subset), n: f.n, ...(this.job().kind === 'agent' ? { launcher: f.launcher ?? 'cli' } : {}) };
+    return { subset: cleanSubset(f.subset), n: f.n,
+             ...(this.job().kind === 'agent' ? { launcher: f.launcher ?? 'cli', ...(f.model ? { model: f.model } : {}) } : {}) };
   }, { equal: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
   protected dirty = computed(() => JSON.stringify(this.payload()) !== this.savedJson());
   protected take = computed(() => Math.min(this.preview()?.count ?? 0, this.form().n));
@@ -160,6 +176,7 @@ export class JobSettingsPanel implements OnChanges {
   protected starter = (l: Launcher) => this.api.runJob(this.job().key, this.payload(), l);
 
   constructor() {
+    this.profiles.load();
     this.sites.load();
     let t: ReturnType<typeof setTimeout> | undefined;
     // live preview, debounced: every change of the form asks the API how many listings match
@@ -185,7 +202,8 @@ export class JobSettingsPanel implements OnChanges {
   private reset(j: Job): void {
     this.loadedKey = j.key;
     const s = structuredClone(j.settings ?? { subset: {}, n: 1 });
-    this.form.set({ subset: s.subset ?? {}, n: s.n ?? 1, launcher: s.launcher ?? (j.kind === 'agent' ? 'cli' : undefined) });
+    this.form.set({ subset: s.subset ?? {}, n: s.n ?? 1, launcher: s.launcher ?? (j.kind === 'agent' ? 'cli' : undefined),
+                    ...(s.model ? { model: s.model } : {}) });
     this.ids.set((s.subset?.short_ids ?? []).join(', '));
     this.savedJson.set(JSON.stringify(this.payload()));
   }
@@ -198,6 +216,7 @@ export class JobSettingsPanel implements OnChanges {
   set<K extends keyof JobSubset>(k: K, v: JobSubset[K]): void { this.form.update((f) => ({ ...f, subset: { ...f.subset, [k]: v } })); }
   setN(n: number): void { this.form.update((f) => ({ ...f, n })); }
   setLauncher(l: Launcher): void { this.form.update((f) => ({ ...f, launcher: l })); }
+  setModel(m: string): void { this.form.update((f) => ({ ...f, model: m })); }
 
   save(): void {
     this.saving.set(true);

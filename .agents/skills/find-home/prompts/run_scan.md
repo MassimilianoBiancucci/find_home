@@ -27,4 +27,5 @@ stop:    API down · config invalid · budget reached · 45 minutes
 7. If listings have `pet_status` ask/unknown and score in the top 10, draft inquiries with
    `prompts/pet_inquiry.md` (drafts only).
 8. Fill Handover: how many new, the best 3 by short id, anything needing the user (broken sites, missing
-   config values such as `TODO(user)` in profile.yaml). `scripts/findhome run close`.
+   config values such as `TODO(user)` in profile.yaml). `scripts/findhome run close --outcome ok|partial|failed`
+   (`partial` when a site was skipped or broke, `failed` when nothing could be scanned).

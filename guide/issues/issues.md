@@ -26,12 +26,13 @@ the home's network walk to the boarding stop instead.
 
 ## Agent launcher
 
-### Headless browser runs are not verified end to end
-**Impact: medium.** The `browser_scan`, `site_onboarding` and `pet_agent_check` profiles start
-`claude -p … --chrome --permission-mode dontAsk` ([`config/agent.yaml`](../../config/agent.yaml)). A start was checked
-up to Claude Code's init event (Claude in Chrome connected, `--strict-mcp-config` keeps it, the `find-home` skill is
-listed), but no full run has completed yet: whether the extension asks for per-site approval in print mode, and
-whether every tool the prompts use is in `--allowedTools`, shows only on a real run (`permission_denials` in the
-run's result, shown on the Runs page).
-**Fix direction:** run `browser_scan` for Qasa with `pages=1` from the Sites page, read the run's
-`permission_denials` and log, adjust `allowed_tools`; use the VS Code launcher meanwhile.
+### Browser runs need a connected Claude in Chrome extension
+**Impact: medium.** The `browser_scan`, `site_onboarding` and `pet_agent_check` profiles drive your Chrome through
+the Claude in Chrome extension ([`config/agent.yaml`](../../config/agent.yaml)). When the extension is not
+connected or signed in to another claude.ai account, every browser tool answers "Browser extension is not
+connected" and the run closes as `failed`; `claude --chrome` then `/chrome` shows the connection. The VS Code
+launcher also needs Claude in Chrome turned on in the VS Code extension, otherwise its session has no browser tools.
+File permissions in the profiles must use `Edit(<path>)` rules (they cover Write too); a `Write(<path>)` rule
+alone was refused in a headless run.
+**Fix direction:** keep `permission_denials` on the Runs page as the check after each profile change; a
+connection check before launch (the CLI has no non-interactive one today) would turn these into a clear refusal.

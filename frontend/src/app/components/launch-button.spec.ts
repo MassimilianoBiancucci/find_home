@@ -9,7 +9,7 @@ import { StatusChip } from './status-chip';
 
 describe('fh-launch-button', () => {
   const make = (starter: () => any, launchers = ['cli', 'vscode'], def = 'cli') => {
-    TestBed.configureTestingModule({ imports: [LaunchButton], providers: [{ provide: ApiService, useValue: {} }] });
+    TestBed.configureTestingModule({ imports: [LaunchButton], providers: [{ provide: ApiService, useValue: { profiles: () => of({ items: [] }) } }] });
     const launch = TestBed.inject(LaunchService);
     const open = vi.spyOn(launch, 'open').mockImplementation(() => {});
     const copy = vi.spyOn(launch, 'copy').mockImplementation(() => {});
@@ -74,5 +74,28 @@ describe('fh-status-chip', () => {
     expect(chip.classList).toContain('fh-tone-bad');
     expect(chip.classList).toContain('fh-chip');
     expect(chip.querySelector('.fh-chip-dot')).toBeNull();
+  });
+
+  it('passes the chosen model with the launch and remembers it per action and site', () => {
+    localStorage.removeItem('fh.model.browser_scan.qasa');
+    const startAgent = vi.fn(() => of({ id: 'r9', profile: 'browser_scan', launcher: 'cli', status: 'running' }));
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ imports: [LaunchButton], providers: [{ provide: ApiService, useValue: {
+      startAgent,
+      profiles: () => of({ items: [{ name: 'browser_scan', command: 'claude', prompt_file: null, timeout_min: 30,
+        params: { model: { type: 'choice', choices: ['haiku', 'sonnet', 'opus'], default: 'sonnet' } } }] }),
+    } }] });
+    const f = TestBed.createComponent(LaunchButton);
+    f.componentRef.setInput('label', 'Browser agent');
+    f.componentRef.setInput('profile', 'browser_scan');
+    f.componentRef.setInput('params', { site: 'qasa', pages: 2 });
+    f.detectChanges();
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('.fh-split-via')?.textContent).toContain('Sonnet');          // the profile default
+    (f.componentInstance as any).pickModel('opus');
+    f.detectChanges();
+    (el.querySelector('button') as HTMLButtonElement).click();
+    expect(startAgent).toHaveBeenCalledWith('browser_scan', { site: 'qasa', pages: 2, model: 'opus' }, 'cli');
+    expect(localStorage.getItem('fh.model.browser_scan.qasa')).toBe('opus');
   });
 });

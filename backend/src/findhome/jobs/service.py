@@ -71,6 +71,8 @@ def _validate(settings: dict, job: dict) -> None:
         raise JobError(f"n must be between 1 and {job['max_n']}")
     if settings.get("launcher") not in (None, "cli", "vscode"):
         raise JobError("launcher must be cli or vscode")
+    if settings.get("model") not in (None, "", "haiku", "sonnet", "opus"):
+        raise JobError("model must be haiku, sonnet or opus")
 
 
 async def preview(conn, key: str, config_hash: str, settings: dict | None = None) -> dict:
@@ -260,4 +262,7 @@ async def undo(conn, item_id: int) -> dict:
 
 
 def agent_params(run: dict) -> dict[str, Any]:
-    return {"job_run": str(run["id"]), "n": int(run["settings"].get("n") or 1)}
+    params = {"job_run": str(run["id"]), "n": int(run["settings"].get("n") or 1)}
+    if run["settings"].get("model"):          # the job's chosen model; the profile's default otherwise
+        params["model"] = run["settings"]["model"]
+    return params

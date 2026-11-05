@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AgentRun, ScanRun } from './models';
-import { countsText, fmtAgo, fmtDuration, isLive, jobCountsText, statusLabel, statusTone, timeline } from './run-format';
+import { countsText, fmtAgo, fmtDuration, isLive, jobCountsText, statusLabel, statusTone, timeline, runVerdict } from './run-format';
 
 const scan = (id: string, at: string, extra: Partial<ScanRun> = {}): ScanRun => ({
   id, site_slug: 'qasa', method: 'agent_browser', trigger: 'agent', started_at: at, status: 'ok', counts: { seen: 40, new: 12, changed: 3 }, ...extra,
@@ -73,5 +73,17 @@ describe('timeline', () => {
     expect(a.cost).toBe('$0.43');
     expect(a.turns).toBe(12);
     expect(a.duration).toBe('5m');
+  });
+});
+
+describe('runVerdict', () => {
+  const base = { id: 'a', profile: 'p', command: 'claude', run_dir: 'r', started_by: 'app', started_at: '2026-11-05T10:00:00Z' };
+  it('never calls a clean exit without a verdict a success', () => {
+    expect(runVerdict({ ...base, status: 'ended_no_handover' } as any)?.tone).toBe('off');
+    expect(runVerdict({ ...base, status: 'error', outcome: 'failed' } as any)?.title).toBe('Failed.');
+    expect(runVerdict({ ...base, status: 'partial', outcome: 'partial' } as any)?.tone).toBe('mid');
+    expect(runVerdict({ ...base, status: 'ok', outcome: 'ok' } as any)?.tone).toBe('good');
+    expect(runVerdict({ ...base, status: 'ok', outcome: 'ok', result: { permission_denials: [{}] } } as any)?.tone).toBe('mid');
+    expect(runVerdict({ ...base, status: 'running' } as any)).toBeNull();
   });
 });

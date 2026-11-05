@@ -82,8 +82,11 @@ async def cancel(target: str):
 
 @router.patch("/agent-runs/{run_id}")
 async def close(run_id: str, body: dict, conn=Depends(get_conn)):
-    """Used by `findhome run close`: store the handover summary."""
-    await runs_repo.close_agent_run(conn, run_id, body.get("summary", ""))
+    """Used by `findhome run close`: store the handover and the agent's outcome (ok | partial | failed)."""
+    try:
+        await runs_repo.close_agent_run(conn, run_id, body.get("summary", ""), body.get("outcome") or "ok")
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
     return {"ok": True}
 
 

@@ -34,6 +34,7 @@ from findhome.digest.history import history_digest
 
 log = logging.getLogger(__name__)
 _running: dict[str, tuple[str, asyncio.Task]] = {}      # run id → (concurrency key, task)
+_needs_close: set[str] = set()                           # runs whose prompt asks the agent to `findhome run close`
 VSCODE_OPEN = "vscode://anthropic.claude-code/open?prompt="
 INSTALL_HINT = ("install Claude Code (curl -fsSL https://claude.ai/install.sh | bash), log in with /login, "
                 "or set FINDHOME_CLAUDE_BIN to the claude binary")
@@ -90,6 +91,10 @@ def resolve_params(bundle: ConfigBundle, profile, given: dict[str, Any] | None) 
                 raise AgentRunError(f"parameter '{name}' must be an integer") from exc
             if (lo is not None and value < lo) or (hi is not None and value > hi):
                 raise AgentRunError(f"parameter '{name}' must be between {lo or 1} and {hi}")
+        elif kind == "choice":
+            value = str(value)
+            if value not in (spec.get("choices") or []):
+                raise AgentRunError(f"parameter '{name}' must be one of {spec.get('choices')}")
         elif kind == "job_run":
             try:
                 value = str(uuid.UUID(str(value)))
@@ -192,6 +197,9 @@ async def start(bundle: ConfigBundle, profile_name: str, params: dict[str, Any] 
     argv = build_argv(profile, prompt, fill)
     argv[0] = command
     _running[run_id] = (key, asyncio.create_task(_supervise(run_id, profile, argv, run_dir, env)))
+    # a prompt that carries {run_id} tells the agent to close its run; exiting without it is not "ok"
+    if "{run_id}" in (profile.prompt or ""):
+        _needs_close.add(run_id)
     return {**out, "status": "running", "session_id": session_id}
 
 
@@ -251,6 +259,9 @@ def _append(path: Path, stream: str, text: str) -> None:
 
 async def _finish(run_id: str, status: str, exit_code: int | None, result: dict | None) -> None:
     async with pool().connection() as conn:
+        row = await runs_repo.get_agent_run(conn, run_id) or {}
+        status = runs_repo.status_for(status, row.get("outcome"), run_id in _needs_close, bool(row.get("summary")))
+        _needs_close.discard(run_id)
         await runs_repo.finish_agent_run(conn, run_id, status, exit_code, result)
 
 

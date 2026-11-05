@@ -465,8 +465,14 @@ def run_backfill_inbox():
 def run_close(run_dir: Optional[Path] = typer.Option(None, envvar="FINDHOME_RUN_DIR"),
               run: Optional[str] = typer.Option(None, "--run", envvar="FINDHOME_AGENT_RUN_ID", help="Agent run id"),
               summary: Optional[str] = typer.Option(None, "--summary",
-                                                    help="Handover text (default: the scratchpad's Handover section)")):
-    """Store the handover (the scratchpad's Handover section, or --summary) as the run summary."""
+                                                    help="Handover text (default: the scratchpad's Handover section)"),
+              outcome: str = typer.Option(..., "--outcome",
+                                          help="ok: the task is done · partial: part of it · failed: nothing useful "
+                                               "(blocked, refused, browser not connected)")):
+    """Store the handover (the scratchpad's Handover section, or --summary) and your verdict on the run."""
+    if outcome not in ("ok", "partial", "failed"):
+        typer.secho("--outcome must be ok, partial or failed", fg="red")
+        raise typer.Exit(1)
     if summary is None:
         if not run_dir:
             typer.secho("no handover: pass --summary, or --run-dir / FINDHOME_RUN_DIR with a scratchpad", fg="red")
@@ -476,8 +482,8 @@ def run_close(run_dir: Optional[Path] = typer.Option(None, envvar="FINDHOME_RUN_
     if not run and run_dir and (run_dir / ".run_id").exists():
         run = (run_dir / ".run_id").read_text().strip()
     if run:
-        _api().patch(f"/api/agent-runs/{run}", {"summary": summary})
-    typer.echo(f"closed {run or (run_dir.name if run_dir else '?')}: {len(summary)} chars of handover stored")
+        _api().patch(f"/api/agent-runs/{run}", {"summary": summary, "outcome": outcome})
+    typer.echo(f"closed {run or (run_dir.name if run_dir else '?')} as {outcome}: {len(summary)} chars of handover stored")
 
 
 @app.command()

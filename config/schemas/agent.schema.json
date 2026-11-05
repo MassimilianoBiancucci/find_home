@@ -62,7 +62,8 @@
                     "site",
                     "int",
                     "string",
-                    "job_run"
+                    "job_run",
+                    "choice"
                   ]
                 },
                 "required": {
@@ -87,6 +88,18 @@
                     "not_origin"
                   ],
                   "description": "the site must allow a browser scan / must not be origin-only"
+                },
+                "choices": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "description": "type choice: the allowed values (e.g. model aliases haiku, sonnet, opus)"
+                },
+                "label": {
+                  "type": "string",
+                  "description": "How the UI names the parameter"
                 }
               },
               "required": [

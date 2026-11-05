@@ -5,7 +5,7 @@ import { PetBadge } from '../components/pet-badge';
 import { SiteLogo } from '../components/site-logo';
 import { StatusChip } from '../components/status-chip';
 import { ScanRunListing } from '../models';
-import { TimelineItem, fmtCost, isLive, resumeUrl } from '../run-format';
+import { TimelineItem, fmtCost, isLive, resumeUrl, runVerdict } from '../run-format';
 import { ApiService, apiError } from '../services/api.service';
 
 /** Detail of one run in the Runs drawer: header facts, handover, counts, cost, denials, the live log, its listings. */
@@ -72,6 +72,11 @@ import { ApiService, apiError } from '../services/api.service';
       @for (e of errors(); track $index) { <div class="fh-inline-err mb-1" style="max-width:none"><span>{{ e }}</span></div> }
     </section>
   }
+  @if (it.agent; as a) {
+    @if (verdict(a); as v) {
+      <div class="fh-verdict" [class]="'fh-verdict fh-verdict-' + v.tone"><b>{{ v.title }}</b> {{ v.text }}</div>
+    }
+  }
   @if (it.agent?.summary) {
     <section class="fh-dsec"><h3>Handover</h3><div class="small" style="white-space:pre-wrap">{{ it.agent!.summary }}</div></section>
   }
@@ -116,6 +121,7 @@ import { ApiService, apiError } from '../services/api.service';
 })
 export class RunDrawer implements OnChanges, OnDestroy {
   private api = inject(ApiService);
+  protected verdict = runVerdict;
   readonly item = input.required<TimelineItem>();
   /** Open another run in the drawer (a parent or a child). */
   readonly open = output<{ agent?: string; scan?: string; job?: string }>();

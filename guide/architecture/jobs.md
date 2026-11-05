@@ -45,7 +45,7 @@ sequenceDiagram
     AG->>API: findhome jobs submit <job_run> <id> --pet ask --evidence "…"
     API->>API: set_pet(source agent), job_item before/after/outcome
   end
-  AG->>API: findhome run close
+  AG->>API: findhome run close --outcome ok|partial|failed
 ```
 
 | Step | Code |

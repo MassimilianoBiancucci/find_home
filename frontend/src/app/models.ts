@@ -120,6 +120,8 @@ export interface AgentRunResult {
   permission_denials?: { tool_name?: string; tool_input?: unknown; [k: string]: unknown }[]; [k: string]: unknown;
 }
 export interface AgentRun {
+  /** The agent's own verdict when it closed the run (findhome run close --outcome). */
+  outcome?: 'ok' | 'partial' | 'failed' | null;
   id: string; profile: string; command: string; run_dir: string; started_by: string; started_at: string; finished_at?: string | null;
   status: AgentRunStatus | string; exit_code?: number | null; log_path?: string | null; summary?: string | null;
   launcher?: 'cli' | 'vscode' | 'manual' | 'desktop' | string | null;
@@ -137,7 +139,7 @@ export interface ScanRunListing { short_id: string; title?: string | null; area?
 export interface ScanRunDetail extends ScanRun { listings: ScanRunListing[]; }
 export interface RunsTimeline { agent_runs: AgentRun[]; scan_runs: ScanRun[]; }
 
-export interface ProfileParam { type: string; required?: boolean; min?: number; max?: number; default?: unknown; site_needs?: string; from_site?: string; }
+export interface ProfileParam { type: string; required?: boolean; min?: number; max?: number; default?: unknown; site_needs?: string; from_site?: string; choices?: string[]; label?: string; }
 export interface AgentProfile {
   name: string; label?: string | null; kind?: string | null; command: string; prompt_file: string | null;
   params?: Record<string, ProfileParam>; launchers?: Launcher[]; timeout_min: number;
@@ -153,7 +155,7 @@ export interface JobSubset {
   passes_hard_filters?: boolean; order?: 'score_desc' | 'newest' | 'oldest'; short_ids?: string[];
   exclude_checked_within_days?: number | null; status?: string[];
 }
-export interface JobSettings { subset: JobSubset; n: number; launcher?: Launcher; }
+export interface JobSettings { subset: JobSubset; n: number; launcher?: Launcher; /** Agent jobs: model alias (haiku | sonnet | opus); the profile's default when unset. */ model?: string; }
 export interface JobRunBrief { id: string; status: string; counts: Record<string, number>; started_at: string; finished_at?: string | null; agent_run_id?: string | null; }
 export interface Job {
   key: string; type: string; label: string; settings: JobSettings; enabled: boolean; runs?: number; recent_errors?: number;

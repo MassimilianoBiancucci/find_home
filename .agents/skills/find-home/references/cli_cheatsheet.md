@@ -21,7 +21,7 @@ output. Everything except `db`, `config validate|hash|show|schema` and `run new`
 | `site probe <url> --slug s [--browser] [--name]` | onboarding probe (no LLM) | recommended method + files written |
 | `config validate` | schemas + cross-file checks | `config valid` or the list of problems |
 | `config schema ingest --markdown` | the data contract | Markdown tables |
-| `run new [profile] [--kind k] [--site s]` / `run close [--run id] [--summary text]` | run folder with scratchpad + digest / store the handover (scratchpad Handover or `--summary`) | env lines / one line |
+| `run new [profile] [--kind k] [--site s]` / `run close [--run id] [--outcome ok\|partial\|failed] [--summary text]` | run folder with scratchpad + digest / store the handover (scratchpad Handover or `--summary`) and your verdict on the run | env lines / one line |
 | `run attach <id>` | mark the run the app registered for you (`run=<id>` in your prompt) as started by this session | env lines |
 | `run backfill-inbox` | record runs for past browser scans in `inbox/processed` that have none (idempotent) | one line per scan |
 | `jobs list` | jobs with their last execution | one line per job |

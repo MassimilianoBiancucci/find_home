@@ -1,53 +1,64 @@
 # yaml-language-server: $schema=../../config/schemas/site.schema.json
 # ─────────────────────────────────────────────────────────────
-#  Samtrygg — browser-only, waiting for its onboarding session (prompts/site_onboarding.md, started
-#  from the Sites page with the "site_onboarding" profile, in your Chrome).
+#  Samtrygg — browser-only, onboarded 2026-11-05 with the site_onboarding profile in your Chrome.
 #  Probe 2026-11-05: plain GETs are answered (no bot protection), but robots.txt disallows the search
 #  pages (/RentalObject/Search, /RentalObject/NewSearch) and the city page /hyra-bostad/stockholm is
 #  filled by JavaScript. So no scripted scanner: the onboarding writes sites/samtrygg/extract.js that
-#  reads the RENDERED city page, plus to_listing() in scanner.py, then turns scan.browser on.
+#  reads the RENDERED city page (the newest 6 listings), and to_listing() in scanner.py.
 #  Each listing shows a "Husdjur ok" badge: extract.js returns it as the site's pet flag.
 # ─────────────────────────────────────────────────────────────
 slug: samtrygg
 name: Samtrygg
 url: https://www.samtrygg.se
 kinds: [rent]
-status: unverified
+status: active
 role: scanned
 brand: {logo: null, colour: "#2a7de1"}
 scan:
   script: {enabled: false, reason: "robots.txt disallows the search pages; listings are rendered by JavaScript"}
-  browser: {enabled: false, reason: "not onboarded yet: run the onboarding to create extract.js", extractor: extract.js,
-            default_pages: 3, max_pages: 5}
-last_verified: '2026-11-05 (probe: robots.txt + home + city page; no listing data in the HTML)'
+  browser:
+    enabled: true
+    extractor: extract.js
+    default_pages: 3
+    max_pages: 10               # per move-in date: the cards for a date span several pages (next-page control)
+    inputs:
+      - filter: move_in_from
+        label: Önskat tillträde
+        selector: '#s-from'
+        how: >-
+          Click the "Önskat tillträde" field and pick the date in the date picker (month arrows, then the day);
+          wait until the cards change before running extract.js. UNVERIFIED: whether the cards update in place
+          or the page moves to a search URL.
+    next_page:
+      label: next page
+      selector: null            # UNVERIFIED: record it after the first scan (pagination under the cards)
+      how: >-
+        After extracting, click the control under the cards that shows the next page of results (an arrow, "Nästa"
+        or the next page number) and wait until the cards change. No such control, or it is disabled: this was the
+        last page for the date.
+    avoid_paths: [/RentalObject/Search, /RentalObject/NewSearch]   # robots.txt; also with query parameters
+last_verified: '2026-11-05 (onboarding run da20c0f5: extract.js on the rendered city page, 6 listings imported)'
 fetch:
   order: [api, http, playwright, agent_browser]
   method: agent_browser
   list_url_template: https://www.samtrygg.se/hyra-bostad/stockholm   # allowed by robots.txt
   api: {endpoint: null, method: GET, items_path: null, body: null}
-  selectors:                   # http method: CSS relative to the item; "css@attr" for attributes
-    item: null
-    external_id: null
-    url: null
-    title: null
-    rent_sek: null
-    size_m2: null
-    rooms: null
-    address_raw: null
-    area: null
-  pagination: {type: page_param, param: page, max_pages: 5}
+  selectors: {}                 # not used: extract.js reads the rendered cards (article.listing-card)
+  pagination: {type: none}      # one URL: pages are reached in the page (scan.browser.next_page) after setting the date
 filter_map:                     # canonical key (config/filters_catalog.yaml) → param | ui_step | local_only
   max_rent_sek: {param: null, local_only: true}
   min_size_m2: {param: null, local_only: true}
   min_rooms_rok: {param: null, local_only: true}
-  pets_allowed: {param: null, local_only: true, note: verify whether the site exposes a pet filter}
+  pets_allowed: {param: null, local_only: true, note: no pet filter on the city page; cards carry a Husdjur ok tag}
   areas_include: {param: null, local_only: true}
   contract_types: {param: null, local_only: true}
-  move_in_from: {param: null, local_only: true}
+  move_in_from: {param: null, ui_step: 'set Önskat tillträde (#s-from) to each date of the move-in window (scan.browser.inputs)'}
 field_map: {}                   # api method: ListingIn field → JSON path, e.g. rent_sek: price.amount
-pets: {filter_available: unknown, typical_wording: []}
+pets: {filter_available: 'no', typical_wording: [Husdjur ok]}
 auth: {mode: none}              # none | browser_session (agent uses your logged-in browser; never store credentials)
 politeness: {min_delay_s: 3, max_pages_per_run: 10, respect_robots: true, user_agent: findhome/0.1 (personal use)}
-schedule: {interval: null}      # read by an external scheduler (Claude/Codex); the app never schedules
+schedule: {interval: null}      # the page shows only the newest 6: scan often (by hand) to catch new ones
 notes: >-
-  Second-hand rentals with landlord vetting and contract handling. Hypothesis: public result list, pets shown on listing pages.
+  Second-hand rentals with landlord vetting and contract handling. The robots-allowed city page shows the newest 6
+  listings; with a move-in date ("Önskat tillträde") the results span several pages. A browser scan tries every
+  month of your move-in window and pages through each. Cards carry a "Husdjur ok" tag when pets are allowed.

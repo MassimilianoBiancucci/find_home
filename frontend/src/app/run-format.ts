@@ -161,3 +161,21 @@ export function timeline(agentRuns: AgentRun[], scanRuns: ScanRun[], l: Lookups 
 
 /** vscode:// link that reopens a Claude Code session in VS Code. */
 export const resumeUrl = (sessionId: string) => `vscode://anthropic.claude-code/open?session=${encodeURIComponent(sessionId)}`;
+
+/** What a finished agent run achieved, in one line: the agent's own verdict first, then what the app saw. */
+export function runVerdict(a: AgentRun): { tone: 'good' | 'mid' | 'bad' | 'off'; title: string; text: string } | null {
+  const denials = a.result?.permission_denials?.length ?? 0;
+  const denied = denials ? ` ${denials} tool call${denials > 1 ? 's were' : ' was'} refused (see below).` : '';
+  if (a.status === 'running' || a.status === 'waiting') return null;
+  if (a.outcome === 'failed' || (a.status === 'error' && a.outcome !== 'partial'))
+    return { tone: 'bad', title: 'Failed.', text: (a.outcome === 'failed' ? 'The agent reported it could not do the task.' : 'The agent process failed.') + denied };
+  if (a.outcome === 'partial' || a.status === 'partial')
+    return { tone: 'mid', title: 'Partly done.', text: 'The agent stopped before finishing.' + denied };
+  if (a.status === 'ended_no_handover')
+    return { tone: 'off', title: 'Ended without a verdict.', text: 'The agent exited without closing its run: check the handover and the log.' + denied };
+  if (a.status === 'timeout' || a.status === 'cancelled' || a.status === 'expired')
+    return { tone: 'off', title: `${a.status[0].toUpperCase()}${a.status.slice(1)}.`, text: denied.trim() };
+  if (a.status === 'ok')
+    return { tone: denials ? 'mid' : 'good', title: 'Done.', text: (a.outcome === 'ok' ? 'The agent reported the task done.' : 'Finished.') + denied };
+  return null;
+}

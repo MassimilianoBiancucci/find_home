@@ -32,8 +32,10 @@ the Claude desktop browser, or Playwright).
 These profiles in `config/agent.yaml` drive **your** Chrome through the Claude in Chrome extension. Each grants
 its permissions on its own command line, so they affect only that run:
 
-- `--chrome`: Claude Code with Claude in Chrome. `--model haiku` for the scan and the pet check (procedural
-  prompts), the default model for onboarding.
+- `--chrome`: Claude Code with Claude in Chrome.
+- `--model {model}`: a launch parameter, chosen per run in the launch button's menu (remembered per action and
+  site) or in a job's settings: Haiku, Sonnet (default for scans and the pet check) or Opus (default for
+  onboarding). Pages with date pickers and in-page paging need at least Sonnet.
 - `--strict-mcp-config`: only Claude in Chrome is loaded, none of your account's other connectors.
 - `--permission-mode dontAsk`: anything not allowed is refused instead of waiting on a prompt nobody sees.
 - `--allowedTools`: the browser tools the prompt uses, `scripts/findhome run attach|close` (plus `jobs next|submit`

@@ -130,10 +130,29 @@ async def attach_agent_run(conn, run_id: str, session_id: str | None) -> dict | 
                       (session_id, run_id))
 
 
-async def close_agent_run(conn, run_id: str, summary: str) -> None:
-    await conn.execute("""UPDATE agent_runs SET summary = %s, finished_at = coalesce(finished_at, clock_timestamp()),
-                                 status = CASE WHEN status IN ('running','waiting') THEN 'ok' ELSE status END
-                          WHERE id = %s""", (summary[:4000], run_id))
+OUTCOME_STATUS = {"ok": "ok", "partial": "partial", "failed": "error"}
+
+
+def status_for(process_status: str, outcome: str | None, needs_close: bool, closed: bool) -> str:
+    """A run's final status. The process status wins when the process failed (error, timeout, cancelled); after a
+    clean exit the agent's declared outcome decides, and an agent that was asked to close its run but did not
+    ended without a handover. A clean exit alone is never proof the work was done."""
+    if process_status != "ok":
+        return process_status
+    if outcome:
+        return OUTCOME_STATUS[outcome]
+    return "ended_no_handover" if needs_close and not closed else "ok"
+
+
+async def close_agent_run(conn, run_id: str, summary: str, outcome: str = "ok") -> None:
+    """`findhome run close`: the handover and the agent's own verdict (ok | partial | failed)."""
+    if outcome not in OUTCOME_STATUS:
+        raise ValueError("outcome must be ok, partial or failed")
+    await conn.execute("""UPDATE agent_runs SET summary = %s, outcome = %s,
+                                 finished_at = coalesce(finished_at, clock_timestamp()),
+                                 status = CASE WHEN status IN ('running','waiting','ok','ended_no_handover') THEN %s
+                                               ELSE status END
+                          WHERE id = %s""", (summary[:4000], outcome, OUTCOME_STATUS[outcome], run_id))
 
 
 async def session_ended(conn, session_id: str, transcript_path: str | None, reason: str | None) -> dict | None:

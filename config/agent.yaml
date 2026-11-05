@@ -19,7 +19,9 @@ profiles:
     params:
       job_run: {type: job_run, required: true}
       n: {type: int, min: 1, max: 50, default: 10}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: sonnet, label: Model}
     allowed_tools:
+      - Read
       - mcp__claude-in-chrome__tabs_context_mcp
       - mcp__claude-in-chrome__tabs_create_mcp
       - mcp__claude-in-chrome__navigate
@@ -32,7 +34,7 @@ profiles:
       - Bash(scripts/findhome jobs submit:*)
     max_turns: 10
     turns_per: {param: n, turns: 5}
-    args: ["-p", "{prompt}", "--model", "haiku", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
            "--output-format", "stream-json", "--verbose"]
     launchers: [cli, vscode]
@@ -62,7 +64,7 @@ profiles:
   # --strict-mcp-config keeps only Claude in Chrome. See guide/documentation/agent-permissions.md.
   # Launchers: cli = the app runs it headless; vscode = the app opens a prefilled Claude Code tab in VS Code.
   browser_scan:
-    label: Browser agent - scan a site (Claude in Chrome, Haiku)
+    label: Browser agent - scan a site (Claude in Chrome)
     kind: scan
     command: claude
     prompt: >-
@@ -71,19 +73,24 @@ profiles:
     params:
       site: {type: site, required: true, site_needs: browser}
       pages: {type: int, min: 1, from_site: browser_pages}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: sonnet, label: Model}
     allowed_tools:
+      - Read
       - mcp__claude-in-chrome__tabs_context_mcp
       - mcp__claude-in-chrome__tabs_create_mcp
       - mcp__claude-in-chrome__navigate
       - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__form_input
+      - mcp__claude-in-chrome__computer
       - mcp__claude-in-chrome__tabs_close_mcp
       - Bash(scripts/findhome run attach:*)
       - Bash(scripts/findhome run close:*)
       - Write(./inbox/**)
       - Edit(./inbox/**)
-    max_turns: 12
-    turns_per: {param: pages, turns: 4}
-    args: ["-p", "{prompt}", "--model", "haiku", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+    max_turns: 40               # room for search inputs (e.g. 5 move-in dates × date picker clicks)
+    turns_per: {param: pages, turns: 12}   # per page: next-page click + extract + file, for every input set
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
            "--output-format", "stream-json", "--verbose"]
     launchers: [cli, vscode]
@@ -95,11 +102,22 @@ profiles:
     command: claude
     prompt: >-
       Use the find-home skill: follow .agents/skills/find-home/prompts/site_onboarding.md for site={site}
-      (run={run_id}). Start with `scripts/findhome run attach {run_id}` and end with `scripts/findhome run close`.
-      Read pages in my Chrome only; never look for private endpoints or get around a site's protection.
+      (run={run_id}). Start with `scripts/findhome run attach {run_id}`. Read files with the Read tool (never cat,
+      ls or curl); in Bash run only `scripts/findhome …`, one command per call. What the probe found (robots.txt,
+      where the data is) is in sites/{site}/site.yaml: do not fetch it again. Next call `tabs_context_mcp`: if the
+      browser is not connected, stop at once with `scripts/findhome run close --run {run_id} --outcome failed
+      --summary "<the exact message>"`. Read pages as text (get_page_text, find, read_page, JavaScript), not
+      screenshots. Read pages in my Chrome only; never look for private endpoints or get around
+      a site's protection. End with `scripts/findhome run close --run {run_id} --outcome ok|partial|failed --summary
+      "<3-6 lines>"`: ok only when extract.js works and the site is verified, partial when something is left to
+      do, failed when nothing could be done.
     params:
       site: {type: site, required: true, site_needs: not_origin}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: opus, label: Model}
     allowed_tools:
+      - Read
+      - Glob
+      - Grep
       - mcp__claude-in-chrome__tabs_context_mcp
       - mcp__claude-in-chrome__tabs_create_mcp
       - mcp__claude-in-chrome__navigate
@@ -112,9 +130,10 @@ profiles:
       - Write(./sites/**)
       - Edit(./sites/**)
       - Write(./inbox/**)
+      - Edit(./inbox/**)
       - Edit(./runs/**)
     max_turns: 80
-    args: ["-p", "{prompt}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
            "--output-format", "stream-json", "--verbose"]
     launchers: [vscode, cli]

@@ -124,6 +124,43 @@ def scan_urls(site, bundle, pages: int | None = None) -> list[str]:
     return [q.url for q in HttpListScanner(site, save_raw=False).build_queries(params, limit)]
 
 
+def move_in_sweep(start, end) -> list[str]:
+    """Dates to try in a site's move-in field: move_in_from, then the 1st of every following month up to move_in_to."""
+    from datetime import date
+
+    def as_date(v):
+        return v if isinstance(v, date) else date.fromisoformat(str(v)) if v else None
+    a, b = as_date(start), as_date(end)
+    if not a or not b or b < a:
+        return []
+    out, cur = [a], date(a.year + (a.month == 12), a.month % 12 + 1, 1)
+    while cur <= b:
+        out.append(cur)
+        cur = date(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
+    return [d.isoformat() for d in out]
+
+
+def browser_inputs(site, bundle) -> dict[str, Any]:
+    """The search inputs a browser scan sets on the result page and every combination of values to try, from the
+    profile (scan.browser.inputs). The app computes them so the agent never invents a value (e.g. today)."""
+    cap = (site.scan or {}).get("browser") or {}
+    inputs = cap.get("inputs") or []
+    paging = {"next_page": cap["next_page"]} if cap.get("next_page") else {}
+    if not inputs:
+        return paging
+    hf = dict(bundle.profile.kinds[site.kinds[0]].hard_filters) if bundle and site.kinds[0] in bundle.profile.kinds else {}
+    sets: list[dict[str, str]] = [{}]
+    missing = []
+    for inp in inputs:
+        if inp.get("filter") == "move_in_from":
+            dates = move_in_sweep(hf.get("move_in_from"), hf.get("move_in_to"))
+            if not dates:
+                missing.append("move_in_from / move_in_to")
+            sets = [{**s, inp["label"]: d} for s in sets for d in dates]
+    return {"inputs": inputs, "input_sets": [] if missing else sets, "avoid_paths": cap.get("avoid_paths") or [],
+            "inputs_missing": missing, **paging}
+
+
 async def write_state(conn, bundle=None) -> None:
     """runs/state/<site>.json for every registered site: newest publishedAt seen (sites that report it),
     counts, and the scan URLs to open in a browser."""
@@ -145,8 +182,11 @@ async def write_state(conn, bundle=None) -> None:
             "method": site.fetch.get("method") if site else None,
             "known_listings": r.get("n", 0), "last_published": r.get("last_published"),
             "last_seen": r["last_seen"].isoformat() if r.get("last_seen") else None,
-            "scan_urls": scan_urls(site, bundle) if site and site.status == "active" else [],
-            "updated_at": datetime.now(UTC).isoformat()}, indent=2, ensure_ascii=False), encoding="utf-8")
+            # active sites, and browser sites waiting for their verification scan (unverified, browser on)
+            "scan_urls": scan_urls(site, bundle) if site and (site.status == "active" or (
+                site.status == "unverified" and site.browser_scan()[0])) else [],
+            **(browser_inputs(site, bundle) if site else {}),
+            "updated_at": datetime.now(UTC).isoformat()}, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
 
 async def import_all(pool) -> list[dict[str, Any]]:

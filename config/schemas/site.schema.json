@@ -117,6 +117,76 @@
             "max_pages": {
               "type": "integer",
               "minimum": 1
+            },
+            "inputs": {
+              "type": "array",
+              "description": "Search inputs on the result page the agent sets before extracting; the app computes the values to try (runs/state/<site>.json input_sets)",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "filter",
+                  "label"
+                ],
+                "properties": {
+                  "filter": {
+                    "enum": [
+                      "move_in_from"
+                    ],
+                    "description": "Profile filter the values come from (move_in_from: one date per month of move_in_from..move_in_to)"
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "The field's visible label"
+                  },
+                  "selector": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "CSS selector of the field"
+                  },
+                  "how": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "How to set it in the browser (clicks, date picker)"
+                  }
+                }
+              }
+            },
+            "avoid_paths": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "URL paths the agent must not read (e.g. robots-disallowed search pages): if an input leads there, go back and report"
+            },
+            "next_page": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Result pages reached in the page itself (a next-page control after the inputs are set) instead of one URL per page",
+              "properties": {
+                "label": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "selector": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "how": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
             }
           }
         }

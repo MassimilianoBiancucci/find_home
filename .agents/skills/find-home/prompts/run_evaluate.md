@@ -26,4 +26,4 @@ stop:    budget reached · 30 minutes
 5. `scripts/findhome ingest evaluations -f $FINDHOME_RUN_DIR/evaluations.json`.
 6. Do not change statuses yourself, except `rejected` with `--actor agent` when a hard fact rules it out
    (explicit no pets, fewer rooms than allowed); record a dislike with tags for it.
-7. Handover: the 3 most promising, the rejections with reasons, open questions. `scripts/findhome run close`.
+7. Handover: the 3 most promising, the rejections with reasons, open questions. `scripts/findhome run close --outcome ok|partial|failed`.

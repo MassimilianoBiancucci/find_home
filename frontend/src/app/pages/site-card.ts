@@ -124,26 +124,28 @@ export const lastScanError = (s: Site): string | null => s.last_error ?? (s.last
       @if (s.role === 'origin') {
         <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/candidates']" [queryParams]="{ origin: s.slug }">Its homes in Candidates →</a>
       } @else {
-        <div class="fh-foot-row">
+        <!-- a 2 × 2 grid: the same four slots on every card, every control the same height -->
+        <div class="fh-foot-grid">
           <button class="btn btn-sm btn-primary" [disabled]="!sc?.script?.enabled || !!busy()" (click)="scan(false)"
                   [title]="sc?.script?.enabled ? 'Scripted scan now' : 'Not available: ' + sc?.script?.reason">
             @if (busy() === 'scan') { <span class="spinner-border spinner-border-sm me-1"></span> }Scan (script)</button>
           <button class="btn btn-sm btn-outline-secondary" [disabled]="!sc?.script?.enabled || !!busy()" (click)="scan(true)"
                   [title]="sc?.script?.enabled ? 'One page, nothing stored' : 'Not available: ' + sc?.script?.reason">
             @if (busy() === 'dry') { <span class="spinner-border spinner-border-sm me-1"></span> }Dry run</button>
-        </div>
-        <div class="fh-foot-row">
-          @if (sc?.browser?.enabled) {
-            <fh-pages-stepper [(value)]="pages" [max]="sc!.browser.max_pages" title="Result pages the agent reads" />
+          <fh-pages-stepper [(value)]="pages" [max]="sc?.browser?.max_pages || 1"
+                            [disabled]="!sc?.browser?.enabled || (sc?.browser?.max_pages || 1) <= 1"
+                            [title]="!sc?.browser?.enabled ? 'No browser scan for this site'
+                                     : (sc?.browser?.max_pages || 1) <= 1 ? 'This site has a single result page (see its notes): one page per scan'
+                                     : 'Result pages the agent reads (up to ' + sc?.browser?.max_pages + ')'" />
+          @if (!sc?.browser?.enabled && canOnboard()) {
+            <fh-launch-button label="Onboard" profile="site_onboarding" [params]="{ site: s.slug }" defaultLauncher="vscode" errorMode="toast"
+                              [launchers]="['vscode', 'cli']" variant="outline" [block]="true" (started)="launched.emit()" />
+          } @else {
             <fh-launch-button label="Browser agent" profile="browser_scan" [params]="{ site: s.slug, pages: pages() }" errorMode="toast"
-                              [disabled]="!!live()" [reason]="live() ? 'A run is already in progress for this site' : null"
+                              [block]="true" [disabled]="!sc?.browser?.enabled || !!live()"
+                              [reason]="!sc?.browser?.enabled ? 'Not available: ' + sc?.browser?.reason : live() ? 'A run is already in progress for this site' : null"
                               (started)="launched.emit()" />
           }
-          @if (canOnboard()) {
-            <fh-launch-button label="Onboard" profile="site_onboarding" [params]="{ site: s.slug }" defaultLauncher="vscode" errorMode="toast"
-                              [launchers]="['vscode', 'cli']" variant="outline" (started)="launched.emit()" />
-          }
-          @if (!sc?.browser?.enabled && !canOnboard()) { <span class="small text-body-secondary">No browser agent for this site.</span> }
         </div>
       }
     </div>

@@ -7,7 +7,8 @@ The tenant has two cats. You read pages in the user's own Chrome; you change not
 
 Do exactly these steps. Do not log in, do not contact anyone, do not open pages other than the listing URLs you
 are given. Use only these browser actions: list/create tabs, navigate, get page text, find, close the tab you
-opened. Never try to get around a refusal, a CAPTCHA or a login wall.
+opened. In Bash run only `scripts/findhome …` commands, one per call; read files with the Read tool (never cat, ls
+or curl). Never try to get around a refusal, a CAPTCHA or a login wall.
 
 1. Run `scripts/findhome run attach <run>`.
 2. Open one new browser tab (Claude in Chrome: `tabs_context_mcp`, then `tabs_create_mcp`).
@@ -24,7 +25,10 @@ opened. Never try to get around a refusal, a CAPTCHA or a login wall.
    d. Run `scripts/findhome jobs submit <job_run> <short_id> --pet <yes|no|ask|unknown> --evidence "<exact quote>" --url "<url>"`.
       The quote is copied from the page, at most one or two sentences. For `unknown` omit `--evidence`.
 4. Close the tab you opened.
-5. Run `scripts/findhome run close --run <run> --summary "<n> listings checked: <x> yes, <y> no, <z> ask, <u> unknown. <problems>"`.
+5. Run `scripts/findhome run close --run <run> --outcome <outcome> --summary "<n> listings checked: <x> yes, <y> no, <z> ask, <u> unknown. <problems>"`
+   with `<outcome>`: `ok` when `jobs next` said done or you checked `<N>` listings, `partial` when you had to stop
+   earlier, `failed` when you could not check any.
 6. Reply with the same summary. Nothing else.
 
-If a browser tool is refused or says the browser is not connected, run step 5 with that exact message, then stop.
+If a browser tool is refused or says the browser is not connected: run
+`scripts/findhome run close --run <run> --outcome failed --summary "<the exact message>"`, then stop.

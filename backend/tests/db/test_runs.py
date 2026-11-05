@@ -135,3 +135,22 @@ def test_vscode_launcher_registers_a_waiting_run(client):
     from findhome.core.paths import repo_root
     for rid in (body["id"], other["id"]):
         shutil.rmtree(repo_root() / client.get(f"/api/agent-runs/{rid}").json()["run_dir"], ignore_errors=True)
+
+
+def test_status_comes_from_the_agents_outcome_not_the_exit_code():
+    from findhome.db.runs_repo import status_for
+
+    assert status_for("ok", None, needs_close=True, closed=False) == "ended_no_handover"   # exited, never closed
+    assert status_for("ok", "failed", needs_close=True, closed=True) == "error"
+    assert status_for("ok", "partial", needs_close=True, closed=True) == "partial"
+    assert status_for("ok", "ok", needs_close=True, closed=True) == "ok"
+    assert status_for("ok", None, needs_close=False, closed=False) == "ok"                 # profiles that never attach
+    assert status_for("timeout", "ok", needs_close=True, closed=True) == "timeout"          # a process failure wins
+
+
+def test_run_close_with_outcome(client):
+    run_id = client.post("/api/agent-runs/register", json={"profile": "p", "run_dir": "runs/o"}).json()["id"]
+    assert client.patch(f"/api/agent-runs/{run_id}", json={"summary": "x", "outcome": "nope"}).status_code == 422
+    client.patch(f"/api/agent-runs/{run_id}", json={"summary": "Browser extension is not connected", "outcome": "failed"})
+    run = client.get(f"/api/agent-runs/{run_id}").json()
+    assert run["status"] == "error" and run["outcome"] == "failed"
