@@ -426,6 +426,8 @@ Each index comes with a **derivation**: rows of measured input → score 0..1 ×
 `density.per_homes`) and per km² ([`density()`](../../backend/src/findhome/zone/analysis.py#L199)).
 
 Without GTFS departures, `frequency` is missing and `lines` counts every line at the reachable stops.
+`GET /api/zone/region` returns the analysed area (the union of all zones, simplified to ~20 m) and a mask
+of everything outside it, for the maps that grey out what the app does not analyse.
 `GET /api/zone/{id}/indices` computes a zone once per inputs version (a few seconds) and stores it in `zone_index`.
 `GET /api/zone/indices?window=` returns every stored zone's transport, services and combined values and its density
 values, each with a percentile ([`all_indices()`](../../backend/src/findhome/api/routers/zone.py#L39),

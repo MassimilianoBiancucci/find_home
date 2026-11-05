@@ -80,6 +80,17 @@ export class HouseLayerService {
   }
 
   setTransit(t: TransitResult | null): void { this.transit = t; this.update(); }
+
+  /** Zoom out to the house, your points ([lon, lat]) and the transit legs: how far they are and where the lines run. */
+  fitAll(points: number[][]): void {
+    const map = this.state.map(), loc = this.loc;
+    if (!map || !loc) return;
+    const pts: number[][] = [[loc.lon, loc.lat], ...points];
+    for (const f of transitFeatures(this.transit).features) pts.push(...(f.geometry as any).coordinates);
+    const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
+      { padding: 80, maxZoom: 15, pitch: 45, duration: 1200 });
+  }
   setRoutes(v: RouteView): void { this.routes.set(v); this.update(); }
   setOnlyPoint(id: string | null): void { this.onlyPoint.set(id); this.update(); }
 

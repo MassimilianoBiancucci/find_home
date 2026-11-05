@@ -110,6 +110,32 @@ async def listing_stats(statuses: str | None = None, seen: Literal["active", "go
             "points": points}                     # [lon, lat] of the counted listings (density heatmap)
 
 
+_region: dict[int, dict] = {}
+
+
+@router.get("/region")
+async def region():
+    """The area the app analyses: the union of every zone's outline, and a mask (the world minus that area) to grey
+    out what lies outside. Simplified to ~20 m; computed once per zone set."""
+    zones = _zones_or_404()
+    key = id(zones)
+    if key not in _region:
+        def build() -> dict:
+            from shapely.geometry import box, mapping
+            from shapely.ops import unary_union
+            from shapely.validation import make_valid
+
+            from findhome.geo.crs import to_wgs84
+
+            area = unary_union([make_valid(z.geom).buffer(0) for z in zones.zones.values()]).buffer(1).buffer(-1)
+            outline = to_wgs84(area.simplify(20))
+            mask = box(-179, -85, 179, 85).difference(outline)
+            return {"zones": len(zones.zones), "outline": mapping(outline), "mask": mapping(mask)}
+        _region.clear()
+        _region[key] = await asyncio.to_thread(build)
+    return _region[key]
+
+
 async def stored_zone_indices(conn, b, zones, zone_id: str) -> dict:
     """A zone's indices from zone_index, computed and stored first when missing (a few seconds, no API calls).
     Raises za.MissingData when a dataset is not built."""

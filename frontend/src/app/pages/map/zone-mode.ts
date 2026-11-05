@@ -88,6 +88,9 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
         </div>
         <fh-info id="house.routes" />
       </div>
+      <button class="btn btn-sm btn-outline-secondary mb-2" [disabled]="!yourPoints().length" (click)="houseLayer.fitAll(yourPoints())"
+        title="Zoom out to the home, your points and the transit routes (Compute transit routes draws them)">
+        ⤢ Home, your points{{ travel.results()[h.listing.short_id] ? ' and routes' : '' }}</button>
       <fh-house-home [loc]="h" [transit]="travel.results()[h.listing.short_id] ?? null" />
       <fh-house-travel [loc]="h" />
       <hr class="my-3" />
@@ -224,6 +227,8 @@ export class ZoneMode {
   protected house = signal<HouseLocation | null>(null);
   protected houseError = signal('');
   protected fullscreen = signal(false);
+  /** Your points' coordinates (locations.yaml), for "Home, your points and routes". */
+  protected yourPoints = signal<number[][]>([]);
   private houseFor: string | null = null;
   protected routeViews: { id: RouteView; label: string }[] = [{ id: 'walk', label: 'Walk' }, { id: 'transit', label: 'Transit' }, { id: 'both', label: 'Both' }];
 
@@ -277,6 +282,8 @@ export class ZoneMode {
         this.house.set(loc);
         this.zone.select(zoneId, [loc.lon, loc.lat]);
         this.houseLayer.show(loc, this.travel.result(listing));
+        if (!this.yourPoints().length) this.api.mapPoints().subscribe({
+          next: (p) => this.yourPoints.set(p.features.filter((f: any) => f.geometry).map((f: any) => f.geometry.coordinates)), error: () => undefined });
         if (this.query()?.get('fs') === '1') this.toggleFullscreen(true);
       },
       error: (e) => { this.houseError.set(apiError(e)); this.houseFor = null; this.zone.select(zoneId); },

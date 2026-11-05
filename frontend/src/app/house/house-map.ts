@@ -2,13 +2,16 @@ import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, i
 import { Router } from '@angular/router';
 import type { GeoJSONSource, Map as MlMap, Popup, StyleSpecification } from 'maplibre-gl';
 import { InfoButton } from '../components/info';
-import { blipId, installBlip } from '../components/map-icons';
+import { blipExpr, blipId, installBlip, installObject, installPin } from '../components/map-icons';
 import { toneColor, walkTone } from '../format';
 import { HouseLocation } from '../models';
 import { applyDarkWater } from '../pages/map/dark-style';
 import { ApiService } from '../services/api.service';
 import { ThemeService } from '../services/theme.service';
 import { setColour } from '../set-colours';
+import { TARGET_ICONS, targetIconId } from '../pages/map/zone.service';
+import { transitFeatures } from '../pages/map/house-layer.service';
+import { HouseTravelStore } from './house-travel.store';
 
 const ACCENT = '#b45cf0';
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
@@ -62,13 +65,17 @@ export function houseMapFeatures(loc: HouseLocation): { pois: FC; walks: FC; lab
         }
       </div>
     } @else if (outside()) {
-      <div class="fh-hnote">This home is outside the zones the app has mapped: its position only, without services or walking paths (the walking network covers the mapped zones).</div>
+      <div class="fh-hnote">Grey on the map: outside the area the app analyses.
+      This home is outside the zones the app has mapped: its position only, without services or walking paths (the walking network covers the mapped zones).</div>
     }
     <div class="d-flex gap-2 align-items-center mt-2">
       <button type="button" class="btn btn-sm btn-primary" [disabled]="!loc()" (click)="openFullscreen()"
         [title]="loc() ? 'Open the zone view focused on this home, full screen, in 3D' : 'Available for homes inside the mapped zones'">
         ⛶ Full-screen zone view</button>
       <button type="button" class="btn btn-sm btn-outline-secondary" (click)="recentre()">Re-centre</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!points().length" (click)="fitAll()"
+        [title]="routes() ? 'Zoom out to the home, your points and the transit routes' : 'Zoom out to the home and your points (compute the transit routes to draw them)'">
+        ⤢ Home, your points{{ routes() ? ' and routes' : '' }}</button>
     </div>
   </section>`,
   styles: [`
@@ -100,6 +107,13 @@ export class HouseMap {
   private map: MlMap | null = null;
   private popup: Popup | null = null;
   private styleReady = signal(0);
+  private travel = inject(HouseTravelStore);
+  /** Your points (locations.yaml) with coordinates, and the analysed area (outline + mask), loaded once. */
+  protected points = signal<any[]>([]);
+  private region = signal<{ outline: any; mask: any } | null>(null);
+  private zoneLines = signal<any | null>(null);
+  /** The computed itineraries of this home (Compute transit routes), drawn on the map. */
+  protected routes = computed(() => this.travel.results()[this.shortId()] ?? null);
   private settings: { style_url: string; style_url_dark?: string } | null = null;
   private dark = false;
   protected error = signal('');
@@ -132,6 +146,7 @@ export class HouseMap {
     // draw (or redraw) when the analysis, the style or the hidden sets change
     effect(() => {
       const l = this.loc(), lat = this.lat(), lon = this.lon(), hidden = this.hidden();
+      this.routes(); this.region(); this.points(); this.zoneLines();
       if (!this.styleReady()) return;
       untracked(() => this.draw(l, lat, lon, hidden));
     });
@@ -143,6 +158,9 @@ export class HouseMap {
     this.api.mapSettings().subscribe({
       next: (s) => {
         const dark = this.theme.theme() === 'dark';
+        this.api.zoneRegion().subscribe({ next: (r) => this.region.set(r), error: () => undefined });
+        this.api.geoZones().subscribe({ next: (z) => this.zoneLines.set(z), error: () => undefined });
+        this.api.mapPoints().subscribe({ next: (p) => this.points.set(p.features.filter((f: any) => f.geometry)), error: () => undefined });
         this.settings = s;
         this.dark = dark;
         const map: MlMap = new ml.Map({ container: this.el().nativeElement, style: (dark && s.style_url_dark) || s.style_url,
@@ -160,7 +178,7 @@ export class HouseMap {
           map.setStyle(BLANK);
         });
         map.on('style.load', () => { if (this.dark) applyDarkWater(map); this.styleReady.update((n) => n + 1); });
-        map.on('styleimagemissing', (e) => installBlip(map, e.id));
+        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); });
         const show = (e: any) => {
           const p = e.features?.[0]?.properties;
           if (!p) return;
@@ -170,7 +188,7 @@ export class HouseMap {
           this.popup = new ml.Popup({ closeButton: false, closeOnClick: false, className: 'fh-house-pop' }).setLngLat(e.lngLat).setText(text).addTo(map);
         };
         const hide = () => { map.getCanvas().style.cursor = ''; this.popup?.remove(); this.popup = null; };
-        for (const id of ['hm-poi', 'hm-walk']) { map.on('mousemove', id, show); map.on('mouseleave', id, hide); }
+        for (const id of ['hm-poi', 'hm-walk', 'hm-transit', 'hm-points']) { map.on('mousemove', id, show); map.on('mouseleave', id, hide); }
       },
       error: () => this.error.set('Map settings not available.'),
     });
@@ -181,30 +199,64 @@ export class HouseMap {
     if (!map) return;
     const f = l ? houseMapFeatures(l) : { pois: fc([]), walks: fc([]), labels: fc([]) };
     const keep = (c: FC) => fc(c.features.filter((x) => !hidden.has(x.properties.set)));
-    const data: Record<string, FC> = {
+    const reg = this.region();
+    const data: Record<string, any> = {
+      'hm-mask': reg ? { type: 'Feature', geometry: reg.mask, properties: {} } : fc([]),
+      'hm-region': reg ? { type: 'Feature', geometry: reg.outline, properties: {} } : fc([]),
+      'hm-zones': this.zoneLines() ?? fc([]),
       'hm-here': fc([{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }]),
       'hm-pois': keep(f.pois), 'hm-walks': keep(f.walks),
       'hm-labels': fc(f.labels.features.filter((x, i) => !hidden.has(f.walks.features[i]?.properties.set))),
+      'hm-transit': transitFeatures(this.routes()),
+      'hm-points': fc(this.points().map((p) => ({ ...p, properties: { ...p.properties, name: p.properties.label, label: 'Your point' } }))),
     };
     for (const [id, d] of Object.entries(data)) {
       const src = map.getSource(id) as GeoJSONSource | undefined;
-      if (src) src.setData(d as any); else map.addSource(id, { type: 'geojson', data: d as any });
+      if (src) src.setData(d); else map.addSource(id, { type: 'geojson', data: d });
     }
     const add = (layer: any) => { if (!map.getLayer(layer.id)) map.addLayer(layer); };
+    // the analysed area: grey outside it, every zone outlined, the area's border glowing
+    add({ id: 'hm-mask', type: 'fill', source: 'hm-mask', paint: { 'fill-color': '#9a9aa6', 'fill-opacity': 0.5 } });
+    add({ id: 'hm-zones', type: 'line', source: 'hm-zones', paint: { 'line-color': '#c9b8ff', 'line-opacity': 0.35, 'line-width': 0.8 } });
+    add({ id: 'hm-region', type: 'line', source: 'hm-region', paint: { 'line-color': ACCENT, 'line-width': 3.5, 'line-blur': 1, 'line-opacity': 0.95 } });
+    add({ id: 'hm-transit', type: 'line', source: 'hm-transit', layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': ['get', 'colour'], 'line-width': 5, 'line-opacity': 0.9,
+        'line-dasharray': ['case', ['get', 'walk'], ['literal', [1, 1.5]], ['literal', [1, 0]]] } });
     add({ id: 'hm-glow', type: 'circle', source: 'hm-here', paint: { 'circle-color': ACCENT, 'circle-radius': 34, 'circle-blur': 0.9, 'circle-opacity': 0.5 } });
     add({ id: 'hm-walk-casing', type: 'line', source: 'hm-walks', layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 'line-color': '#0b0b10', 'line-width': 7, 'line-opacity': 0.6 } });
     add({ id: 'hm-walk', type: 'line', source: 'hm-walks', layout: { 'line-cap': 'round', 'line-join': 'round' },
       paint: { 'line-color': ['get', 'colour'], 'line-width': 4 } });
-    add({ id: 'hm-poi', type: 'circle', source: 'hm-pois',
-      paint: { 'circle-color': ['get', 'colour'], 'circle-radius': ['case', ['get', 'nearest'], 7, 4.5],
-        'circle-stroke-color': ['case', ['get', 'nearest'], '#ffffff', '#101014'], 'circle-stroke-width': ['case', ['get', 'nearest'], 2, 1] } });
-    add({ id: 'hm-label', type: 'symbol', source: 'hm-labels',
-      layout: { 'text-field': ['get', 'text'], 'text-font': ['Noto Sans Regular'], 'text-size': 13, 'text-offset': [0, -1.2], 'text-allow-overlap': true },
+    // targets as the zone view's standing 3D pins and objects; the nearest of each set larger, with its glow
+    const icon: any = ['match', ['get', 'set'], ...Object.keys(TARGET_ICONS).flatMap((k) => [k, targetIconId(k)]), targetIconId('')];
+    const halos = Object.entries(TARGET_ICONS).filter(([, t]) => t.halo);
+    add({ id: 'hm-poi-halo', type: 'circle', source: 'hm-pois', minzoom: 13, filter: ['all', ['get', 'nearest'], ['in', ['get', 'set'], ['literal', halos.map(([k]) => k)]]],
+      paint: { 'circle-color': ['match', ['get', 'set'], ...halos.flatMap(([k, t]) => [k, t.halo!]), '#ffffff'], 'circle-blur': 0.9,
+        'circle-opacity': 0.6, 'circle-radius': 18, 'circle-pitch-alignment': 'map' } });
+    add({ id: 'hm-poi', type: 'symbol', source: 'hm-pois', minzoom: 13,
+      layout: { 'icon-image': icon, 'icon-anchor': 'bottom', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'icon-pitch-alignment': 'viewport', 'icon-rotation-alignment': 'viewport', 'symbol-z-order': 'viewport-y',
+        'icon-size': ['case', ['get', 'nearest'], 0.62, 0.38], 'symbol-sort-key': ['case', ['get', 'nearest'], 1, 0] } });
+    add({ id: 'hm-label', type: 'symbol', source: 'hm-labels', minzoom: 13,
+      layout: { 'text-field': ['get', 'text'], 'text-font': ['Noto Sans Regular'], 'text-size': 13, 'text-offset': [0, 0.9], 'text-anchor': 'top', 'text-allow-overlap': true },
       paint: { 'text-color': TONE_PAINT, 'text-halo-color': '#0b0b10', 'text-halo-width': 1.6 } });
+    add({ id: 'hm-points', type: 'symbol', source: 'hm-points',
+      layout: { 'icon-image': blipExpr('pin', '#607d8b'), 'icon-size': 1.35, 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-optional': true },
+      paint: { 'text-color': '#ffffff', 'text-halo-color': '#101014', 'text-halo-width': 1.4 } });
     add({ id: 'hm-pin', type: 'symbol', source: 'hm-here',
       layout: { 'icon-image': blipId('home', ACCENT), 'icon-size': 1.7, 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
     this.fit(l, lat, lon);
+  }
+
+  /** Zoom out to the home, your points and the transit legs, to see how far they are and where the lines run. */
+  protected fitAll(): void {
+    const map = this.map;
+    if (!map) return;
+    const pts: number[][] = [[this.lon(), this.lat()], ...this.points().map((p) => p.geometry.coordinates)];
+    for (const f of transitFeatures(this.routes()).features) pts.push(...(f.geometry as any).coordinates);
+    const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
+    map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 60, maxZoom: 15, duration: 900 });
   }
 
   private fitted = '';

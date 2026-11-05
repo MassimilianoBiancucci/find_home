@@ -117,9 +117,14 @@ house analysis (`GET /api/listings/{id}/location`) side by side. Under the galle
 - **Its zone**: the same rows with the zone's medians, and the zone's indices with their percentile;
 - **On the map** ([`house-map.ts`](../../frontend/src/app/house/house-map.ts)): a MapLibre map of its own
   (same style and theme as the main map), centred on the home.
-  - Inside the mapped zones: every target within reach (`walks[set].nearby`, nearest first, capped per set) as a
-    dot in the set's colour, the nearest one larger; the walking path to the nearest target of each set with its
-    minutes in green / yellow / red. Chips hide a category.
+  - The analysed area (`GET /api/zone/region`: the union of the zones and a world-minus-area mask) is outlined;
+    everything outside it is grey. Every zone keeps a thin outline.
+  - Inside the mapped zones: every target within reach (`walks[set].nearby`, nearest first, capped per set) as
+    the zone view's 3D pin or object (`TARGET_ICONS`), with the nearest one of each set larger and glowing. The
+    walking path to that nearest target carries its minutes in green / yellow / red. Icons show from zoom 13;
+    chips hide a category.
+  - Your points are pinned. After "Compute transit routes" the itineraries are drawn from `HouseTravelStore`.
+    **Home, your points and routes** zooms out to all of them; the 3D house view has the same button.
   - Outside every zone (the analysis answers 409 "outside every zone"): the home's position only.
   - **Full-screen zone view** requests full screen inside the click (browsers refuse it later), then opens
     `/map/zone/<id>?listing=<short id>`;

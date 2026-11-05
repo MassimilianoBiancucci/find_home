@@ -123,6 +123,7 @@ export class ApiService {
   listingTransit(id: string, dry: boolean) {
     return this.http.post<TransitResult>(`/api/listings/${id}/transit`, {}, { params: new HttpParams().set('dry', String(dry)) });
   }
+  zoneRegion() { return this.http.get<{ zones: number; outline: any; mask: any }>('/api/zone/region'); }
   zoneStats(filters: Record<string, string | number | null | undefined>) {
     let params = new HttpParams();
     for (const [k, v] of Object.entries(filters)) if (v != null && v !== '') params = params.set(k, String(v));

@@ -161,7 +161,7 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/locations.yaml'],
   },
   'house.map': {
-    title: 'On the map', short: 'Where the home is. Inside the mapped zones: every nearby service and stop as a dot in its colour (the nearest one larger, white ring), the walking path to the nearest of each, and its minutes in green, yellow or red. Click a chip to hide a category. Outside the mapped zones: the position only. "Full-screen zone view" opens the 3D zone view on this home.',
+    title: 'On the map', short: 'Where the home is. The area the app analyses (its 263 zones) is outlined; everything outside it is grey. Inside: every nearby service and stop as the zone view\'s 3D pin (the nearest of each larger, with its glow), the walking path to the nearest and its minutes in green, yellow or red; chips hide a category. Your points are pinned; after "Compute transit routes" the itineraries are drawn, and "Home, your points and routes" zooms out to all of them. "Full-screen zone view" opens the 3D zone view on this home.',
     config: ['config/zone.yaml → house (sets, cutoff_min)', 'config/zone.yaml → walk_colours', 'config/providers.yaml → map (style)'],
   },
   'house.services': {
