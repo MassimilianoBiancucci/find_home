@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import type { MapSettings } from '../pages/map/map-state.service';
 import {
+  RecomputeStatus,
   AddressSuggestion, AgentProfile, AgentRun, AgentStart, Job, JobPreview, JobRun, JobRunDetail, JobRunStart, JobSettings, Launcher,
   RunsTimeline, ScanRunDetail, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
@@ -19,7 +20,7 @@ export class ApiService {
   health(): Observable<Health> { return this.http.get<Health>('/health'); }
 
   listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number; origin?: string; site?: string; scanRun?: string } = {}) {
-    let p = new HttpParams().set('limit', String(opts.limit ?? 300));
+    let p = new HttpParams().set('limit', String(opts.limit ?? 5000));
     if (opts.status) p = p.set('status', opts.status);
     if (opts.q) p = p.set('q', opts.q);
     if (opts.origin) p = p.set('origin', opts.origin);
@@ -44,6 +45,10 @@ export class ApiService {
   }
   recompute(shortIds?: string[]) {
     return this.http.post<{ scored: number; rejected: number; config_hash: string }>('/api/scores/recompute', { short_ids: shortIds ?? null });
+  }
+  /** Every listing in the background: house analyses (transport, services) missing, then all scores. */
+  recomputeAll() { return this.http.post<RecomputeStatus>('/api/scores/recompute', { background: true }); }
+  recomputeStatus() { return this.http.get<RecomputeStatus>('/api/scores/recompute/status');
   }
   computeCommute(shortIds: string[], dryRun = false) {
     return this.http.post<{ budget_used: number; budget_max: number; providers: Record<string, string>; results: Record<string, any> }>(

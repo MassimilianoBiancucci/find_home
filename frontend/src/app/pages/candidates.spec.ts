@@ -20,6 +20,8 @@ describe('CandidatesPage keyboard triage', () => {
       feedback: vi.fn(() => of({})),
       config: vi.fn(() => of({ data: { statuses: { default: ['new', 'shortlisted', 'rejected'] }, tags: { positive: {}, negative: { too_far: { label: 'Too far' } } } } })),
       recompute: vi.fn(() => of({ scored: 2, rejected: 0 })),
+      recomputeStatus: vi.fn(() => of({ running: false, phase: null, done: 0, total: 0, analysed: 0, failed: 0 })),
+      recomputeAll: vi.fn(() => of({ running: true, phase: 'starting', done: 0, total: 0, analysed: 0, failed: 0 })),
       listingScale: vi.fn(() => of({ n: 0, fields: {} })),
       geoZones: vi.fn(() => of({ type: 'FeatureCollection', features: [] })),
       zoneRegion: vi.fn(() => NEVER),
@@ -60,5 +62,26 @@ describe('CandidatesPage keyboard triage', () => {
     key('Enter');
     expect(api['feedback']).toHaveBeenCalledWith('L-AAAA', 'dislike', ['too_far'], undefined);
     expect(api['setStatus']).toHaveBeenCalledWith('L-AAAA', 'rejected');
+  });
+
+  it('pages the table with the pager and the arrow keys; j moves across pages', () => {
+    localStorage.removeItem('fh.candidates.pageSize');
+    const many = Array.from({ length: 60 }, (_, i) => ({ short_id: `L-${String(i).padStart(4, '0')}`, status: 'new',
+      pet_status: 'unknown', photo_urls: [], floorplan_urls: [], score: 1 - i / 100 }));
+    api['listings'] = vi.fn(() => of({ config_hash: 'x', items: many }));
+    const f = TestBed.createComponent(CandidatesPage);
+    f.detectChanges();
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelectorAll('tbody tr').length).toBe(50);
+    expect(el.querySelectorAll('.fh-pager').length).toBe(2);                    // above and below the table
+    expect(el.querySelector('.fh-pager-mid')?.textContent).toContain('/ 2');
+    key('ArrowRight');
+    f.detectChanges();
+    expect(el.querySelectorAll('tbody tr').length).toBe(10);
+    expect(el.querySelector('tbody tr td')?.textContent).toContain('L-0050');
+    key('ArrowLeft');
+    for (let i = 0; i < 50; i++) key('j');
+    f.detectChanges();
+    expect(el.querySelector('tbody tr td')?.textContent).toContain('L-0050');   // the selection carried the page
   });
 });

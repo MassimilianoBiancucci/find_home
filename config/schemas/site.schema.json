@@ -156,13 +156,6 @@
                 }
               }
             },
-            "avoid_paths": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "URL paths the agent must not read (e.g. robots-disallowed search pages): if an input leads there, go back and report"
-            },
             "next_page": {
               "type": "object",
               "additionalProperties": false,

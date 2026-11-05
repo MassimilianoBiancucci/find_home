@@ -24,7 +24,7 @@ def _with_zone(rows: list[dict]) -> list[dict]:
 
 @router.get("")
 async def list_listings(status: str | None = None, kind: str | None = None, q: str | None = None,
-                        include_rejected: bool = True, limit: int = Query(200, le=1000), since: str | None = None,
+                        include_rejected: bool = True, limit: int = Query(200, le=5000), since: str | None = None,
                         origin: str | None = None, site: str | None = None, scan_run: str | None = None,
                         conn=Depends(get_conn)):
     rows = await repo.list_listings(conn, bundle().config_hash, status, kind, q, include_rejected, limit, since,

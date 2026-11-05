@@ -61,7 +61,7 @@ def test_move_in_sweep_and_browser_inputs(bundle):
     site = bundle.sites["samtrygg"]
     hf = bundle.profile.kinds["rent"].hard_filters
     got = browser_inputs(site, bundle)
-    assert got["avoid_paths"] and got["inputs"][0]["label"] == "Önskat tillträde"
+    assert got["inputs"][0]["label"] == "Önskat tillträde" and got["next_page"]["label"]
     if hf.get("move_in_from") and hf.get("move_in_to"):
         assert got["input_sets"] and not got["inputs_missing"]
     else:                                                   # the example profile leaves the window unset

@@ -550,9 +550,13 @@ comes from filtering on posting dates.
   hard filter `max_commute_min_by_category` still reads `commute_results`.
 - **neighbourhood** (off by default) combines three 0-100 parts: the home's services score, the home's transport
   score and the zone's services index, by default `house_services 0.5, house_transport 0.3, zone_services 0.2`;
-  missing parts renormalise. `scores recompute` reads only cached values
-  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L58)). A listing whose house analysis is not
-  computed yet gets `None` for these groups (run `findhome listings location --all`); a listing outside every zone
+  missing parts renormalise. Scoring reads only cached values
+  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L65)). The Candidates page's **Recompute
+  scores** runs [`_recompute_all()`](../../backend/src/findhome/api/routers/scoring.py#L143) in the background
+  (`POST /api/scores/recompute {"background": true}`, progress on `GET /api/scores/recompute/status`): it geocodes
+  up to 60 listings without coordinates, computes the house analysis of every home that has none for the current
+  inputs (local data, about 1-2 s each), then scores every listing. `findhome scores recompute` stays synchronous and
+  only scores. A listing whose house analysis is still missing gets `None` for these groups; a listing outside every zone
   gets `None` with "outside the analysed zones", so these groups do not count in its mean. Breakdowns carry the
   derivation rows (`detail`; per-point rows are `sub` rows, shown but not added).
 - With a search area defined, a listing whose area score is 0 (beyond the buffer) is rejected with

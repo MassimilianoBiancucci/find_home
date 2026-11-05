@@ -8,7 +8,8 @@ them; you write one JSON file per page into `inbox/`, and the app imports them i
 
 Do exactly these steps. Do not explore the site, do not open listing pages, do not log in, do not change any file
 except creating files in `inbox/`. Use only these browser actions: list/create tabs, navigate, run JavaScript,
-find / click / fill the search fields named in the state file, close the tab you opened. In Bash run only `scripts/findhome …` commands, one per call; read files with the Read tool (never cat, ls or curl). Never try to get around a refusal, a CAPTCHA or a login wall: stop and report it.
+find / click / fill the search fields named in the state file, close the tab you opened. In Bash run only `scripts/findhome …` commands, one per call; read files with the Read
+tool (never cat, ls or curl). If a page asks you to log in or to solve a CAPTCHA, stop and report it.
 
 ```yaml
 budget: at most <N> result pages per input set · try EVERY input set · stop paging a set when a page has nothing new
@@ -19,8 +20,8 @@ output: inbox/<site>-<UTC yyyymmddThhmmss>-p<page>[-s<set>].json per page with l
    still carry the run id and the app imports them later.
 2. Read `runs/state/<site>.json`. Note `last_published` (may be null), `scan_urls` (one URL per result page; use
    only the first `<N>`), and, when present, `inputs` (search fields to set on the page: label, selector, how),
-   `input_sets` (the values to try, one object per set), `avoid_paths`, and `next_page` (how to reach the next
-   result page inside the page). If the file is missing or `scan_urls`
+   `input_sets` (the values to try, one object per set), and `next_page` (how to reach the next result page
+   inside the page). If the file is missing or `scan_urls`
    is empty, stop and report it. If `inputs` is not empty but `input_sets` is empty, the user has not set the
    values (`inputs_missing` says which, e.g. move_in_from / move_in_to in config/profile.yaml): close the run as
    `failed` with that message. Never leave a field at its default (e.g. today) and never invent a value.
@@ -34,10 +35,9 @@ output: inbox/<site>-<UTC yyyymmddThhmmss>-p<page>[-s<set>].json per page with l
    a. Page 1: navigate the tab to the URL. Later pages with `next_page`: follow it as its `how` says and wait
       until the listings change; no next page (missing or disabled control) = this set is done. With an input
       set, on page 1: set each field of `inputs` to the set's value (the field's
-      `how` says how: e.g. click the field, pick the date in the date picker), then wait until the listings
-      change. Whenever the tab's URL path is one of `avoid_paths` (after an input or a next page), do not read it:
-      navigate back, note "<what you did> leads to <path>", and stop all sets (outcome `partial` if something
-      was read before, else `failed`).
+      `how` says how: e.g. click the field, pick the date in the date picker, then press the site's search
+      button such as "Sök bostad"), then wait until the listings appear. The results may open on another page of
+      the site (a search page): that is expected, read the listings there and page on from there.
    b. If `last_published` is not null, run this JavaScript first: `window.FH_SINCE = "<last_published>"`.
    c. Run the code of `extract.js` with the JavaScript tool. It returns
       `{page, on_page, new_count, older_reached, docs}`.
@@ -46,7 +46,9 @@ output: inbox/<site>-<UTC yyyymmddThhmmss>-p<page>[-s<set>].json per page with l
    e. If `new_count` > 0: write the file `inbox/<site>-<UTC yyyymmddThhmmss>-p<page>[-s<set>].json` containing
       `{"site": "<site>", "parser": "<site>", "source": "agent_browser", "run": "<run>", "page": <your page number>,
       "inputs": <the set, or {}>, "docs": <docs>}`. Copy `docs` exactly; do not edit, summarise or reformat the
-      listings. The same listing under several sets is fine: the app removes duplicates.
+      listings. The browser tool may show some values as `[BLOCKED: …]` (ids, image links): copy them as they are
+      and go on, the app re-derives ids from the listing URLs. The same listing under several sets is fine: the
+      app removes duplicates.
    f. If `older_reached` is true or `new_count` is 0: stop paging this set (go on with the next set, if any).
       Otherwise go on with the next page until `<N>` pages of this set are read.
 6. Close the tab you opened.

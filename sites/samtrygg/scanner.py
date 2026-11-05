@@ -1,8 +1,9 @@
-"""Samtrygg (sites/samtrygg): browser-only. robots.txt disallows the search pages and the city page is rendered by
-JavaScript, so no HTTP scanner: the agent runs extract.js on the loaded /hyra-bostad/stockholm page in the user's
-Chrome and the output goes through `to_listing` (findhome ingest --parser samtrygg / the inbox).
+"""Samtrygg (sites/samtrygg): browser-only (listings are rendered by JavaScript), so no HTTP scanner: the agent
+runs extract.js on the loaded results in the user's Chrome (the city page, or the results of "Sök bostad" for a
+move-in date) and the output goes through `to_listing` (findhome ingest --parser samtrygg / the inbox).
 
-The city page shows only the newest 6 listings; cards carry no published date.
+Cards carry no published date. The browser tool may mask values that look like tokens ("[BLOCKED: ...]"): the id
+is re-derived from the listing URL and masked image links are dropped.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from findhome.domain.models import ListingIn, SourceIn
 
 BASE = "https://www.samtrygg.se"
 PETS_OK = re.compile(r"^\s*husdjur\s+(ok|tillåtna|tillåtet)\s*$", re.IGNORECASE)
+OBJECT_ID = re.compile(r"/object/([^/?#]+)/")
 MONTHS = {"JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAJ": 5, "JUN": 6, "JUL": 7, "AUG": 8, "SEP": 9, "OKT": 10,
           "NOV": 11, "DEC": 12}
 
@@ -46,8 +48,24 @@ def _parse_period(period: str | None) -> tuple[date | None, date | None, bool]:
     return start, end, open_ended
 
 
+def _clean(v):
+    return None if isinstance(v, str) and v.startswith("[BLOCKED") else v
+
+
+def listing_id(raw: dict) -> str:
+    """The card's id, or the /object/<id>/ segment of its URL when the id was masked."""
+    rid = _clean(raw.get("id"))
+    if rid:
+        return str(rid)
+    m = OBJECT_ID.search(str(_clean(raw.get("url")) or ""))
+    if not m or m.group(1).startswith("[BLOCKED"):
+        raise ValueError("no listing id: both the id and the URL are missing or masked")
+    return m.group(1)
+
+
 def to_listing(raw: dict) -> ListingIn:
     """Entry point for `findhome ingest listings --parser samtrygg` (raw docs from extract.js)."""
+    ext = listing_id(raw)
     start, end, open_ended = _parse_period(raw.get("period"))
     address = raw.get("address")
     area = raw.get("area")
@@ -61,9 +79,11 @@ def to_listing(raw: dict) -> ListingIn:
     elif pets:
         attrs["pets_text"] = pets           # any other pet wording: judged by the pet rules at ingest
     tags = " ".join(raw.get("tags") or []).lower()
-    photos = [u for u in (raw.get("images") or []) if u] or ([raw["image"]] if raw.get("image") else [])
+    photos = [u for u in (raw.get("images") or []) if isinstance(u, str) and u.startswith("http")]
+    if not photos and isinstance(raw.get("image"), str) and raw["image"].startswith("http"):
+        photos = [raw["image"]]
     return ListingIn(
-        source=SourceIn(site_slug="samtrygg", external_id=str(raw["id"]), url=raw.get("url"), method="agent_browser"),
+        source=SourceIn(site_slug="samtrygg", external_id=ext, url=_clean(raw.get("url")), method="agent_browser"),
         listing_kind="rent",
         title=address,
         address_raw=", ".join(x for x in (address, area) if x) or None,

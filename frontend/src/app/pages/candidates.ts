@@ -1,5 +1,5 @@
-import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
@@ -9,7 +9,7 @@ import { SiteLogo } from '../components/site-logo';
 import { ZoneMinimap } from '../components/zone-minimap';
 import { ValueScaleStore, valueOf } from '../value-scale';
 import { indexColour } from '../house/house-bubbles';
-import { Listing } from '../models';
+import { Listing, RecomputeStatus } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
@@ -22,7 +22,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo],
+  imports: [FormsModule, RouterLink, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -32,9 +32,12 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     </select>
     <input #search class="form-control form-control-sm w-auto" placeholder="search (/)" [(ngModel)]="q" (keyup.enter)="load()" />
     <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" [(ngModel)]="hideRejected" (ngModelChange)="load()" />hide rejected</label>
-    <button class="btn btn-sm btn-outline-primary" (click)="recompute()">Recompute scores</button>
+    <button class="btn btn-sm btn-outline-primary" [disabled]="!!recomputing()" (click)="recompute()"
+            title="Every home: its transport and services scores from the exact address (when missing), then all scores">
+      @if (recomputing(); as rc) { <span class="spinner-border spinner-border-sm me-1"></span>{{ recomputeLabel(rc) }} }
+      @else { Recompute scores }</button>
     <span class="small text-body-secondary ms-auto">
-      <span class="fh-kbd">j</span>/<span class="fh-kbd">k</span> move · <span class="fh-kbd">⏎</span> open ·
+      <span class="fh-kbd">j</span>/<span class="fh-kbd">k</span> move · <span class="fh-kbd">←</span>/<span class="fh-kbd">→</span> page · <span class="fh-kbd">⏎</span> open ·
       <span class="fh-kbd">s</span> shortlist · <span class="fh-kbd">l</span> like · <span class="fh-kbd">r</span> reject · <span class="fh-kbd">a</span> archive
     </span>
   </div>
@@ -65,6 +68,22 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <div class="fh-empty">No listings yet. Ingest the sample with
       <code>scripts/findhome ingest listings -f backend/tests/fixtures/listings_sample.json</code>, or run a scan from Sites.</div>
   } @else {
+    <ng-template #pager>
+      <div class="fh-pager">
+        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="page() === 0" (click)="goPage(page() - 1)"
+                aria-label="Previous page">← Prev</button>
+        <span class="fh-pager-mid">
+          Page <b>{{ page() + 1 }}</b> / {{ pages() }} · {{ rows().length }} homes ·
+          <select class="form-select form-select-sm d-inline-block w-auto" [ngModel]="pageSize()" (ngModelChange)="setPageSize(+$event)"
+                  aria-label="Homes per page">
+            @for (n of pageSizes; track n) { <option [value]="n">{{ n }}</option> }
+          </select> per page
+        </span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="page() >= pages() - 1" (click)="goPage(page() + 1)"
+                aria-label="Next page">Next →</button>
+      </div>
+    </ng-template>
+    <ng-container [ngTemplateOutlet]="pager" />
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle">
       <thead><tr><th>Id</th><th>Score</th>
@@ -72,7 +91,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
         <th class="text-center" title="The home's services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near">Services</th>
         <th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
       <tbody>
-        @for (r of rows(); track r.short_id; let i = $index) {
+        @for (r of pageRows(); track r.short_id; let j = $index) {
+          @let i = page() * pageSize() + j;
           <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
             (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()">
             <td class="fh-mono"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
@@ -97,6 +117,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       </tbody>
     </table>
     </div>
+    <ng-container [ngTemplateOutlet]="pager" />
     @if (values.scale(); as sc) {
       <div class="small text-body-secondary">Rooms, m², rent and kr/m² are coloured against the {{ sc.n }} listings still in the running
         (scored, not rejected) and your targets in config/profile.yaml: green good, amber middling, red poor or past your limit. Hover a value for why.</div>
@@ -134,7 +155,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
   </div>
   `,
 })
-export class CandidatesPage implements OnInit {
+export class CandidatesPage implements OnInit, OnDestroy {
   private api = inject(ApiService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
@@ -156,6 +177,14 @@ export class CandidatesPage implements OnInit {
   protected message = signal('');
   protected picker = signal<Picker>(null);
   protected selected = computed(() => this.rows()[this.cursor()]);
+  /** Pages: the cursor decides the page, so j / k and the selection move across pages too. */
+  protected pageSizes = [25, 50, 100, 200];
+  protected pageSize = signal(readPageSize());
+  protected pages = computed(() => Math.max(1, Math.ceil(this.rows().length / this.pageSize())));
+  protected page = computed(() => Math.min(Math.floor(this.cursor() / this.pageSize()), this.pages() - 1));
+  protected pageRows = computed(() => this.rows().slice(this.page() * this.pageSize(), (this.page() + 1) * this.pageSize()));
+  protected recomputing = signal<RecomputeStatus | null>(null);
+  private poll?: ReturnType<typeof setInterval>;
   protected status = '';
   protected q = '';
   protected hideRejected = false;
@@ -170,11 +199,12 @@ export class CandidatesPage implements OnInit {
     if (k === 'transport' && l.house_transport != null) return `Transport score of this home, 0-100: access from its exact address + the minutes to your points`
       + (l.house_estimated ? ' · estimate: some minutes come from the Connectivity matrix (compute the transit routes to your points to make them exact)' : ' (ResRobot trips)');
     if (l[k === 'transport' ? 'house_transport' : 'house_services'] != null) return `Services score of this home, 0-100, measured from its exact address (open it for the details)`;
-    return l.zone_id ? 'Not measured yet: open the listing, or run findhome listings location --all' : 'Outside the analysed zones: not measured';
+    return l.zone_id ? 'Not measured yet: press Recompute scores (or open the listing)' : 'Outside the analysed zones: not measured';
   }
   protected kr = fmtKr; protected num = fmtNum; protected score = fmtScore; protected pet = petClass; protected color = scoreColor;
 
   ngOnInit(): void {
+    this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
     this.sites.load();
     this.values.load();
     this.route.queryParamMap.subscribe((q) => {
@@ -227,12 +257,47 @@ export class CandidatesPage implements OnInit {
     });
   }
 
-  recompute(): void {
-    this.api.recompute().subscribe({
-      next: (r) => { this.message.set(`Scored ${r.scored} (${r.rejected} rejected by hard filters)`); this.load(); this.values.load(true); },
-      error: (e) => this.error.set(apiError(e)),
-    });
+  goPage(p: number): void {
+    const n = Math.min(Math.max(p, 0), this.pages() - 1);
+    this.cursor.set(Math.min(n * this.pageSize(), Math.max(this.rows().length - 1, 0)));
+    document.querySelector<HTMLElement>('.fh-page-head')?.scrollIntoView?.({ block: 'start' });   // the bottom pager leaves you at the top
   }
+  setPageSize(n: number): void {
+    const first = this.page() * this.pageSize();
+    this.pageSize.set(n);
+    try { localStorage.setItem('fh.candidates.pageSize', String(n)); } catch { /* per page only */ }
+    this.cursor.set(Math.min(first, Math.max(this.rows().length - 1, 0)));
+  }
+
+  /** Every home in the background: missing house analyses (transport, services), then all scores. */
+  recompute(): void {
+    this.api.recomputeAll().subscribe({ next: (st) => this.follow(st), error: (e) => this.error.set(apiError(e)) });
+  }
+  recomputeLabel(st: RecomputeStatus): string {
+    const of = st.total ? ` ${st.done}/${st.total}` : '';
+    return st.phase === 'geocoding' ? `Locating homes${of}` : st.phase === 'analysing' ? `Transport & services${of}`
+      : st.phase === 'scoring' ? `Scoring${of}` : 'Starting…';
+  }
+  private follow(st: RecomputeStatus): void {
+    this.recomputing.set(st);
+    clearInterval(this.poll);
+    this.poll = setInterval(() => this.api.recomputeStatus().subscribe({
+      next: (s) => {
+        if (s.running) { this.recomputing.set(s); return; }
+        clearInterval(this.poll);
+        this.recomputing.set(null);
+        if (s.error) { this.error.set(`Recompute failed: ${s.error}`); return; }
+        const r = s.result;
+        if (r) this.message.set(`Scored ${r.scored} (${r.rejected} rejected by hard filters) · transport & services computed for `
+          + `${r.analysed} homes${r.failed ? ` (${r.failed} outside the analysed zones or without data)` : ''}`
+          + (r.geocoded ? ` · ${r.geocoded} located` : ''));
+        this.load();
+        this.values.load(true);
+      },
+      error: () => {},
+    }), 1500);
+  }
+  ngOnDestroy(): void { clearInterval(this.poll); }
 
   open(r: Listing): void { this.router.navigate(['/candidates', r.short_id]); }
 
@@ -279,6 +344,8 @@ export class CandidatesPage implements OnInit {
     switch (ev.key) {
       case 'j': this.cursor.update((c) => Math.min(c + 1, this.rows().length - 1)); break;
       case 'k': this.cursor.update((c) => Math.max(c - 1, 0)); break;
+      case 'ArrowRight': this.goPage(this.page() + 1); break;
+      case 'ArrowLeft': this.goPage(this.page() - 1); break;
       case 'Enter': if (r) this.open(r); break;
       case 's': if (r) this.setStatus(r, 'shortlisted'); break;
       case 'a': if (r) this.setStatus(r, 'archived'); break;
@@ -288,4 +355,9 @@ export class CandidatesPage implements OnInit {
       default: return;
     }
   }
+}
+
+function readPageSize(): number {
+  try { const n = Number(localStorage.getItem('fh.candidates.pageSize')); return [25, 50, 100, 200].includes(n) ? n : 50; }
+  catch { return 50; }
 }

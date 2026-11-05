@@ -42,3 +42,12 @@ def test_only_an_explicit_husdjur_ok_tag_is_the_sites_flag():
     assert "pets_flag" not in other.attributes and ingest_candidate(other)[0::2] == ("no", "keywords")
     none = to_listing()(doc())
     assert ingest_candidate(none)[0] == "unknown"
+
+
+def test_masked_values_are_recovered_or_dropped():
+    item = to_listing()(doc(id="[BLOCKED: looks like a token]", images=["[BLOCKED: x]", "https://img.invalid/2.jpg"]))
+    assert item.source.external_id == "abc123"                       # from /object/<id>/ in the URL
+    assert item.photo_urls == ["https://img.invalid/2.jpg"]
+    import pytest
+    with pytest.raises(ValueError):
+        to_listing()(doc(id="[BLOCKED: a]", url="[BLOCKED: b]"))

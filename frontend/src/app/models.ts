@@ -378,3 +378,10 @@ export interface TransitResult extends TransitPlan { trips: HouseTrip[]; }
 export interface StatQuartiles { median: number; p25: number; p75: number; n: number; }
 export interface ZoneListingStats { n: number; per_km2: number | null; rent?: StatQuartiles; rent_per_m2?: StatQuartiles; size?: StatQuartiles; rooms?: StatQuartiles; }
 export interface ZoneStats { listings: number; in_zones: number; min_n: number; zone_count: number; zones: Record<string, ZoneListingStats>; points: [number, number][]; }
+
+/** Background recompute (POST /api/scores/recompute {background: true}): house analyses, then scores. */
+export interface RecomputeStatus {
+  running: boolean; phase: 'starting' | 'geocoding' | 'analysing' | 'scoring' | 'done' | null; done: number; total: number;
+  analysed: number; failed: number; error?: string | null; started_at?: string | null; finished_at?: string | null;
+  result?: { scored: number; rejected: number; geocoded: number; analysed: number; failed: number; config_hash: string } | null;
+}

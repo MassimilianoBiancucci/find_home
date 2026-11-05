@@ -17,7 +17,7 @@ One folder per website: `sites/<slug>/`
 |---|---|---|
 | [Qasa](qasa/site.yaml) | active | browser agent only ([`extract.js`](qasa/extract.js)): qasa.com answers scripts with 429; manual start, ≤ 20 pages (`risk_note`) |
 | [Bostadsförmedlingen](bostadsformedlingen/site.yaml) | active | script: one request to the region-wide JSON feed ([`scanner.py`](bostadsformedlingen/scanner.py)), new listings' pages read for the description |
-| [Samtrygg](samtrygg/site.yaml) | active | browser agent only ([`extract.js`](samtrygg/extract.js) on the rendered city page, the newest 6 listings): robots.txt disallows the search pages |
+| [Samtrygg](samtrygg/site.yaml) | active | browser agent only ([`extract.js`](samtrygg/extract.js)): every month of your move-in window, paged, including the search pages robots.txt disallows (`risk_note`) |
 | [Blocket Bostad](blocket-bostad/site.yaml), [HomeQ](homeq/site.yaml) | disabled, `role: origin` | never scanned: their listings arrive through Qasa (`platforms`) |
 
 ## What may scan a site
@@ -29,7 +29,6 @@ so a listing shows where it was first published. `risk_note` records a decision 
 terms (who, when, limits). `local_filter` holds scanner-side filters (`exclude_flags`, `search_area_buffer_m`).
 `scan.browser.inputs` lists search fields the browser agent sets on the result page before extracting (label,
 selector, how); the app derives the values to try from the profile (e.g. every month of the move-in window).
-`scan.browser.avoid_paths` are URL paths the agent must not read even when an input leads there (robots.txt).
 `scan.browser.next_page` says how to reach further result pages inside the page (a next-page control) when they
 have no URL of their own; the browser agent then reads up to the chosen number of pages for every input set.
 

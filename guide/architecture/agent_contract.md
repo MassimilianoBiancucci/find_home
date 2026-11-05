@@ -63,8 +63,8 @@ when a file appears (watcher) and on `POST /api/inbox/import` (`findhome ingest 
 The API also writes `runs/state/<site>.json` (on startup, on config changes and after each inbox import):
 `last_published` (newest `attributes.publishedAt` seen), `known_listings`, and `scan_urls`, the result-page URLs
 (as many as the site's `politeness.max_pages_per_run`) built by the same filter mapping as the scripted scanner,
-and for sites whose result page has search fields (`scan.browser.inputs`), `inputs`, `input_sets` and
-`avoid_paths`: [`browser_inputs()`](../../backend/src/findhome/inbox.py) computes every value combination from
+and for sites whose result page has search fields (`scan.browser.inputs`), `inputs` and `input_sets`:
+[`browser_inputs()`](../../backend/src/findhome/inbox.py) computes every value combination from
 the profile (a move-in field gets `move_in_from`, then the 1st of each month up to `move_in_to`), so the agent
 tries each set instead of the page's default, and closes the run as `failed` when the profile leaves them unset; and `next_page` when further result pages are reached inside the page
 (the agent then pages up to the requested number for every set).

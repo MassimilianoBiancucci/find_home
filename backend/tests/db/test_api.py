@@ -225,3 +225,20 @@ def test_inbox_import_and_state(client, monkeypatch, tmp_path):
     assert {r["short_id"] for r in rows} and all(r["status"] == "new" for r in rows)
     again = client.post("/api/inbox/import").json()["results"]
     assert again == []
+
+
+def test_background_recompute_analyses_then_scores(client, sample_listings):
+    client.post("/api/ingest/listings", json={"listings": sample_listings})
+    st = client.post("/api/scores/recompute", json={"background": True}).json()
+    assert st["running"] is True
+    for _ in range(100):
+        st = client.get("/api/scores/recompute/status").json()
+        if not st["running"]:
+            break
+        time.sleep(0.1)
+    assert st["phase"] == "done" and st["error"] is None, st
+    items = client.get("/api/listings").json()["items"]
+    assert st["result"]["scored"] == len(items)
+    # every home with coordinates was analysed, or reported as failed when the test repo has no geodata for it
+    assert st["result"]["analysed"] + st["result"]["failed"] == sum(1 for i in items if i["lat"] is not None)
+    assert client.post("/api/scores/recompute", json={}).json()["scored"] == len(items)   # the synchronous path stays

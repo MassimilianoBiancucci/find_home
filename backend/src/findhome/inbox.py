@@ -57,7 +57,14 @@ def to_listings(data: Any) -> list[ListingIn]:
         if not data.get("parser"):
             raise ValueError("'docs' needs a 'parser' (site slug)")
         convert = site_parser(data["parser"])
-        items = [convert(d) for d in data["docs"]]
+        items = []
+        for d in data["docs"]:
+            try:
+                items.append(convert(d))
+            except ValueError as exc:      # e.g. an id the browser tool masked and no URL to recover it from
+                log.warning("inbox: %s doc skipped: %s", data["parser"], exc)
+        if data["docs"] and not items:
+            raise ValueError(f"none of the {len(data['docs'])} docs could be converted")
         if data.get("source"):
             for it in items:
                 it.source.method = data["source"]
@@ -157,8 +164,7 @@ def browser_inputs(site, bundle) -> dict[str, Any]:
             if not dates:
                 missing.append("move_in_from / move_in_to")
             sets = [{**s, inp["label"]: d} for s in sets for d in dates]
-    return {"inputs": inputs, "input_sets": [] if missing else sets, "avoid_paths": cap.get("avoid_paths") or [],
-            "inputs_missing": missing, **paging}
+    return {"inputs": inputs, "input_sets": [] if missing else sets, "inputs_missing": missing, **paging}
 
 
 async def write_state(conn, bundle=None) -> None:

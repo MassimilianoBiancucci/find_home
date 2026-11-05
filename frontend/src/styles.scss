@@ -703,3 +703,8 @@ pre.fh-pre {
   &.fh-verdict-good { --c: var(--fh-good); --bg: var(--fh-good-soft, var(--fh-sub)); }
   &.fh-verdict-mid { --c: var(--fh-mid); --bg: var(--fh-mid-soft, var(--fh-sub)); }
   &.fh-verdict-bad { --c: var(--fh-bad); --bg: var(--fh-bad-soft, var(--fh-sub)); } }
+
+// pager (Candidates): Prev in the left corner, Next in the right one, top and bottom of the table
+.fh-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0;
+  .fh-pager-mid { font-size: 0.82rem; color: var(--bs-secondary-color); text-align: center; b { color: var(--bs-body-color); }
+    select { padding-top: 0; padding-bottom: 0; height: 26px; font-size: 0.8rem; } } }
