@@ -80,6 +80,12 @@ const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
   </ng-template>
 
   <ng-template #zonesTpl>
+    <div class="d-flex gap-2 mb-2">
+      <button class="btn btn-sm btn-outline-primary" [disabled]="!allZones().length || allOn(allZones())" (click)="selectAll()"
+        title="Put every mapped zone in the search area, then click zones on the map (Zones tool) or untick them here to remove the unwanted ones">
+        Select all {{ allZones().length }} zones</button>
+      <button class="btn btn-sm btn-outline-secondary" [disabled]="!zoneOn().size" (click)="clearAll()" title="Remove every zone from the zone pieces">Clear zones</button>
+    </div>
     <input class="form-control form-control-sm mb-2" placeholder="Search zones" [ngModel]="query()" (ngModelChange)="query.set($event)" />
     <div class="fh-tree">
       @for (k of tree(); track k.name) {
@@ -307,6 +313,22 @@ export class AreaMode {
     this.paint();
   }
 
+  /** Every mapped zone (not filtered by the search box). */
+  protected allZones = computed<ZoneNode[]>(() => this.zones().map((f) => {
+    const p: any = f.properties;
+    return { id: p['zone_id'], name: p['name'], km2: p['area_km2'] };
+  }));
+  /** Add every zone to the zone piece, and switch to the Zones tool so a click on the map removes one. */
+  protected selectAll(): void {
+    const zs = this.allZones();
+    if (!zs.length || this.allOn(zs)) return;
+    this.toggleMany(zs);
+    this.setTool('zones');
+  }
+  protected clearAll(): void {
+    const on = this.allZones().filter((z) => this.zoneOn().has(z.id));
+    if (on.length) this.toggleMany(on);
+  }
   protected allOn(zs: ZoneNode[]): boolean { return zs.length > 0 && zs.every((z) => this.zoneOn().has(z.id)); }
   protected someOn(zs: ZoneNode[]): boolean { return !this.allOn(zs) && zs.some((z) => this.zoneOn().has(z.id)); }
   protected kZones(k: KommunNode): ZoneNode[] { return k.districts.flatMap((d) => d.zones); }

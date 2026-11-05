@@ -283,7 +283,9 @@ from the brush, lasso, circle or polygon tool) and `eraser` (cuts every other pi
 erasers and caches the result per content and zones file; `area_eval(lat, lon)` returns inside, the distance to
 the nearest piece, the depth inside, the per-piece contributions and the score
 `max(weight × falloff)`, where the falloff is 1 inside and falls linearly to 0 at `buffer_m` outside. The Area
-mode edits the pieces and saves them through the config writer; `POST /api/area/brush` turns a painted stroke
+mode edits the pieces and saves them through the config writer. Its Zones bubble has **Select all N zones**
+(every mapped zone into the zone piece, then the Zones tool, so a click on the map removes an unwanted one) and
+**Clear zones**. `POST /api/area/brush` turns a painted stroke
 into a polygon (buffered in metres, unioned with or cut from a base piece). Agents read the area with
 `findhome area show` and the history digest's Search area section.
 
