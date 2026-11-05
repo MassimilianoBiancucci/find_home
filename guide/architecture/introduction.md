@@ -142,7 +142,12 @@ from the count. The detail page shows it at the top; the map's listing panel sho
 photos and no `attributes.photo_count` come from scans that kept only 6, and the gallery says the next browser
 scan fills them in.
 
-The shell ([`app.html`](../../frontend/src/app/app.html)) has three boxes, like the Telia debug UI: box 1 holds
+The shell ([`app.html`](../../frontend/src/app/app.html)) labels the app **Find Home**, with **Skill App** under the
+name. Its house mark is a handwritten SVG ([`favicon.svg`](../../frontend/public/favicon.svg)), shared by the
+sidebar and browser tab. Public UI screenshots live in [`docs/screenshots/`](../../docs/screenshots/README.md);
+they show public listing and site data, with personal map points, commute overlays and search areas hidden.
+
+The shell has three boxes, like the Telia debug UI: box 1 holds
 the navigation bubble (pages, with the map modes as child entries) and the bubbles of the active page; box 2 is
 the routed page; box 3 is an optional right panel. A page publishes its bubbles and panel as `TemplateRef`s
 through [`LayoutService`](../../frontend/src/app/services/layout.service.ts) `register`, which removes them when
