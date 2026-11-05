@@ -3,11 +3,11 @@ import type { GeoJSONSource, Map as MlMap } from 'maplibre-gl';
 import { applyDarkWater } from '../pages/map/dark-style';
 import { ThemeService } from '../services/theme.service';
 import { ZoneGeoStore } from '../services/zone-geo.store';
-import { installBlip, installPin, pinId } from './map-icons';
+import { blipExpr, installBlip, installPin, pinId } from './map-icons';
 
 const ZONE = '#ff8c1a';
-/** Zoom-in from "the whole analysed area": 0.26 levels keep √0.7 of its width and height, so 70 % of it, in view. */
-export const AREA_ZOOM_IN = Math.log2(1 / Math.sqrt(0.7));
+/** Zoom-in from "the whole analysed area": half a level keeps √0.5 of its width and height, so 50 % of it, in view. */
+export const AREA_ZOOM_IN = Math.log2(1 / Math.sqrt(0.5));
 /** Pixels kept between the home's pin and the frame (more at the top: the pin stands up from the address). */
 const EDGE = 22, EDGE_TOP = 46;
 const PIN = pinId('home', '#b45cf0');
@@ -25,7 +25,7 @@ export function bounds(geom: any, extra: number[][] = []): [[number, number], [n
 }
 
 /**
- * A small locator map: most of the analysed area (at least 70 %), the home's zone filled orange, the area outside the
+ * A small locator map: half of the analysed area, the home's zone filled orange, your points, the area outside the
  * analysed zones grey, a standing pin on the home, and the zone's name. Outside every zone: the pin only, in the grey. Not interactive;
  * one map per instance, redrawn in place when the inputs change (the list tooltip reuses one).
  */
@@ -63,6 +63,7 @@ export class ZoneMinimap {
   private ready = signal(0);
   private zones: FC | null = null;
   private region: { outline: any; mask: any } | null = null;
+  private points: FC | null = null;
   private settings: { style_url: string; style_url_dark?: string } | null = null;
   private dark = false;
   /** The style has loaded (sources and layers can be added); isStyleLoaded() stays false while tiles load. */
@@ -92,6 +93,8 @@ export class ZoneMinimap {
     const ml = mod.default ?? mod;
     this.geo.zones$.subscribe({ next: (z) => { this.zones = z as FC; this.ready.update((n) => n + 1); }, error: () => undefined });
     this.geo.region$.subscribe({ next: (r) => { this.region = r; this.ready.update((n) => n + 1); }, error: () => undefined });
+    this.geo.points$.subscribe({ next: (p) => { this.points = fc((p as FC).features.filter((f) => f.geometry)); this.ready.update((n) => n + 1); },
+      error: () => undefined });
     this.geo.settings$.subscribe({
       next: (s: any) => {
         this.settings = s;
@@ -120,6 +123,7 @@ export class ZoneMinimap {
       'mm-mask': this.region ? { type: 'Feature', geometry: this.region.mask, properties: {} } : fc([]),
       'mm-zones': this.zones ?? fc([]),
       'mm-zone': zone ? fc([zone]) : fc([]),
+      'mm-points': this.points ?? fc([]),
       'mm-here': here ? fc([{ type: 'Feature', geometry: { type: 'Point', coordinates: here }, properties: {} }]) : fc([]),
     };
     for (const [id, d] of Object.entries(data)) {
@@ -132,10 +136,16 @@ export class ZoneMinimap {
     add({ id: 'mm-zone-fill', type: 'fill', source: 'mm-zone', paint: { 'fill-color': ZONE, 'fill-opacity': 0.42 } });
     add({ id: 'mm-zone-glow', type: 'line', source: 'mm-zone', paint: { 'line-color': ZONE, 'line-width': 10, 'line-blur': 6, 'line-opacity': 0.7 } });
     add({ id: 'mm-zone-line', type: 'line', source: 'mm-zone', paint: { 'line-color': '#ffb066', 'line-width': 2 } });
+    // your points, in their category icon and colour, named from a closer zoom (the tooltip map is small)
+    add({ id: 'mm-points', type: 'symbol', source: 'mm-points',
+      layout: { 'icon-image': blipExpr('pin', '#607d8b'), 'icon-size': 0.95, 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+        'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': 10, 'text-offset': [0, 1.1], 'text-anchor': 'top',
+        'text-optional': true },
+      paint: { 'text-color': '#ffffff', 'text-halo-color': '#101014', 'text-halo-width': 1.3 } });
     add({ id: 'mm-pin', type: 'symbol', source: 'mm-here',
       layout: { 'icon-image': PIN, 'icon-anchor': 'bottom', 'icon-size': 0.78, 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
-    // most of the analysed area, so the home's place in the city is clear: zoomed in on it just enough to keep at
-    // least 70 % of it in view, then moved only as far as needed to keep the home's pin inside the frame
+    // much of the analysed area, so the home's place in the city is clear: zoomed in on it just enough to keep
+    // half of it in view, then moved only as far as needed to keep the home's pin inside the frame
     const rb = this.region ? bounds(this.region.outline) : null;
     const cam = rb ? map.cameraForBounds(rb, { padding: 6 }) : null;
     if (cam) map.jumpTo({ center: cam.center, zoom: (cam.zoom ?? 10) + AREA_ZOOM_IN });

@@ -223,10 +223,11 @@ listing; a click opens the explanation dialog. It is used in the candidates tabl
 the detail page.
 
 **Where the home is.** [`fh-zone-minimap`](../../frontend/src/app/components/zone-minimap.ts) is a small,
-non-interactive locator: at least 70 % of the analysed area in view (its fitted zoom plus `AREA_ZOOM_IN`, then panned
-only as far as needed to keep the pin inside), the home's zone filled orange, the area outside the analysed zones
-grey (the `GET /api/zone/region` mask), a standing pin on the home and the zone's name; outside every zone, the pin
-in the grey. Zones, region and map style are fetched once per session
+non-interactive locator: half of the analysed area in view (its fitted zoom plus `AREA_ZOOM_IN`, then panned only
+as far as needed to keep the pin inside), the home's zone filled orange, the area outside the analysed zones grey
+(the `GET /api/zone/region` mask), a standing pin on the home, your points (`GET /api/map/points`) in their category
+icon and colour, and the zone's name; outside every zone, the pin in the grey. Zones, region, points and map style
+are fetched once per session
 ([`ZoneGeoStore`](../../frontend/src/app/services/zone-geo.store.ts)). The listing page has it as the **Where**
 card at the top of its side column. The candidates table reuses one instance in its hover card (after
 250 ms on a row), with the photo, rent and rent per m², rooms and size, building, pets, contract, status and the

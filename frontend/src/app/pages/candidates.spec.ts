@@ -23,6 +23,7 @@ describe('CandidatesPage keyboard triage', () => {
       geoZones: vi.fn(() => of({ type: 'FeatureCollection', features: [] })),
       zoneRegion: vi.fn(() => NEVER),
       mapSettings: vi.fn(() => NEVER),                 // no map in the test DOM
+      mapPoints: vi.fn(() => of({ type: 'FeatureCollection', features: [] })),
     };
     TestBed.configureTestingModule({ imports: [CandidatesPage], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });
   });
