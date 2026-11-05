@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -65,6 +66,48 @@ async def all_indices(window: str | None = None, conn=Depends(get_conn)):
     windows = list((b.zone.indices or {}).get("windows", {}))
     return {"version": ver, "window": window, "windows": windows, "density_sets": sets, "zones": out, "count": len(rows),
             "zone_count": len(_zones_or_404().zones)}
+
+
+_listing_zone: dict[tuple, str | None] = {}           # (listing id, lat, lon) → zone id (zones change rarely)
+
+
+@router.get("/stats")
+async def listing_stats(statuses: str | None = None, seen: Literal["active", "gone", "all"] = "all", active_days: int = 14,
+                        scored: Literal["passing", "rejected", "all"] = "all",
+                        posted_from: date | None = None, posted_to: date | None = None,
+                        first_seen_from: date | None = None, first_seen_to: date | None = None,
+                        rent_min: float | None = None, rent_max: float | None = None,
+                        size_min: float | None = None, size_max: float | None = None,
+                        rooms_min: float | None = None, rooms_max: float | None = None, min_n: int = 3,
+                        conn=Depends(get_conn)):
+    """Listing statistics per zone for the Explore heatmaps: count, per km², and (from min_n listings) median, p25
+    and p75 of rent, rent per m², size and rooms. The filters choose which listings count."""
+    from shapely.geometry import Point
+
+    from findhome.domain.listing_stats import StatsFilter, where_sql, zone_stats
+    from findhome.geo.crs import point_metric
+
+    b, zones = bundle(), _zones_or_404()
+    f = StatsFilter(tuple(x for x in (statuses or "").split(",") if x), seen, active_days, scored, posted_from, posted_to,
+                    first_seen_from, first_seen_to, rent_min, rent_max, size_min, size_max, rooms_min, rooms_max, min_n)
+    where, args = where_sql(f)
+    rows = await (await conn.execute(
+        f"""SELECT l.id, l.lat, l.lon, l.rent_sek, l.size_m2, l.rooms_rok FROM listings l
+            LEFT JOIN scores s ON s.listing_id = l.id AND s.config_hash = %s WHERE {where}""",
+        (b.config_hash, *args))).fetchall()
+    data, points = [], []
+    for r in rows:
+        key = (r["id"], float(r["lat"]), float(r["lon"]))
+        if key not in _listing_zone:
+            z = zones.containing(Point(point_metric(key[2], key[1])))
+            _listing_zone[key] = z.id if z else None
+        data.append({"zone_id": _listing_zone[key], "rent": r["rent_sek"], "size": r["size_m2"], "rooms": r["rooms_rok"]})
+        points.append([round(key[2], 5), round(key[1], 5)])
+    areas = {zid: z.props.get("area_km2") or z.geom.area / 1e6 for zid, z in zones.zones.items()}
+    stats = zone_stats(data, areas, min_n)
+    return {"listings": len(rows), "in_zones": sum(1 for d in data if d["zone_id"]), "min_n": min_n,
+            "zones": stats, "zone_count": len(zones.zones),
+            "points": points}                     # [lon, lat] of the counted listings (density heatmap)
 
 
 async def stored_zone_indices(conn, b, zones, zone_id: str) -> dict:

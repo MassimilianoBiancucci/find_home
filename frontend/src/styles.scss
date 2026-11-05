@@ -400,3 +400,7 @@ pre.fh-pre {
 }
 .fh-house-pop .maplibregl-popup-content { padding: 4px 8px; font-size: 0.8rem; background: #1c1c22; color: #eee; border: 1px solid #44444e; }
 .fh-house-pop .maplibregl-popup-tip { border-top-color: #1c1c22; border-bottom-color: #1c1c22; }
+// Score hover card (components/score-tip.ts)
+.fh-stip { cursor: help; border-bottom: 1px dotted var(--bs-border-color); }
+.fh-stip-pop { width: 330px; }
+.fh-stip-table { width: 100%; font-size: 0.8rem; td { padding: 1px 4px; } .fh-stip-why td { color: var(--bs-secondary-color); font-size: 0.72rem; padding-top: 0; padding-bottom: 3px; } }

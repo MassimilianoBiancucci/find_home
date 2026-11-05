@@ -5,6 +5,7 @@ import { RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
+import { ScoreTip } from '../components/score-tip';
 import { HouseHome, HouseTravel, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
 import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
@@ -13,7 +14,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, ScoreTip],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
@@ -98,7 +99,7 @@ import { TagsStore } from '../services/tags.store';
       <div class="col-lg-5">
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">Score
-            @if (x.score?.total != null) { <span [style.color]="color(x.score?.total)">{{ score(x.score?.total) }}</span> }
+            <fh-score-tip [total]="x.score?.total" [breakdown]="x.score?.breakdown" [rejected]="x.score?.rejected_by" />
             <fh-info id="score.total" />
           </h2>
           @if (x.score_stale) { <div class="small text-warning">No score for the current config. <a href="" (click)="$event.preventDefault(); recompute()">Recompute</a></div> }

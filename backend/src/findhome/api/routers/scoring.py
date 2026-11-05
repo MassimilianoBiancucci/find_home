@@ -55,6 +55,25 @@ async def commute(short_id: str, conn=Depends(get_conn)):
     return {"short_id": L["short_id"], "items": await repo.commute_for(conn, L["id"], bundle().config_hash)}
 
 
+async def _location(conn, b, L: dict) -> dict | None:
+    """The listing's cached house analysis scores and its zone's services index, for the neighbourhood group.
+    Only reads caches (no computation here): `findhome listings location --all` fills them."""
+    if L.get("lat") is None or L.get("lon") is None:
+        return None
+    from findhome.zone import analysis as za
+    from findhome.zone.house import version as house_version
+
+    row = await (await conn.execute("SELECT payload FROM listing_location WHERE listing_id = %s AND version = %s",
+                                    (L["id"], house_version(b, float(L["lat"]), float(L["lon"]))))).fetchone()
+    if not row:
+        return None
+    pl = row["payload"]
+    zi = await (await conn.execute("SELECT payload FROM zone_index WHERE zone_id = %s AND version = %s",
+                                   (pl["zone"]["id"], za.version(b, za.index_sets(b))))).fetchone()
+    return {"services": pl.get("services"), "transport": pl.get("transport"),
+            "zone_services": (zi["payload"].get("services") if zi else None)}
+
+
 @router.post("/scores/recompute")
 async def recompute(body: RecomputeBody | None = None, conn=Depends(get_conn)):
     b = bundle()
@@ -68,7 +87,7 @@ async def recompute(body: RecomputeBody | None = None, conn=Depends(get_conn)):
         if L["lat"] is None and L.get("address_raw") and geocoded < GEOCODE_PER_RECOMPUTE:
             geocoded += 1
             L = await ensure_coords(conn, reg, L)
-        result = score_listing(b, L, await repo.commute_for(conn, L["id"], b.config_hash))
+        result = score_listing(b, L, await repo.commute_for(conn, L["id"], b.config_hash), await _location(conn, b, L))
         await repo.save_score(conn, L["id"], b.config_hash, result)
         scored += 1
         rejected += bool(result["rejected_by"])

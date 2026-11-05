@@ -151,6 +151,29 @@ def _area(area: dict[str, Any] | None):
     return area["score"], f"{where} · best {area['best_piece'] or '-'}"
 
 
+NEIGHBOURHOOD_DEFAULT = {"house_services": 0.5, "house_transport": 0.3, "zone_services": 0.2}
+
+
+def _neighbourhood(p, location: dict[str, Any] | None):
+    """The home's surroundings from its exact address (house analysis) and its zone's services index (0-100 each):
+    house services, house transport and zone services, weighted by params; missing parts renormalise. Commute is
+    not counted here: it has its own group."""
+    if not location:
+        return None, "no house analysis yet (open the listing or run findhome listings location --all)", None
+    w = {**NEIGHBOURHOOD_DEFAULT, **{k: float(v) for k, v in (p or {}).items() if k in NEIGHBOURHOOD_DEFAULT}}
+    parts = {"house_services": location.get("services"), "house_transport": location.get("transport"),
+             "zone_services": location.get("zone_services")}
+    labels = {"house_services": "home services", "house_transport": "home transport", "zone_services": "zone services"}
+    have = [(v / 100, w[k]) for k, v in parts.items() if v is not None and w[k] > 0]
+    total = sum(x for _, x in have)
+    rows = [{"name": labels[k], "input": "no value" if v is None else f"{v:g} / 100",
+             "score": None if v is None else round(v / 100, 3), "weight": w[k]} for k, v in parts.items()]
+    if not total:
+        return None, "house analysis without scores", rows
+    why = ", ".join(f"{labels[k]} {v:g}" for k, v in parts.items() if v is not None)
+    return sum(v * x for v, x in have) / total, why, rows
+
+
 def evaluate_area(bundle: ConfigBundle, listing: dict[str, Any]) -> dict[str, Any] | None:
     """None when no search area is defined; {'unknown': True} without coordinates; else the AreaResult dict."""
     from findhome.geo.area import area_eval, compiled_for
@@ -163,7 +186,10 @@ def evaluate_area(bundle: ConfigBundle, listing: dict[str, Any]) -> dict[str, An
     return area_eval(area, float(listing["lat"]), float(listing["lon"])).as_dict()
 
 
-def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[dict]) -> dict[str, Any]:
+def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[dict],
+                  location: dict[str, Any] | None = None) -> dict[str, Any]:
+    """location: the house analysis' transport / services scores plus `zone_services` (the zone's services index),
+    for the neighbourhood group; None leaves that group without data."""
     kind = listing.get("listing_kind", "rent")
     prof = bundle.profile.kinds.get(kind)
     if prof is None or not prof.enabled:
@@ -181,6 +207,7 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
         "building_comfort": lambda p: _building(p, hf, listing),
         "contract_availability": lambda p: _contract(p, hf, listing),
         "area": lambda p: _area(area),
+        "neighbourhood": lambda p: _neighbourhood(p, location),
     }
     breakdown: dict[str, Any] = {}
     num = den = 0.0
@@ -191,8 +218,10 @@ def score_listing(bundle: ConfigBundle, listing: dict[str, Any], commute: list[d
         if fn is None:
             breakdown[name] = {"score": None, "weight": pref.weight, "why": "no scorer yet"}
             continue
-        s, why = fn(pref.params)
+        s, why, *extra = fn(pref.params)
         breakdown[name] = {"score": None if s is None else round(s, 3), "weight": pref.weight, "why": why}
+        if extra and extra[0]:
+            breakdown[name]["detail"] = {"label": "Part", "rows": extra[0], "total": None if s is None else round(s, 3)}
         if name == "area" and area and not area.get("unknown"):
             breakdown[name]["detail"] = area
         if s is not None:

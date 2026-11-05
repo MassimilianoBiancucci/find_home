@@ -119,7 +119,7 @@ min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (
 ([`geo/build_poi.py`](../../backend/src/findhome/geo/build_poi.py)) fetches each category for the whole region
 (one Overpass request per category) into `data/geo/poi/<category>.geojson`;
 [`geo/store.py`](../../backend/src/findhome/geo/store.py) `load_poi` keeps an STRtree per category in
-EPSG:3006. POIs are shown and inspected only; no score group uses them (`neighbourhood` stays disabled).
+EPSG:3006. POIs reach the score through the house analysis and the `neighbourhood` group (see Scoring).
 
 The **test point** ([`domain/probe.py`](../../backend/src/findhome/domain/probe.py), `POST /api/probe`) answers
 for any spot: the area result, the 3 nearest places per category by walking minutes (5 straight-line candidates
@@ -476,6 +476,18 @@ by "Compute transit routes". Its destinations are your points
 cell, like the test point's. With `dry=true` it returns only the number of calls not yet cached
 ([`uncached_trips()`](../../backend/src/findhome/domain/probe.py#L152)). `findhome listings location --all` warms the cache for every listing.
 
+### Listing statistics per zone
+
+`GET /api/zone/stats` ([`listing_stats()`](../../backend/src/findhome/api/routers/zone.py#L75)) places each
+listing that passes the filters in its zone. The filters are pipeline statuses; seen on the site (`active` = seen
+within `active_days`, `gone`, `all`); passing or rejected by the hard filters; posting date (Qasa
+`attributes.publishedAt`); first-seen date; and rent, size and rooms ranges. They are built by
+[`where_sql()`](../../backend/src/findhome/domain/listing_stats.py#L35).
+[`zone_stats()`](../../backend/src/findhome/domain/listing_stats.py#L69) returns per zone `n`, `per_km2` and,
+from `min_n` listings (default 3), the median, p25 and p75 of rent, rent per m², size and rooms. The response also
+lists the counted listings' points for the density heatmap. There is no price history table: price over time
+comes from filtering on posting dates.
+
 ## Scoring
 
 [`domain/scoring.py`](../../backend/src/findhome/domain/scoring.py) `score_listing`:
@@ -487,8 +499,15 @@ cell, like the test point's. With `dry=true` it returns only the number of calls
   `max_rent_sek` and `ideal_rent_sek` are unset). The total is the weighted mean of the groups that returned a
   score. Groups: cost, space, commute (point weight × window weight, linear between `good_min` and `bad_min`,
   reduced when the spread exceeds `reliability_spread_penalty_min`), cat_suitability, building_comfort,
-  contract_availability, area (the area function's score; its breakdown keeps the contributions).
-  `neighbourhood` has no scorer yet.
+  contract_availability, area (the area function's score; its breakdown keeps the contributions), and
+  neighbourhood ([`_neighbourhood()`](../../backend/src/findhome/domain/scoring.py#L157)).
+- **neighbourhood** combines three 0-100 parts: the home's services score, the home's transport score (both from
+  the house analysis) and the zone's services index. Weights are the group's params, by default
+  `house_services 0.5, house_transport 0.3, zone_services 0.2`; missing parts renormalise. Commute is not counted
+  here, since it has its own group. `scores recompute` reads only cached values
+  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L58): `listing_location` and `zone_index`).
+  A listing whose house analysis is not computed yet gets `None` for this group: run
+  `findhome listings location --all`. Its breakdown carries the derivation rows (`detail`).
 - With a search area defined, a listing whose area score is 0 (beyond the buffer) is rejected with
   `outside_search_area`, and the text filters `areas_include` / `areas_exclude` are not used. A listing without
   coordinates is not rejected: the area group is `None` (`area_unknown`). `scores recompute` geocodes up to 60

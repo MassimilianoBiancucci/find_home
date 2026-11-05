@@ -20,7 +20,7 @@ def test_score_is_weighted_mean_of_available_groups(tmp_repo):
     assert 0 <= res["total"] <= 1
     assert res["breakdown"]["cost"]["score"] is None          # max/ideal rent not set yet (TODO(user))
     assert res["breakdown"]["cat_suitability"]["score"] == 1.0
-    assert "neighbourhood" not in res["breakdown"]            # disabled group
+    assert res["breakdown"]["neighbourhood"]["score"] is None  # no house analysis given: left out of the mean
 
 
 def test_commute_and_reliability_penalty(tmp_repo):
@@ -44,3 +44,16 @@ def test_max_commute_by_category():
     hf = {"max_commute_min_by_category": {"work": 40}}
     commute = [{"category": "work", "median_min": 55}]
     assert hard_filter_failures(hf, {}, commute) == ["max_commute_min_by_category.work"]
+
+
+def test_neighbourhood_from_house_analysis_and_zone(tmp_repo):
+    b = bundle(tmp_repo)
+    L = {"listing_kind": "rent", "pet_status": "yes"}
+    full = score_listing(b, L, [], {"services": 80, "transport": 60, "zone_services": 50})["breakdown"]["neighbourhood"]
+    assert full["score"] == round(0.5 * 0.8 + 0.3 * 0.6 + 0.2 * 0.5, 3)
+    assert "home services 80" in full["why"] and [r["name"] for r in full["detail"]["rows"]] == [
+        "home services", "home transport", "zone services"]
+    part = score_listing(b, L, [], {"services": 80, "transport": None, "zone_services": None})["breakdown"]["neighbourhood"]
+    assert part["score"] == 0.8                                                     # renormalised to the one part
+    none = score_listing(b, L, [], {"services": None, "transport": None, "zone_services": None})["breakdown"]["neighbourhood"]
+    assert none["score"] is None

@@ -55,9 +55,9 @@ kinds:
         weight: 2
         params: {first_hand_bonus: 0.3, min_contract_months: 12}
       neighbourhood:
-        enabled: false                          # needs the POI layer (tasks/BACKLOG.md: poi-layer)
+        enabled: true                           # the home's surroundings from its exact address (house analysis)
         weight: 1
-        params: {}
+        params: {house_services: 0.5, house_transport: 0.3, zone_services: 0.2}   # parts, 0-100 each, renormalised
       area:
         enabled: true                           # search area from Map → Area (config/search_area.yaml)
         weight: 3

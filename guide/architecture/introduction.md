@@ -179,6 +179,30 @@ can show a light tint of
 the same colours; hovering a zone shows its minutes over the map; the test point shows its zone's matrix value
 next to its own itinerary.
 
+**Explore heatmaps.** Explore's **Colour zones by** bubble
+([`explore-heat.ts`](../../frontend/src/app/pages/map/explore-heat.ts)) colours every zone by one value:
+- the zone indices (transport, services, combined);
+- the amount of a service set (per 1,000 homes, per km² or the count, from `zone_index` density);
+- commute minutes to one of your points or the weighted mix (the Connectivity matrix);
+- listing statistics (count, per km², median rent per m², rent, size, rooms) from `GET /api/zone/stats`.
+
+The **Listing filters** bubble chooses which listings count. The chosen view (`?view=`) and the filters
+(`f_<key>`) are kept in the URL. [`ZoneFillService`](../../frontend/src/app/pages/map/zone-fill.service.ts) draws
+the choropleth. Its **Heatmap settings** (remembered per browser) are:
+- opacity;
+- colour ramp (colour-blind-safe sequential ramps, or diverging), with an option to reverse it;
+- classes (quantile, equal intervals, percentile rank) and the number of steps;
+- display: flat fill, 3D height by value, or a point-density heatmap for listings;
+- zone outlines.
+
+Zones without a value, or with fewer than the minimum listings, are drawn as no data. Hovering a zone shows its
+value and rank.
+
+**Score tooltip.** [`fh-score-tip`](../../frontend/src/app/components/score-tip.ts) shows a listing's total. On
+hover it lists every score group (score, weight, contribution, reason) and the hard filters that rejected the
+listing; a click opens the explanation dialog. It is used in the candidates table, the map's listing panel and
+the detail page.
+
 **Zone mode** (`/map/zone`, `/map/zone/:id`, [`zone-mode.ts`](../../frontend/src/app/pages/map/zone-mode.ts#L116)) studies one zone.
 Without an id it is a picker: every zone is outlined, hover highlights one, a click opens it.
 [`ZoneService`](../../frontend/src/app/pages/map/zone.service.ts#L21) owns the state and the layer groups:

@@ -2,6 +2,7 @@ import { Component, HostListener, OnInit, computed, inject, signal } from '@angu
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
+import { ScoreTip } from '../components/score-tip';
 import { Listing } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { TagsStore } from '../services/tags.store';
@@ -14,7 +15,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, ScoreTip],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -56,8 +57,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
           <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)">
             <td class="fh-mono"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
             <td>
-              @if (r.rejected_by?.length) { <span class="badge text-bg-danger" [title]="r.rejected_by!.join(', ')">rejected</span> }
-              @else { <strong [style.color]="color(r.score)">{{ score(r.score) }}</strong> }
+              <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
               @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
             </td>
             <td>{{ r.status }}</td>

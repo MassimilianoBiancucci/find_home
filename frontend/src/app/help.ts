@@ -57,6 +57,31 @@ export const HELP: Record<string, HelpEntry> = {
     title: 'Heatmap targets', short: 'What the street heatmap measures the walk to: stops by mode and service categories. Streets are coloured by minutes to the nearest selected target.',
     config: ['config/zone.yaml → target_sets', 'config/zone.yaml → bins_min'],
   },
+  'bubble.explore-colour': {
+    title: 'Colour zones by', short: 'Colour every zone by one value: the zone indices, the amount of a service, travel minutes to your points, or listing statistics. Hover a zone for its value and rank; the legend shows the classes.',
+    config: ['config/zone.yaml → indices, combined, density'],
+  },
+  'bubble.explore-filters': {
+    title: 'Listing filters', short: 'Which listings the Listings views count: pipeline status, whether the ad is still seen on the site, passing or rejected by your hard filters, posting date, first-seen date, rent, size and rooms. A zone is coloured from the chosen number of listings.',
+  },
+  'bubble.explore-heat-settings': {
+    title: 'Heatmap settings', short: 'How the zone heatmap looks: opacity, colour scale, classes (quantile = equal counts, equal intervals, percentile rank), number of steps, flat fill or 3D height by value, and for listings a point-density heatmap. Remembered in this browser.',
+  },
+  'explore.indices': {
+    title: 'Zone indices', short: 'Transport, services and combined scores of each zone (0-100, absolute thresholds). Run `findhome zone indices --all` to compute every zone.',
+    config: ['config/zone.yaml → indices', 'config/zone.yaml → combined'],
+  },
+  'explore.poi': {
+    title: 'Services amount', short: 'How many of a service (POIs from OpenStreetMap) lie inside each zone. Per 1,000 homes (buildings weighted by floors) by default, so a large, empty zone does not look rich; per km² and the plain count are options.',
+    config: ['config/poi.yaml (categories)', 'config/zone.yaml → density.per_homes', 'config/zone.yaml → target_sets'],
+  },
+  'explore.commute': {
+    title: 'Commute', short: 'Transit minutes from each zone to one of your points, or the mean weighted by point (the Connectivity matrix; refresh it in Map → Connectivity).',
+    config: ['config/locations.yaml', 'config/providers.yaml → connectivity'],
+  },
+  'explore.listings': {
+    title: 'Listing statistics', short: 'From the listings that pass the Listing filters, placed in their zone: how many, per km², and the median rent, rent per m², size and rooms. Zones with fewer listings than the minimum are shown as no data.',
+  },
   'bubble.area-tools': { title: 'Tools', short: 'Draw and edit the pieces of your search area.', config: ['config/search_area.yaml'] },
   'bubble.area-pieces': { title: 'Area pieces', short: 'The pieces of your search area, each with a weight that scales the area score.', config: ['config/search_area.yaml'] },
   'bubble.area-zones': { title: 'Zones', short: 'The zones (districts) of the region, grouped by municipality and district.' },

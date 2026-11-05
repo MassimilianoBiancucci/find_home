@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from itertools import pairwise
 from typing import Any
 
 import networkx as nx
@@ -106,10 +107,10 @@ def walk_paths(eg: ExtentGraph, origin: Point, targets: dict[str, list[tuple[Poi
         t, pt, name, node = best
         nodes = paths[node][1:]                                   # drop the virtual source
         coords = [[origin.x, origin.y]] + [list(eg.net.nodes[nodes[0]])]
-        for u, v in zip(nodes, nodes[1:], strict=False):
+        for u, v in pairwise(nodes):
             coords += _edge_coords(eg, u, v)[1:]
         coords.append([pt.x, pt.y])
-        metres = sum(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 for a, b in zip(coords, coords[1:], strict=False))
+        metres = sum(((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5 for a, b in pairwise(coords))
         wgs = points_wgs84([c[0] for c in coords], [c[1] for c in coords])
         (lon, lat), = points_wgs84([pt.x], [pt.y])
         out[sid] = Walk(sid, round(t / 60, 1), round(metres), name, (round(lon, 6), round(lat, 6)),
@@ -147,7 +148,14 @@ def house_analysis(bundle: ConfigBundle, zones: ZoneSet, lat: float, lon: float)
     """Everything measured from the address. Raises OutsideZones, or analysis.MissingData for a missing dataset."""
     from findhome.zone.analysis import MissingData, set_weights, targets_for
     from findhome.zone.centroid_build import load_centroids
-    from findhome.zone.indices import COMPONENT_LABELS, Components, ServiceInput, choice_cfg, indices, service_set_score
+    from findhome.zone.indices import (
+        COMPONENT_LABELS,
+        Components,
+        ServiceInput,
+        choice_cfg,
+        indices,
+        service_set_score,
+    )
     from findhome.zone.measure import reachable_stops, window_counts
     from findhome.zone.targets import stop_modes
 
@@ -247,15 +255,15 @@ def estimates(station_walks: dict[str, float], rows: list[dict], zone_rows: list
     for r in zone_rows:
         if r["minutes"] is not None:
             zp.setdefault(r["point_id"], []).append((float(r["minutes"]), float(r["window_weight"])))
-    for pid in labels:
+    for pid, label in labels.items():
         if pid in out:
             continue
         if pid in zp:
             vs = zp[pid]
-            out[pid] = {"point_id": pid, "label": labels[pid], "source": "zone",
+            out[pid] = {"point_id": pid, "label": label, "source": "zone",
                         "minutes": round(sum(m * w for m, w in vs) / (sum(w for _, w in vs) or 1), 1)}
         else:
-            out[pid] = {"point_id": pid, "label": labels[pid], "source": None, "minutes": None}
+            out[pid] = {"point_id": pid, "label": label, "source": None, "minutes": None}
     return [out[p] for p in labels if p in out]
 
 

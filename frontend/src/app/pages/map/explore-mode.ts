@@ -1,7 +1,8 @@
 import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
-import { Router } from '@angular/router';
-import { Listing, TransitLine } from '../../models';
+import { ActivatedRoute, Router } from '@angular/router';
+import { Listing, ListingDetail, TransitLine } from '../../models';
+import { ScoreTip } from '../../components/score-tip';
 import { GalleryComponent } from '../../components/gallery';
 import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
@@ -11,13 +12,17 @@ import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
 import { ProbeService } from './probe.service';
 import { ProbePanel, SavedProbesList } from './probe-panel';
+import { ExploreColour, ExploreFilters, ExploreHeatService, ExploreSettings } from './explore-heat';
+import { ZoneFillService } from './zone-fill.service';
 
 export interface LayerToggle { id: string; label: string; icon?: string; }
+/** What the listing panel shows from the fetched listing: photos and the score breakdown. */
+type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'> & { score: ListingDetail['score'] };
 
 /** Explore mode: layers on/off (base + POI categories), legend, inspector for the clicked item and the test point. */
 @Component({
   selector: 'fh-explore-mode',
-  imports: [DecimalPipe, ProbePanel, SavedProbesList, GalleryComponent],
+  imports: [DecimalPipe, ProbePanel, SavedProbesList, GalleryComponent, ScoreTip, ExploreColour, ExploreFilters, ExploreSettings],
   template: `
   <ng-template #layersTpl>
     @for (t of toggles; track t.id) {
@@ -74,6 +79,9 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
   </ng-template>
 
   <ng-template #savedTpl><fh-saved-probes /></ng-template>
+  <ng-template #colourTpl><fh-explore-colour /></ng-template>
+  <ng-template #filtersTpl><fh-explore-filters /></ng-template>
+  <ng-template #heatSettingsTpl><fh-explore-settings /></ng-template>
 
   <ng-template #panelTpl>
     @switch (sel()?.kind) {
@@ -85,7 +93,8 @@ export interface LayerToggle { id: string; label: string; icon?: string; }
           <dt>Rent</dt><dd>{{ p['rent_sek'] ?? '?' }} kr</dd>
           <dt>Rooms</dt><dd>{{ p['rooms_rok'] ?? '?' }} rok</dd>
           <dt>Size</dt><dd>{{ p['size_m2'] ?? '?' }} m²</dd>
-          <dt>Score</dt><dd>{{ p['score'] == null ? '–' : (p['score'] | number: '1.2-2') }}</dd>
+          <dt>Score</dt><dd>@if (photos(); as ph) { <fh-score-tip [total]="ph.score?.total ?? p['score']" [breakdown]="ph.score?.breakdown" [rejected]="ph.score?.rejected_by" /> }
+            @else { {{ p['score'] == null ? '–' : (p['score'] | number: '1.2-2') }} }</dd>
           <dt>Pets</dt><dd>{{ p['pet_status'] }}</dd>
           <dt>Status</dt><dd>{{ p['status'] }}</dd>
         </dl>
@@ -143,14 +152,19 @@ export class ExploreMode {
   private api = inject(ApiService);
   protected line = signal<TransitLine | null>(null);
   /** Photos of the selected listing: the map features do not carry them, so they are fetched once per listing. */
-  protected photos = signal<Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'> | null>(null);
-  private photoCache = new Map<string, Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'>>();
+  protected photos = signal<ListingCard | null>(null);
+  private photoCache = new Map<string, ListingCard>();
   private probe = inject(ProbeService);
   private layout = inject(LayoutService);
   private router = inject(Router);
   private layersTpl = viewChild.required<TemplateRef<unknown>>('layersTpl');
   private legendTpl = viewChild.required<TemplateRef<unknown>>('legendTpl');
   private savedTpl = viewChild.required<TemplateRef<unknown>>('savedTpl');
+  private colourTpl = viewChild.required<TemplateRef<unknown>>('colourTpl');
+  private filtersTpl = viewChild.required<TemplateRef<unknown>>('filtersTpl');
+  private heatSettingsTpl = viewChild.required<TemplateRef<unknown>>('heatSettingsTpl');
+  protected heat = inject(ExploreHeatService);
+  private fill = inject(ZoneFillService);
   private panelTpl = viewChild.required<TemplateRef<unknown>>('panelTpl');
   protected sel = computed(() => this.state.selection());
   protected toggles: LayerToggle[] = [
@@ -172,10 +186,18 @@ export class ExploreMode {
       });
     });
     afterNextRender(() => this.layout.register(destroy, [
+      { id: 'explore-colour', title: 'Colour zones by', tpl: this.colourTpl() },
       { id: 'map-layers', title: 'Layers', tpl: this.layersTpl() },
+      { id: 'explore-filters', title: 'Listing filters', tpl: this.filtersTpl() },
+      { id: 'explore-heat-settings', title: 'Heatmap settings', tpl: this.heatSettingsTpl() },
       { id: 'map-legend', title: 'Legend', tpl: this.legendTpl() },
       { id: 'map-saved-probes', title: 'Test points (alpha)', tpl: this.savedTpl() },
     ], { title: 'Inspector', tpl: this.panelTpl() }));
+    // the zone heatmap: redraw after a style reload, drop it when leaving Explore
+    effect(() => { if (this.state.styleReady() && this.heat.view()) untracked(() => this.heat.draw()); });
+    destroy.onDestroy(() => this.fill.clear());
+    const view = inject(ActivatedRoute).snapshot.queryParamMap.get('view');
+    if (view && view !== this.heat.view()) this.heat.setView(view);
   }
 
   protected icon(glyph: string | null | undefined, color: string | null | undefined): string { return blipUrl(glyph, color); }
@@ -184,7 +206,7 @@ export class ExploreMode {
     if (hit) { this.photos.set(hit); return; }
     this.api.listing(id).subscribe({
       next: (d) => {
-        const ph = { photo_urls: d.listing.photo_urls, floorplan_urls: d.listing.floorplan_urls, canonical_url: d.listing.canonical_url };
+        const ph: ListingCard = { photo_urls: d.listing.photo_urls, floorplan_urls: d.listing.floorplan_urls, canonical_url: d.listing.canonical_url, score: d.score };
         this.photoCache.set(id, ph);
         if (this.sel()?.props['short_id'] === id) this.photos.set(ph);
       },
