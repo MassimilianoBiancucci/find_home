@@ -230,6 +230,8 @@ export interface ZoneCentroids { zone_id: string; walk_min: number; range_m: num
 export interface HouseWalk {
   set: string; minutes: number | null; metres: number | null; target: string | null;
   target_lonlat: [number, number] | null; path: [number, number][]; count_within: number;
+  /** [lon, lat, name, minutes] of the targets within reach, nearest first (the house map). */
+  nearby?: [number, number, string, number][];
 }
 export interface HouseEstimate {
   point_id: string; label: string; minutes: number | null; source: 'stations' | 'zone' | null;

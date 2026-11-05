@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import pairwise
 from typing import Any
 
@@ -28,7 +28,9 @@ from findhome.zone.heatmap import SOURCE, ExtentGraph, HeatmapParams
 from findhome.zone.network import EDGE_GEOM, EDGE_U, load_network
 
 DEFAULT_SETS = ["grocery", "pharmacy", "gym", "park", "vet", "rail", "bus"]
-PAYLOAD_VERSION = 2               # bump when the payload shape changes, so cached rows are recomputed
+NEARBY_MAX = {"rail": 15, "bus": 25}           # per set, on the house map; services: NEARBY_DEFAULT
+NEARBY_DEFAULT = 40
+PAYLOAD_VERSION = 3               # bump when the payload shape changes, so cached rows are recomputed
 
 
 class OutsideZones(Exception):
@@ -44,10 +46,12 @@ class Walk:
     target_lonlat: tuple[float, float] | None
     path: list[list[float]]                    # WGS84 [lon, lat], house → target, for the map
     count_within: int                          # targets within choice.within_min
+    nearby: list[list] = field(default_factory=list)   # [lon, lat, name, minutes] of the targets within reach, nearest first
 
     def as_dict(self) -> dict[str, Any]:
         return {"set": self.set_id, "minutes": self.minutes, "metres": self.metres, "target": self.target_name,
-                "target_lonlat": self.target_lonlat, "path": self.path, "count_within": self.count_within}
+                "target_lonlat": self.target_lonlat, "path": self.path, "count_within": self.count_within,
+                "nearby": self.nearby}
 
 
 def house_cfg(bundle: ConfigBundle) -> dict[str, Any]:
@@ -92,6 +96,7 @@ def walk_paths(eg: ExtentGraph, origin: Point, targets: dict[str, list[tuple[Poi
     for sid, pts in targets.items():
         best: tuple[float, Point, str, int] | None = None
         count = 0
+        near: list[tuple[float, Point, str]] = []
         for pt, name in pts:
             s = eg.snap(pt)
             if s is None or s[0] not in dist:
@@ -99,10 +104,16 @@ def walk_paths(eg: ExtentGraph, origin: Point, targets: dict[str, list[tuple[Poi
             t = dist[s[0]] + s[1] / eg.p.speed_mps
             if t <= within_s:
                 count += 1
+            if t <= cutoff_s:
+                near.append((t, pt, name))
             if t <= cutoff_s and (best is None or t < best[0]):
                 best = (t, pt, name, s[0])
+        near.sort(key=lambda x: x[0])
+        near = near[:NEARBY_MAX.get(sid, NEARBY_DEFAULT)]
+        nxy = points_wgs84([q.x for _, q, _ in near], [q.y for _, q, _ in near]) if near else []
+        nearby = [[round(lon, 6), round(lat, 6), name, round(t / 60, 1)] for (t, _, name), (lon, lat) in zip(near, nxy, strict=True)]
         if best is None:
-            out[sid] = Walk(sid, None, None, None, None, [], count)
+            out[sid] = Walk(sid, None, None, None, None, [], count, nearby)
             continue
         t, pt, name, node = best
         nodes = paths[node][1:]                                   # drop the virtual source
@@ -114,7 +125,7 @@ def walk_paths(eg: ExtentGraph, origin: Point, targets: dict[str, list[tuple[Poi
         wgs = points_wgs84([c[0] for c in coords], [c[1] for c in coords])
         (lon, lat), = points_wgs84([pt.x], [pt.y])
         out[sid] = Walk(sid, round(t / 60, 1), round(metres), name, (round(lon, 6), round(lat, 6)),
-                        [[round(a, 6), round(b, 6)] for a, b in wgs], count)
+                        [[round(a, 6), round(b, 6)] for a, b in wgs], count, nearby)
     return out
 
 

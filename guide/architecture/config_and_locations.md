@@ -455,18 +455,18 @@ flowchart TD
 
 | Step | Code |
 |---|---|
-| extent around the address | [`house_extent()`](../../backend/src/findhome/zone/house.py#L58) |
-| walks, paths and counts | [`walk_paths()`](../../backend/src/findhome/zone/house.py#L76) (edge geometry from `Network.edges[idx]`, reversed when stored the other way) |
-| house indices, stops, station walks | [`house_analysis()`](../../backend/src/findhome/zone/house.py#L145), [`station_walks()`](../../backend/src/findhome/zone/house.py#L119) |
-| cache version: zone inputs, poi.yaml, centroids, coordinates | [`version()`](../../backend/src/findhome/zone/house.py#L134) |
+| extent around the address | [`house_extent()`](../../backend/src/findhome/zone/house.py#L64) |
+| walks, paths, counts and the nearby targets for the map (`nearby`) | [`walk_paths()`](../../backend/src/findhome/zone/house.py#L82) (edge geometry from `Network.edges[idx]`, reversed when stored the other way) |
+| house indices, stops, station walks | [`house_analysis()`](../../backend/src/findhome/zone/house.py#L158), [`station_walks()`](../../backend/src/findhome/zone/house.py#L132) |
+| cache version: zone inputs, poi.yaml, centroids, coordinates | [`version()`](../../backend/src/findhome/zone/house.py#L147) |
 
 `GET /api/listings/{id}/location` ([`location()`](../../backend/src/findhome/api/routers/house.py#L74)) serves the cached payload
 ([`house_payload()`](../../backend/src/findhome/api/routers/house.py#L40); computed in a few seconds when missing) and adds what depends on stored rows:
-- **station estimate** per point ([`estimates()`](../../backend/src/findhome/zone/house.py#L219)): for each trip window, the cheapest
+- **station estimate** per point ([`estimates()`](../../backend/src/findhome/zone/house.py#L240)): for each trip window, the cheapest
   `walk(home → station) + centroid_commute(station → point)`; then the window-weighted mean. Without station rows,
   the zone's `zone_commute` value is used; without that, "not computed";
 - the zone's indices and percentiles (`zone_index`, computed when missing);
-- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L274)): each set's walk against the zone median, and each point's minutes (the
+- **insight lines** ([`insights()`](../../backend/src/findhome/zone/house.py#L295)): each set's walk against the zone median, and each point's minutes (the
   listing's own commute when computed, else the estimate) against the zone and as "better than N % of zones".
 
 `POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L130)) is the only call that uses ResRobot. It is triggered

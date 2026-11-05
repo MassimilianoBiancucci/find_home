@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -8,13 +8,14 @@ import { InfoButton } from '../components/info';
 import { ScoreTip } from '../components/score-tip';
 import { HouseHome, HouseTravel, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
+import { HouseMap } from '../house/house-map';
 import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, ScoreTip],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseMap, ScoreTip],
   template: `
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
@@ -40,12 +41,15 @@ import { TagsStore } from '../services/tags.store';
             <div class="col-xl-6"><fh-house-home [loc]="l" [transit]="travel.results()[l.listing.short_id] ?? null" /></div>
             <div class="col-xl-6"><fh-house-zone [loc]="l" /></div>
           </div>
-          <fh-house-travel [loc]="l" />
-        } @else if (locError()) {
+        } @else if (locError() && !outside()) {
           <div class="fh-hcard"><div class="fh-hnote">House analysis not available: {{ locError() }}</div></div>
-        } @else {
+        } @else if (!locError()) {
           <div class="fh-hcard"><div class="fh-hnote">Measuring the home from its address… (a few seconds the first time)</div></div>
         }
+        @if (x.listing.lat != null && x.listing.lon != null) {
+          <fh-house-map [lat]="x.listing.lat" [lon]="x.listing.lon" [shortId]="x.listing.short_id" [loc]="loc()" [outside]="outside()" />
+        }
+        @if (loc(); as l) { <fh-house-travel [loc]="l" /> }
         <div class="card mb-3"><div class="card-body">
           <h2 class="h6">{{ x.listing.title || x.listing.address_raw }}</h2>
           <div class="mb-2">{{ x.listing.area }} · {{ x.listing.address_raw }}</div>
@@ -158,6 +162,8 @@ export class DetailPage {
   protected d = signal<ListingDetail | null>(null);
   protected loc = signal<HouseLocation | null>(null);
   protected locError = signal('');
+  /** The house analysis answered that the home is outside every mapped zone (the map still shows its position). */
+  protected outside = computed(() => /outside every zone/.test(this.locError()));
   protected travel = inject(HouseTravelStore);
   protected digest = signal('');
   protected error = signal('');
@@ -170,7 +176,10 @@ export class DetailPage {
   protected breakdown = computed(() =>
     Object.entries(this.d()?.score?.breakdown ?? {}).map(([name, v]) => ({ name, ...v })));
 
-  constructor() { effect(() => this.load(this.shortId())); }
+  constructor() {
+    // only the id drives a reload: load() reads other signals (loc), which must not re-trigger this effect
+    effect(() => { const id = this.shortId(); untracked(() => this.load(id)); });
+  }
 
   load(id: string): void {
     this.api.listing(id).subscribe({ next: (x) => { this.d.set(x); this.error.set(''); }, error: (e) => this.error.set(apiError(e)) });

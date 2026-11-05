@@ -39,8 +39,12 @@ type Tab = 'photos' | 'plans';
       </header>
       @if (list().length) {
         <div class="fh-gal-main" [class.plan]="tab() === 'plans'">
+          @if (isPdf(list()[index()])) {
+            <a class="fh-gal-pdf" [href]="list()[index()]" target="_blank" rel="noopener">PDF floor plan ↗<small>opens in a new tab</small></a>
+          } @else {
           <img [src]="list()[index()]" decoding="async" [alt]="(tab() === 'plans' ? 'Floor plan ' : 'Photo ') + (index() + 1)"
             (click)="openViewer(tab(), index())" (error)="broken(list()[index()])" />
+          }
           @if (list().length > 1) {
             <button type="button" class="fh-gal-nav prev" aria-label="Previous" (click)="step(-1)">‹</button>
             <button type="button" class="fh-gal-nav next" aria-label="Next" (click)="step(1)">›</button>
@@ -51,7 +55,7 @@ type Tab = 'photos' | 'plans';
           <div class="fh-gal-thumbs">
             @for (u of list(); track u; let i = $index) {
               <button type="button" class="fh-gal-thumb" [class.active]="i === index()" (click)="index.set(i)" [attr.aria-label]="'Show ' + (i + 1)">
-                <img [src]="u" loading="lazy" decoding="async" alt="" (error)="broken(u)" />
+                @if (isPdf(u)) { <span class="fh-gal-pdf-thumb">PDF</span> } @else { <img [src]="u" loading="lazy" decoding="async" alt="" (error)="broken(u)" /> }
               </button>
             }
           </div>
@@ -131,6 +135,9 @@ type Tab = 'photos' | 'plans';
       border: 1px solid rgba(255,255,255,.3); background: rgba(40,40,48,.7); color: #fff; font-size: 1.6rem; line-height: 1; }
     .fh-gal-vnav.prev { left: 12px; } .fh-gal-vnav.next { right: 12px; }
     .fh-gal-preload { display: none; }
+    .fh-gal-pdf { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+      font-weight: 600; color: #1c1c22; text-decoration: none; small { font-weight: 400; color: #555; } }
+    .fh-gal-pdf-thumb { display: flex; align-items: center; justify-content: center; height: 100%; color: #ddd; font-size: .72rem; font-weight: 700; }
   `],
 })
 export class GalleryComponent {
@@ -164,6 +171,8 @@ export class GalleryComponent {
     effect(() => { this.photos(); this.plans(); untracked(() => { this.index.set(0); this.tab.set('photos'); this.failed.set(new Set()); }); });
   }
 
+  /** Some sites publish floor plans as PDF documents: shown as a link, not an image. */
+  protected isPdf(u: string | undefined): boolean { return !!u && /\.pdf($|\?)/i.test(u); }
   protected setTab(t: Tab): void { this.tab.set(t); this.index.set(0); }
   protected step(d: number): void { const n = this.list().length; if (n) this.index.set((this.index() + d + n) % n); }
   protected broken(u: string): void {
@@ -172,7 +181,12 @@ export class GalleryComponent {
     this.index.set(Math.min(this.index(), Math.max(0, this.list().length - 1)));
   }
 
-  openViewer(tab: Tab, i: number): void { this.actual.set(false); this.viewer.set({ tab, i }); }
+  openViewer(tab: Tab, i: number): void {
+    const u = this.shown(tab)[i];
+    if (this.isPdf(u)) { window.open(u, '_blank', 'noopener'); return; }
+    this.actual.set(false);
+    this.viewer.set({ tab, i });
+  }
   protected closeViewer(): void { this.viewer.set(null); }
   /** A click on the dark backdrop closes the viewer, unless it ends a swipe. */
   protected backdrop(): void { if (this.swiped) this.swiped = false; else this.closeViewer(); }

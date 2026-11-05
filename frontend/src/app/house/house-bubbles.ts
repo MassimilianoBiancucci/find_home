@@ -117,10 +117,6 @@ export class HouseHome {
     } @else {
       <div class="fh-hnote">Zone indices not available: run <code>findhome zone indices --all</code>.</div>
     }
-    <div class="d-flex gap-2 mt-2">
-      <a class="btn btn-sm btn-outline-primary" [routerLink]="['/map/zone', l.zone.id]" [queryParams]="{ listing: l.listing.short_id }">Open 3D view</a>
-      <a class="btn btn-sm btn-outline-secondary" [routerLink]="['/map/zone', l.zone.id]" [queryParams]="{ listing: l.listing.short_id, fs: 1 }" title="Open the 3D view full screen">⛶ Full screen</a>
-    </div>
   </section>`,
 })
 export class HouseZone {

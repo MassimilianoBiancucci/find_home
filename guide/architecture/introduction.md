@@ -94,7 +94,7 @@ sites, runs, settings) and a folder for the map. [`services/api.service.ts`](../
 [`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF).
 Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
 
-**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) shows a listing's `photo_urls` and
+**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) (PDF floor plans as links) shows a listing's `photo_urls` and
 `floorplan_urls` (Photos / Floor plans tabs, thumbnails, a full-screen viewer with arrow keys, Esc, swipe and
 double-click for 1:1). It loads the images lazily from the site's own URLs; images that fail to load are dropped
 from the count. The detail page shows it at the top; the map's listing panel shows a three-thumbnail strip
@@ -114,8 +114,15 @@ house analysis (`GET /api/listings/{id}/location`) side by side. Under the galle
 - **This home** (first, accented): the home's transport, services and combined scores, each with an ⓘ and its
   derivation. Then one row per set (grocery, pharmacy, gym, park, vet, rail, bus): the walk minutes coloured
   green / yellow / red by `zone.yaml` `walk_colours`, the metres, and the count within the choice window;
-- **Its zone**: the same rows with the zone's medians, the zone's indices with their percentile, and links to the
-  3D view (`/map/zone/<id>?listing=<short id>`, `&fs=1` for full screen);
+- **Its zone**: the same rows with the zone's medians, and the zone's indices with their percentile;
+- **On the map** ([`house-map.ts`](../../frontend/src/app/house/house-map.ts)): a MapLibre map of its own
+  (same style and theme as the main map), centred on the home.
+  - Inside the mapped zones: every target within reach (`walks[set].nearby`, nearest first, capped per set) as a
+    dot in the set's colour, the nearest one larger; the walking path to the nearest target of each set with its
+    minutes in green / yellow / red. Chips hide a category.
+  - Outside every zone (the analysis answers 409 "outside every zone"): the home's position only.
+  - **Full-screen zone view** requests full screen inside the click (browsers refuse it later), then opens
+    `/map/zone/<id>?listing=<short id>`;
 - **Travel to your points**: per point the free station estimate, or the listing's computed commute, with the
   comparison line ("better than N % of zones"). **Compute transit routes** asks for the exact itineraries
   (`POST .../transit`). Its call count comes from the dry run (no API call) and is shown on the button and in
@@ -237,7 +244,7 @@ The right panel shows, in order:
 - collapsed sections: metro lines, bus lines, other transit (stops served and the peak departures per hour at the
   zone's stops), services in the zone, and nearby zones' extra lines.
 
-**House in 3D.** `/map/zone/<zone id>?listing=<short id>` (from the house page; `&fs=1` asks for full screen)
+**House in 3D.** `/map/zone/<zone id>?listing=<short id>` (from the house page's map bubble)
 loads the house analysis and focuses the zone on the house: the camera flies to the address, tilted
 ([`ZoneService.select()`](../../frontend/src/app/pages/map/zone.service.ts) with a focus point). Then
 [`HouseLayerService`](../../frontend/src/app/pages/map/house-layer.service.ts) adds the `house` layers:

@@ -160,6 +160,10 @@ export const HELP: Record<string, HelpEntry> = {
     title: 'Travel to your points', short: 'How long it takes from this home to your points (config/locations.yaml). Shown first as a free estimate from the zone\'s connectivity stations; the listing\'s computed commute or the exact itineraries replace it when available.',
     config: ['config/locations.yaml'],
   },
+  'house.map': {
+    title: 'On the map', short: 'Where the home is. Inside the mapped zones: every nearby service and stop as a dot in its colour (the nearest one larger, white ring), the walking path to the nearest of each, and its minutes in green, yellow or red. Click a chip to hide a category. Outside the mapped zones: the position only. "Full-screen zone view" opens the 3D zone view on this home.',
+    config: ['config/zone.yaml → house (sets, cutoff_min)', 'config/zone.yaml → walk_colours', 'config/providers.yaml → map (style)'],
+  },
   'house.services': {
     title: 'Home services score', short: '0-100: everyday services around this home, from its exact address. Per service set, the walk to the nearest one and how many are within a short walk; the same formula as the zone\'s services index, so the two compare directly.',
     formula: 'setᵢ = proximity × (1 − c) + choice × c;  score = 100 · Σ wᵢ · setᵢ / Σ wᵢ',

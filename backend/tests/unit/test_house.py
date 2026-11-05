@@ -21,6 +21,7 @@ def test_walk_paths_nearest_target_path_and_count():
     assert w.count_within == 1                                                    # the far shop is 410 s away
     assert w.path[0] != w.path[-1] and len(w.path) >= 4                           # house, nodes 1-2-3, target
     assert 200 <= w.metres <= 230
+    assert [n[2] for n in w.nearby] == ["Corner shop", "Far shop"] and w.nearby[0][3] == w.minutes   # nearest first
 
 
 def test_walk_paths_nothing_within_cutoff():
