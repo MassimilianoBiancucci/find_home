@@ -2,13 +2,8 @@
   <aside class="fh-box fh-box1" [class.closed]="!layout.leftOpen()">
     <div class="fh-box1-head">
       @if (layout.leftOpen()) {
-        <div class="fh-brand" role="img" aria-label="Find Home — Skill App">
-          <img class="fh-brand-mark" src="favicon.svg" width="34" height="34" alt="" />
-          <div class="fh-brand-copy">
-            <div class="fh-brand-name">Find<span> Home</span></div>
-            <div class="fh-brand-kind">Skill App</div>
-          </div>
-        </div>
+        <img class="fh-brand" [src]="theme.theme() === 'dark' ? 'brand.svg' : 'brand-light.svg'"
+          width="136" height="34" alt="find_home — Skill App" />
       }
       <button class="fh-icon-btn ms-auto" [title]="layout.leftOpen() ? 'Collapse panel' : 'Expand panel'" (click)="layout.toggleLeft()">
         {{ layout.leftOpen() ? '«' : '»' }}</button>

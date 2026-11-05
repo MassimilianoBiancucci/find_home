@@ -14,4 +14,6 @@ chrome. Keep map attribution visible. Hide personal map points, commute overlays
 avoid Locations, Settings, private notes, score tooltips with personal targets and agent logs. Use public or
 fictional data, following the [personal-data principle](../../guide/principles/personal_data.md).
 
-The shared sidebar and tab icon is the hand-written [house SVG](../../frontend/public/favicon.svg).
+The sidebar and README share the [dark wordmark](../../frontend/public/brand.svg) and
+[light wordmark](../../frontend/public/brand-light.svg), including the same [house icon](../../frontend/public/favicon.svg)
+used for the browser tab.

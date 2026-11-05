@@ -1,8 +1,13 @@
-# Find Home
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand.svg">
+    <img src="frontend/public/brand-light.svg" alt="find_home — Skill App" width="240" height="60">
+  </picture>
+</h1>
 
 **A skill app for finding your next rental home.**
 
-Find Home helps you search across home rental websites, bring listings into one place and compare the homes
+find_home helps you search across home rental websites, bring listings into one place and compare the homes
 against what matters to you. It is an agent skill extended with a local web UI: Claude Code or Codex helps
 collect and evaluate listings, while the app gives you a place to explore, compare and decide.
 

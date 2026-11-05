@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 40" fill="none" role="img" aria-labelledby="title">
+  <title id="title">find_home — Skill App</title>
+  <rect x="0.75" y="0.75" width="38.5" height="38.5" rx="10" fill="#2a2133" stroke="#715386" stroke-width="1.5"/>
+  <path d="m8 20 12-10 12 10M12 17v14h16V17M18 31v-8h4v8" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M31 6v6M28 9h6" stroke="#e9d5ff" stroke-width="1.5" stroke-linecap="round"/>
+  <g font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="51" y="21" font-size="20.7" font-weight="700" textLength="102" lengthAdjust="spacingAndGlyphs" fill="#d4d4de">find<tspan fill="#c084fc">_home</tspan></text>
+    <text x="51" y="36.5" font-size="11.3" font-weight="600" letter-spacing="1.8" fill="#a4a4b8">SKILL APP</text>
+  </g>
+</svg>

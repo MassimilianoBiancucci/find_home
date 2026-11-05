@@ -142,9 +142,12 @@ from the count. The detail page shows it at the top; the map's listing panel sho
 photos and no `attributes.photo_count` come from scans that kept only 6, and the gallery says the next browser
 scan fills them in.
 
-The shell ([`app.html`](../../frontend/src/app/app.html)) labels the app **Find Home**, with **Skill App** under the
-name. Its house mark is a handwritten SVG ([`favicon.svg`](../../frontend/public/favicon.svg)), shared by the
-sidebar and browser tab. Public UI screenshots live in [`docs/screenshots/`](../../docs/screenshots/README.md);
+The shell ([`app.html`](../../frontend/src/app/app.html)) labels the app **find_home**, with **Skill App** under the
+name. The sidebar and README share SVG wordmarks: [`brand.svg`](../../frontend/public/brand.svg) uses the dark
+theme's silver and violet; [`brand-light.svg`](../../frontend/public/brand-light.svg) uses the light theme's dark
+text and purple. The app chooses its current theme; the README's `<picture>` follows the reader's colour scheme.
+Both keep the house mark from [`favicon.svg`](../../frontend/public/favicon.svg), used for the browser tab.
+Public UI screenshots live in [`docs/screenshots/`](../../docs/screenshots/README.md);
 they show public listing and site data, with personal map points, commute overlays and search areas hidden.
 
 The shell has three boxes, like the Telia debug UI: box 1 holds

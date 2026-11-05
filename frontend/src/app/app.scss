@@ -18,29 +18,9 @@
 .fh-box1-scroll { overflow-y: auto; padding: 4px 10px 14px; flex: 1; }
 
 .fh-brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
+  display: block;
+  flex: 0 0 136px;
   margin-left: 4px;
-}
-.fh-brand-mark { flex: 0 0 34px; }
-.fh-brand-copy { min-width: 0; }
-.fh-brand-name {
-  font-weight: 700;
-  font-size: 1.1rem;
-  line-height: 1.15;
-  white-space: nowrap;
-  span { color: var(--fh-accent); }
-}
-.fh-brand-kind {
-  margin-top: 4px;
-  color: var(--bs-secondary-color);
-  font-size: 0.6rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  line-height: 1;
-  text-transform: uppercase;
 }
 
 .fh-icon-btn {

@@ -19,7 +19,7 @@ Read [documentation/api_keys.md](documentation/api_keys.md) to set up or debug p
 
 find_home is a personal skill app for finding a rental home in Stockholm for one person and two cats: an agent
 skill extended with a local web UI. Buying is planned; the data model already carries `listing_kind` rent | buy.
-The UI brand is **Find Home**, with **Skill App** underneath. Other cities require adapted site integrations,
+The UI brand is **find_home**, with **Skill App** underneath. Other cities require adapted site integrations,
 geodata and routing coverage; other countries also require changes to Swedish pricing and housing conventions.
 
 It has three layers. The **app** (FastAPI, Postgres, Angular) stores listings from many sites, dedupes them across
