@@ -88,14 +88,40 @@ async def derive_zones(b, centroids: dict, reqs: list) -> int:
     return len(results)
 
 
+_restore_lock = asyncio.Lock()
+
+
+async def restore(conn, b, pl: Planned) -> dict:
+    """Put back, without a call, every planned route that has no row under the current inputs hash but a cached
+    answer (or a known unroutable coordinate): after a locations edit only the new or moved routes stay missing.
+    Station origins then re-derive the zone values. Not while a refresh runs (it writes the same rows)."""
+    provider = registry().for_mode(cn.MODE)
+    if provider.name == "haversine" or cn.JOB.running:
+        return {"restored": 0}
+    async with _restore_lock:
+        h = cn.inputs_hash(b)
+        rows = await repo.read_rows(conn, h, pl.kind)
+        todo = [(zid, r) for zid, r in pl.reqs if cs.pair_key(zid, r) not in rows]
+        if not todo:
+            return {"restored": 0}
+        hits = await repo.cache_hits(conn, sorted({cache_key(provider, r) for _, r in todo}))
+        failures = await repo.read_failures(conn, provider.name)
+        writes = cn.restore_rows(h, todo, rows, failures, hits, provider.name, lambda r: cache_key(provider, r))
+        await repo.PgConnectivityStore(db.pool(), pl.kind).write_many(writes)
+        if writes and pl.kind == "stations":
+            await derive_zones(b, pl.centroids, pl.reqs)
+        return {"restored": len(writes), "still_missing": len(todo) - len(writes)}
+
+
 @router.get("")
 async def matrix(conn=Depends(get_conn)):
     b, zones = bundle(), _zones_or_404()
     h = cn.inputs_hash(b)
+    pl = await _planned(conn, b, zones)
+    restored = await restore(conn, b, pl)
     rows = await (await conn.execute(
         "SELECT zone_id, point_id, window_weight, minutes, estimate FROM zone_commute WHERE inputs_hash = %s", (h,))).fetchall()
     old = await (await conn.execute("SELECT count(*) AS n FROM zone_commute WHERE inputs_hash <> %s", (h,))).fetchone()
-    pl = await _planned(conn, b, zones)
     _, _, ttl = _settings(b)
     stored = await repo.read_rows(conn, h)
     route_rows = stored if pl.kind == "zone" else await repo.read_rows(conn, h, "stations")
@@ -109,7 +135,14 @@ async def matrix(conn=Depends(get_conn)):
     failed_zones = sorted({k[0] for k, v in stored.items() if v.status == "failed"} - set(data))
     return {"inputs_hash": h, "points": points, "zones": data, "zones_real": real, "covered": len(data), "zone_count": len(zones.zones),
             "failed_zones": failed_zones, "stale_rows": old["n"], "counts": counts, "origin": pl.kind,
-            "job": cn.JOB.public()}
+            "restored": restored["restored"], "job": cn.JOB.public()}
+
+
+@router.post("/restore")
+async def restore_cached(conn=Depends(get_conn)):
+    """Rebuild the matrix for the current locations from cached answers only (no provider call)."""
+    b, zones = bundle(), _zones_or_404()
+    return await restore(conn, b, await _planned(conn, b, zones))
 
 
 @router.get("/routes")
@@ -139,6 +172,7 @@ async def refresh_plan(scope: str | None = None, conn=Depends(get_conn)):
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     pl = await _planned(conn, b, zones)
+    await restore(conn, b, pl)
     reqs = pl.reqs
     max_calls, _, ttl = _settings(b)
     provider = reg.for_mode(cn.MODE)
@@ -191,6 +225,7 @@ async def refresh(body: RefreshBody | None = None, conn=Depends(get_conn)):
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
     pl = await _planned(conn, b, zones)
+    await restore(conn, b, pl)                  # cached answers in bulk first; the job then only meets the rest
     max_calls, policy, _ = _settings(b)
 
     async def job():

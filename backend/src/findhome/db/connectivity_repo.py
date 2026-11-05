@@ -80,6 +80,17 @@ async def cache_ages(conn, keys: list[str]) -> dict[str, datetime]:
     return {r["key"]: r["created_at"] for r in rows}
 
 
+async def cache_hits(conn, keys: list[str]) -> dict[str, CacheHit]:
+    """routing_cache entries by key, in one query (restoring the matrix after a locations edit)."""
+    if not keys:
+        return {}
+    rows = await (await conn.execute(
+        """SELECT key, minutes, created_at, response->>'zone_mode' AS zone_mode FROM routing_cache
+           WHERE key = ANY(%s)""", (keys,))).fetchall()
+    return {r["key"]: CacheHit(None if r["minutes"] is None else float(r["minutes"]), r["created_at"], r["zone_mode"])
+            for r in rows}
+
+
 async def read_failures(conn, provider: str) -> dict[str, str]:
     rows = await (await conn.execute(
         "SELECT coord_key, error_code FROM provider_failure WHERE provider = %s", (provider,))).fetchall()
@@ -136,9 +147,14 @@ class PgConnectivityStore:
         return now
 
     async def write(self, row: RowWrite) -> None:
-        zid, pid, direction, day, window = row.key
-        async with self.pool.connection() as conn:
-            await conn.execute(
+        await self.write_many([row])
+
+    async def write_many(self, rows: list[RowWrite]) -> None:
+        """Upsert rows in one transaction."""
+        if not rows:
+            return
+        async with self.pool.connection() as conn, conn.cursor() as cur:
+            await cur.executemany(
                 f"""INSERT INTO {self.table} (inputs_hash, {self.col}, point_id, direction, day_type, window_label,
                      window_weight, provider, minutes, estimate, status, error, fetched_at, zone_mode)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -146,9 +162,9 @@ class PgConnectivityStore:
                      minutes = EXCLUDED.minutes, provider = EXCLUDED.provider, estimate = EXCLUDED.estimate,
                      status = EXCLUDED.status, error = EXCLUDED.error, fetched_at = EXCLUDED.fetched_at,
                      zone_mode = EXCLUDED.zone_mode, computed_at = now()""",
-                (row.inputs_hash, zid, pid, direction, day, window, row.window_weight, row.provider,
-                 None if row.minutes is None else round(row.minutes, 1), row.status == "estimated", row.status,
-                 row.error, row.fetched_at, row.zone_mode))
+                [(row.inputs_hash, *row.key, row.window_weight, row.provider,
+                  None if row.minutes is None else round(row.minutes, 1), row.status == "estimated", row.status,
+                  row.error, row.fetched_at, row.zone_mode) for row in rows])
 
 
 async def write_derived(pool, inputs_hash: str, results) -> None:

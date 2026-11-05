@@ -286,3 +286,34 @@ def test_derive_takes_each_homes_best_start_and_records_the_pattern():
     est = {("metro", *route): StoredRow("estimated", "haversine", 30.0, None, None)}
     (e,) = derive(centroids, est, {route: 1.0})
     assert e.status == "estimated"
+
+
+def test_restore_rows_puts_back_untouched_routes_after_a_locations_edit(bundle):
+    """A rename changes the inputs hash but not the routing_cache keys: every cached route comes back without a call;
+    a moved point's routes (new coordinates, no cache entry) stay missing; an unroutable zone point stays failed."""
+    from types import SimpleNamespace
+
+    from findhome.domain.commute import cache_key
+
+    prov = SimpleNamespace(name="resrobot", time_dependent=True)
+    key_of = functools.partial(cache_key, prov)
+    coords = _coords(bundle)
+    reqs = cn.plan(bundle, _zones(), coords)
+    moved = next(iter(coords))
+    moved_reqs = cn.plan(bundle, _zones(), {**coords, moved: LatLon(59.40, 18.10)})
+    fetched = datetime(2026, 10, 1, tzinfo=UTC)
+    hits = {key_of(r): CacheHit(21.5, fetched, "metro") for _, r in reqs}          # the cache before the edit
+    already = cs.pair_key(*reqs[0])
+    unroutable = cn.zone_side(next(r for z, r in reqs if z == "Z2")).key()
+    rows = {already: StoredRow("ok", "resrobot", 9.0, None, fetched)}
+
+    out = cn.restore_rows("h2", moved_reqs, rows, {unroutable: "SVC_LOC"}, hits, "resrobot", key_of)
+    by_key = {w.key: w for w in out}
+    assert already not in by_key                                                    # existing rows are left alone
+    moved_keys = {cs.pair_key(z, r) for z, r in moved_reqs if r.point_id == moved and z != "Z2"}
+    assert moved_keys and not moved_keys & set(by_key)                              # new coordinates: still missing
+    ok = [w for w in out if w.status == "ok"]
+    assert ok and all(w.minutes == 21.5 and w.fetched_at == fetched and w.zone_mode == "metro" and w.inputs_hash == "h2"
+                      for w in ok)
+    assert {w.key[0] for w in out if w.status == "failed"} == {"Z2"}
+    assert len(out) == len(moved_reqs) - len(moved_keys | {already})

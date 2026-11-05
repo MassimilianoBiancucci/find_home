@@ -197,13 +197,19 @@ the zone (`modes`: the first ride outbound, the last ride on the way back, from 
 `zone_mode`). A trip from a bus stop may walk on to the metro, so only `modes` says whether a bus beats a nearby
 metro. It also records the walk and transit medians. `GET /api/zone/{id}/centroids` returns them for the zone view.
 
-[`run()`](../../backend/src/findhome/domain/connectivity.py#L201) is a background job in the API (`POST /api/connectivity/refresh`,
+[`run()`](../../backend/src/findhome/domain/connectivity.py#L225) is a background job in the API (`POST /api/connectivity/refresh`,
 `findhome connectivity refresh`; one at a time, cancellable). It uses the transit provider, `routing_cache` and the
 reference dates of the commute matrix, stops at `connectivity.max_calls_per_run`, and writes every route as soon as
 it is known (to `centroid_commute` or `zone_commute`) under `inputs_hash` (canonical hash of `locations.yaml` + `time_model.yaml`, so
-search-area or weight edits keep the matrix). Storage goes through the
+search-area or weight edits keep the matrix). A locations or time-model edit changes the hash, but not the
+`routing_cache` keys (provider, coordinates, day type, slot): before the matrix is read and before a refresh,
+[`restore()`](../../backend/src/findhome/api/routers/connectivity.py#L94) gives every planned route that has no row
+under the new hash its cached answer, or its failed status for a known unroutable point, in bulk and without a call
+([`restore_rows()`](../../backend/src/findhome/domain/connectivity.py#L133); also `POST /api/connectivity/restore`).
+A renamed point or category therefore keeps the whole map; a moved or added point, or a changed window, leaves only
+its own routes missing, and the refresh calls only for those. Storage goes through the
 [`ConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L49) protocol
-([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L89) in the API, an in-memory store in tests).
+([`PgConnectivityStore`](../../backend/src/findhome/db/connectivity_repo.py#L100) in the API, an in-memory store in tests).
 
 A refresh has a **scope** ([`parse_scope()`](../../backend/src/findhome/domain/connectivity.py#L94)): `missing`, `estimates`, `failed`,
 `stale` or `all`; the default is missing + estimates. [`decide()`](../../backend/src/findhome/domain/connectivity.py#L114) chooses per
@@ -231,12 +237,12 @@ flowchart TD
 |---|---|
 | per-route decision | [`decide()`](../../backend/src/findhome/domain/connectivity.py#L114) |
 | zone end of a request (where `SVC_LOC` applies) | [`zone_side()`](../../backend/src/findhome/domain/connectivity.py#L109) |
-| unroutable point: stored once, its other routes fail without a call | [`except LocationNotFound`](../../backend/src/findhome/domain/connectivity.py#L248), table `provider_failure` |
-| ResRobot error body → typed error | [`_error()`](../../backend/src/findhome/providers/resrobot.py#L124) |
+| unroutable point: stored once, its other routes fail without a call | [`except LocationNotFound`](../../backend/src/findhome/domain/connectivity.py#L287), table `provider_failure` |
+| ResRobot error body → typed error | [`_error()`](../../backend/src/findhome/providers/resrobot.py#L165) |
 
 The job **never falls back to estimates on its own**. An unroutable zone point is the zone's problem, not the
 provider's, so it never pauses the job. Three other provider errors in a row
-([`consecutive >= MAX_CONSECUTIVE_ERRORS`](../../backend/src/findhome/domain/connectivity.py#L261)) follow
+([`consecutive >= MAX_CONSECUTIVE_ERRORS`](../../backend/src/findhome/domain/connectivity.py#L300)) follow
 `providers.yaml` `connectivity.on_provider_failure`: `ask` pauses until `POST /api/connectivity/decision` (the
 Connectivity mode shows a dialog; its "don't ask again" writes the policy), `continue` keeps calling, `estimate`
 fills the rest of the run with tagged straight-line estimates.
@@ -253,7 +259,7 @@ stateDiagram-v2
 
 | State handling | Code |
 |---|---|
-| job state, pause and answer | [`JobState`](../../backend/src/findhome/domain/connectivity.py#L134), [`ask()`](../../backend/src/findhome/domain/connectivity.py#L172), [`JobState.decide()`](../../backend/src/findhome/domain/connectivity.py#L165) |
+| job state, pause and answer | [`JobState`](../../backend/src/findhome/domain/connectivity.py#L158), [`ask()`](../../backend/src/findhome/domain/connectivity.py#L196), [`JobState.decide()`](../../backend/src/findhome/domain/connectivity.py#L189) |
 | endpoints (matrix, routes, plan, refresh, decision, cancel) | [`api/routers/connectivity.py`](../../backend/src/findhome/api/routers/connectivity.py#L54) |
 
 Every planned route has a **status**, derived in one place
@@ -263,7 +269,7 @@ Every planned route has a **status**, derived in one place
 stores ok / estimated / failed and `fetched_at` the provider's answer time; `GET /api/connectivity` returns the
 counts, `GET /api/connectivity/routes` the filtered, paged list.
 
-[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L304) gives per zone the window-weighted minutes per point and the
+[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L328) gives per zone the window-weighted minutes per point and the
 point-weighted mix (point weights as in the commute score); the matrix endpoint returns it with and without
 estimates (`zones`, `zones_real`) and lists the zones with only failed routes.
 

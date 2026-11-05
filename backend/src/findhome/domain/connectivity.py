@@ -130,6 +130,30 @@ def decide(row: StoredRow | None, failed_coord: bool, cache: CacheHit | None, sc
     return "call"
 
 
+def restore_rows(h: str, reqs: list[tuple[str, Request]], rows: dict, failures: dict[str, str],
+                 hits: dict[str, CacheHit], provider: str, key_of) -> list[RowWrite]:
+    """Rows for the planned routes that have none under `inputs_hash` but whose answer is already known: a
+    routing_cache entry (keyed by coordinates and slot, not by names) or a coordinate the provider cannot route.
+
+    A locations edit changes the hash; this puts back every route the edit did not touch (a renamed point, a new
+    category, another point moved) without a call, so only the new or moved routes stay missing. An old cache entry
+    comes back with its own fetch time, so it shows as stale rather than fresh."""
+    out: list[RowWrite] = []
+    for zid, r in reqs:
+        pk = (zid, r.point_id, r.direction, r.day_type, r.window_label)
+        if pk in rows:
+            continue
+        coord = zone_side(r).key()
+        if coord in failures:
+            out.append(RowWrite(h, pk, r.window_weight, provider, None, "failed",
+                                f"{failures[coord]}: no stop near the zone point"))
+            continue
+        hit = hits.get(key_of(r))
+        if hit is not None:
+            out.append(RowWrite(h, pk, r.window_weight, provider, hit.minutes, "ok", None, hit.created_at, hit.zone_mode))
+    return out
+
+
 @dataclass
 class JobState:
     running: bool = False
