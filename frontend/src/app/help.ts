@@ -163,6 +163,11 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/providers.yaml → cache.routing_ttl_days', 'config/zone.yaml → house.services_depart'],
   },
 
+  'house.routes': {
+    title: 'Routes on the map', short: 'Walking paths from the house to the nearest target of each set, drawn in the set\'s colour and labelled with the minutes (green, yellow, red); transit legs of the computed itineraries in their line colours, walking legs dotted. Hover a path for its details.',
+    config: ['config/zone.yaml → walk_colours'],
+  },
+
   // ── Zone indices ──────────────────────────────────────────────────────────────────────
   'zone.transport': {
     title: 'Transport index', short: '0-100: how well you move from a typical home of the zone by public transport. Walking access to rail and bus, coverage, lines and departures within a short walk. Each component maps a measured value linearly between two thresholds; the components are weighted. Per time window, then the window-weighted average.',

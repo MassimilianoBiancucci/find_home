@@ -1,8 +1,12 @@
-import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, inject, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { HeatSummary, IndexKey, ZoneLine } from '../../models';
+import { HeatSummary, HouseLocation, IndexKey, ZoneLine } from '../../models';
+import { HouseHome, HouseTravel } from '../../house/house-bubbles';
+import { HouseTravelStore } from '../../house/house-travel.store';
+import { ApiService, apiError } from '../../services/api.service';
+import { HouseLayerService, RouteView } from './house-layer.service';
 import { InfoButton } from '../../components/info';
 import { ExplainInline } from '../../components/explain';
 import { LayoutService } from '../../services/layout.service';
@@ -17,12 +21,15 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
 /** Map → Zone: pick a zone, fly into it, and study walking / cycling access to stops and services along the streets. */
 @Component({
   selector: 'fh-zone-mode',
-  imports: [DecimalPipe, RouterLink, InfoButton, ExplainInline],
+  imports: [DecimalPipe, RouterLink, InfoButton, ExplainInline, HouseHome, HouseTravel],
   template: `
   <ng-template #zoneTpl>
     @if (zone.facts(); as f) {
       <div class="small mb-1"><b>{{ f.zone.name }}</b> · {{ short(f.zone.district) }} · {{ f.zone.kommun }}</div>
-      <button class="btn btn-sm btn-outline-secondary mb-2" (click)="pickAnother()">Pick another zone</button>
+      <div class="d-flex gap-2 mb-2">
+        <button class="btn btn-sm btn-outline-secondary" (click)="pickAnother()">Pick another zone</button>
+        <button class="btn btn-sm btn-outline-secondary" (click)="toggleFullscreen()" [title]="fullscreen() ? 'Leave full screen' : 'Full screen map'">⛶</button>
+      </div>
       <div class="d-flex gap-3 small">
         <label class="form-check"><input type="radio" class="form-check-input" name="zmode" [checked]="zone.mode() === 'walk'" (change)="zone.setMode('walk')" /> Walk</label>
         <label class="form-check"><input type="radio" class="form-check-input" name="zmode" [checked]="zone.mode() === 'bike'" (change)="zone.setMode('bike')" /> Bike</label>
@@ -69,6 +76,22 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
   </ng-template>
 
   <ng-template #panelTpl>
+    @if (house(); as h) {
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <a class="small" [routerLink]="['/candidates', h.listing.short_id]">← {{ h.listing.short_id }} house page</a>
+        <span class="ms-auto small text-body-secondary">Routes</span>
+        <div class="btn-group btn-group-sm">
+          @for (r of routeViews; track r.id) {
+            <button class="btn" [class.btn-primary]="houseLayer.routes() === r.id" [class.btn-outline-secondary]="houseLayer.routes() !== r.id"
+              (click)="houseLayer.setRoutes(r.id)">{{ r.label }}</button>
+          }
+        </div>
+        <fh-info id="house.routes" />
+      </div>
+      <fh-house-home [loc]="h" [transit]="travel.results()[h.listing.short_id] ?? null" />
+      <fh-house-travel [loc]="h" />
+      <hr class="my-3" />
+    } @else if (houseError()) { <div class="small text-danger mb-2">House: {{ houseError() }}</div> }
     @if (zone.facts(); as f) {
       <h6 class="mb-0">{{ f.zone.name }}</h6>
       <div class="small text-body-secondary mb-2">{{ short(f.zone.district) }} · {{ f.zone.kommun }}@if (f.zone.area_km2) { · {{ f.zone.area_km2 | number: '1.1-1' }} km² }</div>
@@ -194,20 +217,42 @@ export class ZoneMode {
   protected setIds = computed(() => Object.keys(this.zone.facts()?.target_sets ?? {}));
   protected allOn = computed(() => this.setIds().every((s) => this.zone.sets().includes(s)));
   private params = toSignal(this.route.paramMap);
+  private query = toSignal(this.route.queryParamMap);
+  private api = inject(ApiService);
+  protected houseLayer = inject(HouseLayerService);
+  protected travel = inject(HouseTravelStore);
+  protected house = signal<HouseLocation | null>(null);
+  protected houseError = signal('');
+  protected fullscreen = signal(false);
+  private houseFor: string | null = null;
+  protected routeViews: { id: RouteView; label: string }[] = [{ id: 'walk', label: 'Walk' }, { id: 'transit', label: 'Transit' }, { id: 'both', label: 'Both' }];
 
   constructor() {
     const destroy = inject(DestroyRef);
     effect(() => {                                       // /map/zone/:id → focus that zone (also when :id changes)
       const id = this.params()?.get('id') ?? null;
+      const listing = this.query()?.get('listing') ?? null;
       const map = this.state.map();
       if (!map || !this.state.styleReady()) return;
       untracked(() => {
+        if (listing && id) { this.showHouse(id, listing); return; }
+        this.hideHouse();
         if (id && this.zone.selected() === id) this.zone.restyle();
         else if (id) this.zone.select(id);
         else if (!this.stopPicker) this.stopPicker = this.zone.installPicker((z) => void this.router.navigate(['/map/zone', z]));
       });
     });
-    destroy.onDestroy(() => { this.stopPicker?.(); this.zone.leave(); });
+    effect(() => {                                       // "Compute transit routes" results → transit legs on the map
+      const h = this.house(), r = this.travel.results();
+      if (h) untracked(() => this.houseLayer.setTransit(r[h.listing.short_id] ?? null));
+    });
+    const onFs = () => this.fullscreen.set(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    destroy.onDestroy(() => {
+      document.removeEventListener('fullscreenchange', onFs);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+      this.stopPicker?.(); this.houseLayer.clear(); this.zone.leave();
+    });
     afterNextRender(() => this.layout.register(destroy, [
       { id: 'zone-zone', title: 'Zone', tpl: this.zoneTpl() },
       { id: 'zone-targets', title: 'Heatmap targets', tpl: this.targetsTpl() },
@@ -215,6 +260,39 @@ export class ZoneMode {
   }
 
   protected pickAnother(): void { void this.router.navigate(['/map/zone']); }
+
+  /** /map/zone/:id?listing=L-XXXX: the house analysis, then the zone focused on the house with its layers. */
+  private showHouse(zoneId: string, listing: string): void {
+    const h = this.house();
+    if (h && h.listing.short_id === listing) {          // same house: a style reload or a theme switch
+      if (this.zone.selected() === zoneId) { this.zone.restyle(); this.houseLayer.restyle(); }
+      else this.zone.select(zoneId, [h.lon, h.lat]);
+      return;
+    }
+    if (this.houseFor === listing) return;               // already loading
+    this.houseFor = listing;
+    this.houseError.set('');
+    this.api.listingLocation(listing).subscribe({
+      next: (loc) => {
+        this.house.set(loc);
+        this.zone.select(zoneId, [loc.lon, loc.lat]);
+        this.houseLayer.show(loc, this.travel.result(listing));
+        if (this.query()?.get('fs') === '1') this.toggleFullscreen(true);
+      },
+      error: (e) => { this.houseError.set(apiError(e)); this.houseFor = null; this.zone.select(zoneId); },
+    });
+  }
+  private hideHouse(): void {
+    if (!this.house() && !this.houseFor) return;
+    this.houseLayer.clear();
+    this.house.set(null);
+    this.houseFor = null;
+  }
+  /** Full screen for the whole app (the map with its side panels); browsers may refuse without a user gesture. */
+  protected toggleFullscreen(on = !document.fullscreenElement): void {
+    if (on && !document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => undefined);
+    else if (!on && document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+  }
   protected toggleSet(s: string): void {
     const cur = this.zone.sets();
     const next = cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s];

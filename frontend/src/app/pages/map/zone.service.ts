@@ -70,6 +70,7 @@ export class ZoneService {
   });
   private zones: GeoCollection | null = null;
   private camera: { center: [number, number]; zoom: number; pitch: number; bearing: number } | null = null;
+  private focusPoint: [number, number] | null = null;
   private heatReq = 0;
 
   // ── selection mode ──────────────────────────────────────
@@ -108,8 +109,11 @@ export class ZoneService {
   }
 
   // ── focus ───────────────────────────────────────────────
-  select(id: string): void {
-    if (this.selected() === id && this.facts()) return;
+  /** Focus a zone; with `focus` ([lon, lat], the 3D house view) the camera flies to that point instead. */
+  select(id: string, focus: [number, number] | null = null): void {
+    const refocus = focus && (this.focusPoint?.[0] !== focus[0] || this.focusPoint?.[1] !== focus[1]);
+    this.focusPoint = focus;
+    if (this.selected() === id && this.facts()) { if (refocus) this.flyTo(this.facts()!); return; }
     this.selected.set(id);
     this.facts.set(null);
     this.lines.set(null);
@@ -150,6 +154,7 @@ export class ZoneService {
     const map = this.state.map();
     if (map && this.camera) map.easeTo({ ...this.camera, duration: 600 });
     this.camera = null;
+    this.focusPoint = null;
     this.selected.set(null);
     this.facts.set(null);
     this.heatmap.set(null);
@@ -320,6 +325,10 @@ export class ZoneService {
     if (!this.camera) {
       const c = map.getCenter();
       this.camera = { center: [c.lng, c.lat], zoom: map.getZoom(), pitch: map.getPitch(), bearing: map.getBearing() };
+    }
+    if (this.focusPoint) {                                  // the 3D house view: close in on the house, tilted
+      map.flyTo({ center: this.focusPoint, zoom: 16.3, pitch: 62, bearing: -25, duration: 1600, essential: true });
+      return;
     }
     const coords: number[][] = (f.outline.type === 'Polygon' ? [f.outline.coordinates] : f.outline.coordinates).flat(2);
     const lons = coords.map((c) => c[0]), lats = coords.map((c) => c[1]);

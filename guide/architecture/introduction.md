@@ -213,6 +213,21 @@ The right panel shows, in order:
 - collapsed sections: metro lines, bus lines, other transit (stops served and the peak departures per hour at the
   zone's stops), services in the zone, and nearby zones' extra lines.
 
+**House in 3D.** `/map/zone/<zone id>?listing=<short id>` (from the house page; `&fs=1` asks for full screen)
+loads the house analysis and focuses the zone on the house: the camera flies to the address, tilted
+([`ZoneService.select()`](../../frontend/src/app/pages/map/zone.service.ts) with a focus point). Then
+[`HouseLayerService`](../../frontend/src/app/pages/map/house-layer.service.ts) adds the `house` layers:
+- the building under the address, found with `queryRenderedFeatures` on the 3D building layer once tiles are
+  idle and extruded in the accent colour (a 12 m box when no footprint is found), a glow and a home pin;
+- the walking path to the nearest target of each set in the set's colour, labelled with the minutes in
+  green / yellow / red;
+- the transit legs of "Compute transit routes" in their line colours, walking legs dotted.
+
+The layers stay above the zone's own layers, which load after them: `layersToRaise()` on `styledata` moves them
+only when needed. The right panel shows "This home" and "Travel to your points" (the same components and the same
+`HouseTravelStore` as the house page) above the zone panel, with a Walk / Transit / Both switch. The Zone bubble's
+⛶ toggles full screen for the whole app.
+
 The map's **right-click menu** ([`ContextMenuService`](../../frontend/src/app/pages/map/context-menu.service.ts#L16),
 [`map-context-menu.ts`](../../frontend/src/app/pages/map/map-context-menu.ts)) opens at the click and shows the zone under it
 (`GET /api/zone/at`). The shell registers "Set test point here" and "Open zone view"; modes can
