@@ -39,6 +39,10 @@ const PROFILE = 'config/profile.yaml → kinds.rent.preferences';
 export const HELP: Record<string, HelpEntry> = {
   // ── Left-box bubbles ──────────────────────────────────────────────────────────────────
   'bubble.nav': { title: 'Pages', short: 'The app\'s pages and the light / dark switch.' },
+  'bubble.candidate-filters': {
+    title: 'Filters', short: 'One two-ended slider per value: the list keeps the homes inside every range. Hover a slider to see how the homes spread over its values; the bright part of each bar is inside the range, given the other filters. Homes without a value stay unless you untick "without a value". Filters and sort stay while you open homes and come back.',
+    engineer: ['pages/candidate-filters.ts: FILTER_FIELDS, applyFilters(), histogram() (the bars of a field apply every other range), sortRows(); CandidateFiltersStore holds filters, sort and hide rejected.'],
+  },
   'bubble.map-layers': {
     title: 'Layers', short: 'Switch map layers on and off: listings, your points, transit lines and stations, services (POIs).',
     config: ['config/poi.yaml (service categories)', 'config/locations.yaml (your points)'],

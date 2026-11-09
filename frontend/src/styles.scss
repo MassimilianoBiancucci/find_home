@@ -680,6 +680,25 @@ pre.fh-pre {
   border-bottom: 1px dashed var(--bs-border-color); font-size: 0.84rem; &:last-child { border-bottom: 0; } }
 .fh-timeline:has(> .fh-empty)::before { display: none; }
 
+// ── Candidates list: the "hide rejected" badge and the sortable headers (pages/candidates.ts) ─────────────────
+.fh-rej-toggle { display: inline-flex; align-items: center; gap: 7px; padding: 3px 13px 3px 10px; border-radius: 999px; font-size: 0.78rem;
+  font-weight: 700; letter-spacing: 0.02em; cursor: pointer; color: #fff; border: 1.5px solid #ff2d55;
+  background: linear-gradient(135deg, #ff5a76 0%, #ff2d55 45%, #e0103a 100%);
+  box-shadow: 0 0 0 3px rgba(255, 45, 85, 0.18), 0 4px 14px -4px rgba(255, 45, 85, 0.7); text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, transform 0.12s;
+  &:hover { transform: translateY(-1px); box-shadow: 0 0 0 4px rgba(255, 45, 85, 0.25), 0 6px 18px -4px rgba(255, 45, 85, 0.8); }
+  &:active { transform: translateY(0); }
+  .fh-rej-dot { width: 8px; height: 8px; border-radius: 50%; background: #fff; box-shadow: 0 0 6px #fff; transition: background 0.2s, box-shadow 0.2s; }
+  &.on { background: transparent; color: #ff2d55; box-shadow: none; text-shadow: none;
+    .fh-rej-dot { background: transparent; box-shadow: inset 0 0 0 1.5px #ff2d55; }
+    &:hover { box-shadow: 0 0 0 3px rgba(255, 45, 85, 0.15); } }
+}
+[data-bs-theme='dark'] .fh-rej-toggle.on { color: #ff6b86; border-color: #ff6b86; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #ff6b86; } }
+.fh-sort { border: 0; background: none; padding: 0; font: inherit; font-weight: inherit; color: inherit; white-space: nowrap; cursor: pointer;
+  i { font-style: normal; font-size: 0.7em; margin-left: 3px; opacity: 0.35; }
+  &:hover { color: var(--fh-violet); i { opacity: 0.8; } }
+  &.on { color: var(--fh-violet); i { opacity: 1; } } }
+
 // ── fh-popover (components/popover.ts): click-to-open full text behind a chip, ⓘ, icon or truncated text ──────
 .fh-pop-host { display: inline-flex; min-width: 0; max-width: 100%; vertical-align: middle; }
 .fh-pop-trigger { border: 0; background: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; min-width: 0; max-width: 100%;

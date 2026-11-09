@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnDestroy, OnInit, TemplateRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { DatePipe, DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -12,6 +12,8 @@ import { indexColour } from '../house/house-bubbles';
 import { Listing, RecomputeStatus } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 import { CandidateOrderStore } from '../services/candidate-order.store';
+import { LayoutService } from '../services/layout.service';
+import { CandidateFilters, CandidateFiltersStore, SortKey, applyAll, sortRows } from './candidate-filters';
 import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
@@ -23,7 +25,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -32,7 +34,9 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
     </select>
     <input #search class="form-control form-control-sm w-auto" placeholder="search (/)" [(ngModel)]="q" (keyup.enter)="load()" />
-    <label class="form-check-label small"><input type="checkbox" class="form-check-input me-1" [(ngModel)]="hideRejected" (ngModelChange)="load()" />hide rejected</label>
+    <button type="button" class="fh-rej-toggle" [class.on]="fs.hideRejected()" [attr.aria-pressed]="fs.hideRejected()" (click)="toggleRejected()"
+      [title]="fs.hideRejected() ? 'Rejected homes are hidden: click to show them' : 'Rejected homes are shown: click to hide them'">
+      <span class="fh-rej-dot"></span>{{ fs.hideRejected() ? 'Rejected hidden' : 'Hide rejected' }}</button>
     <button class="btn btn-sm btn-outline-primary" [disabled]="!!recomputing()" (click)="recompute()"
             title="Every home: its transport and services scores from the exact address (when missing), then all scores">
       @if (recomputing(); as rc) { <span class="spinner-border spinner-border-sm me-1"></span>{{ recomputeLabel(rc) }} }
@@ -65,7 +69,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     </div></div>
   }
 
-  @if (!rows().length && !loading()) {
+  <ng-template #filtersTpl><fh-candidate-filters [count]="rows().length" /></ng-template>
+  @if (!all().length && !loading()) {
     <div class="fh-empty">No listings yet. Ingest the sample with
       <code>scripts/findhome ingest listings -f backend/tests/fixtures/listings_sample.json</code>, or run a scan from Sites.</div>
   } @else {
@@ -85,14 +90,19 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       </div>
     </ng-template>
     <ng-container [ngTemplateOutlet]="pager" />
+    @if (!rows().length) {
+      <div class="fh-empty">No home matches the filters. <a href="" (click)="$event.preventDefault(); fs.clear()">Reset the filters</a></div>
+    }
+    <ng-template #th let-key let-label="label" let-tip="tip" let-cls="cls">
+      <th [class]="cls" [attr.aria-sort]="fs.sort().key === key ? (fs.sort().dir === 1 ? 'ascending' : 'descending') : null">
+        <button type="button" class="fh-sort" [class.on]="fs.sort().key === key" [title]="tip || ('Sort by ' + label)" (click)="sortBy(key)">{{ label }}@if (fs.sort().key === key) { <i>{{ fs.sort().dir === 1 ? '▲' : '▼' }}</i> }</button>
+      </th>
+    </ng-template>
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle">
-      <thead><tr><th>Id</th><th>Score</th>
-        <th class="text-center" title="The home's transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby">Transport</th>
-        <th class="text-center" title="The home's services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near">Services</th>
-        <th>Status</th><th>Area / address</th>
-        <th title="The move-in date the ad gives, against your window in config/profile.yaml (move_in_from → move_in_to): green inside, amber before, red after (rejected)">Move in</th>
-        <th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
+      <thead><tr><th>Id</th>
+        @for (c of columns; track c.key) { <ng-container *ngTemplateOutlet="th; context: { $implicit: c.key, label: c.label, tip: c.tip, cls: c.cls }" /> }
+      </tr></thead>
       <tbody>
         @for (r of pageRows(); track r.short_id; let j = $index) {
           @let i = page() * pageSize() + j;
@@ -116,7 +126,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
             <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
             <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td>
-            <td class="small">{{ r.contract_type ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
+            <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
           </tr>
         }
       </tbody>
@@ -153,7 +163,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
           @if (t.pet_evidence) { <span class="text-body-secondary"> “{{ t.pet_evidence }}”</span> }</span>
         @if (t.origin_site) { <span>Origin</span><span><fh-site-logo [slug]="t.origin_site" [withName]="true" /></span> }
         <span>Move in</span><span [style.color]="values.moveIn(t)?.colour">{{ t.available_from ? (t.available_from | date: 'd MMM y') : '?' }}</span>
-        <span>Contract</span><span>{{ t.contract_type ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}</span>
+        <span>Contract</span><span>{{ t.contract_type?.replace('_', '-') ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}</span>
         <span>Status</span><span>{{ t.status }} · seen {{ t.first_seen_at | date: 'mediumDate' }}</span>
         @if (t.rejected_by?.length) { <span>Rejected by</span><span class="text-danger">{{ t.rejected_by!.join(', ') }}</span> }
         @else if (topGroups(t).length) { <span>Best for</span><span>{{ topGroups(t).join(' · ') }}</span> }
@@ -178,13 +188,28 @@ export class CandidatesPage implements OnInit, OnDestroy {
     ...(this.site() ? [{ key: 'site', slug: this.site(), label: `Found on ${this.sites.name(this.site())}` }] : []),
     ...(this.scanRun() ? [{ key: 'scan_run', slug: '', label: `From scan run ${this.scanRun().slice(0, 8)}` }] : []),
   ]);
-  protected rows = signal<Listing[]>([]);
   protected cursor = signal(0);
   protected loading = signal(false);
   protected error = signal('');
   protected message = signal('');
   protected picker = signal<Picker>(null);
   protected selected = computed(() => this.rows()[this.cursor()]);
+  /** The homes from the server (status, search, scope and "hide rejected" applied); `rows` adds the ranges and the sort. */
+  protected all = signal<Listing[]>([]);
+  protected fs = inject(CandidateFiltersStore);
+  protected rows = computed(() => sortRows(applyAll(this.all(), this.fs.filters(), this.fs.cats()), this.fs.sort()));
+  private layout = inject(LayoutService);
+  private filtersTpl = viewChild.required<TemplateRef<unknown>>('filtersTpl');
+  /** The sortable columns, in table order. */
+  protected columns: { key: SortKey; label: string; tip?: string; cls?: string }[] = [
+    { key: 'score', label: 'Score' },
+    { key: 'transport', label: 'Transport', cls: 'text-center', tip: 'The home\'s transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby. Click to sort.' },
+    { key: 'services', label: 'Services', cls: 'text-center', tip: 'The home\'s services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near. Click to sort.' },
+    { key: 'status', label: 'Status' }, { key: 'area', label: 'Area / address' },
+    { key: 'move_in', label: 'Move in', tip: 'The move-in date the ad gives, against your window in config/profile.yaml (move_in_from → move_in_to): green inside, amber before, red after (rejected). Click to sort.' },
+    { key: 'rooms', label: 'Rooms' }, { key: 'size', label: 'm²' }, { key: 'rent', label: 'Rent' }, { key: 'per_m2', label: 'kr/m²' },
+    { key: 'pets', label: 'Pets' }, { key: 'contract', label: 'Contract' },
+  ];
   /** Pages: the cursor decides the page, so j / k and the selection move across pages too. */
   protected pageSizes = [25, 50, 100, 200];
   protected pageSize = signal(readPageSize());
@@ -195,7 +220,6 @@ export class CandidatesPage implements OnInit, OnDestroy {
   private poll?: ReturnType<typeof setInterval>;
   protected status = '';
   protected q = '';
-  protected hideRejected = false;
   protected values = inject(ValueScaleStore);
   /** The row under the mouse and where its hover card goes (shown after a short pause). */
   protected tip = signal<{ row: Listing; top: number; left: number } | null>(null);
@@ -210,6 +234,16 @@ export class CandidatesPage implements OnInit, OnDestroy {
     return l.zone_id ? 'Not measured yet: press Recompute scores (or open the listing)' : 'Outside the analysed zones: not measured';
   }
   protected kr = fmtKr; protected num = fmtNum; protected score = fmtScore; protected pet = petClass; protected color = scoreColor;
+
+  constructor() {
+    const destroy = inject(DestroyRef);
+    afterNextRender(() => this.layout.register(destroy, [{ id: 'candidate-filters', title: 'Filters', tpl: this.filtersTpl() }]));
+    // the order you see is the order the listing page steps through; a new filter or sort starts at the top
+    effect(() => { const ids = this.rows().map((l) => l.short_id); untracked(() => this.order.set(ids)); });
+    effect(() => { this.fs.filters(); this.fs.cats(); this.fs.sort(); untracked(() => this.cursor.set(0)); });
+  }
+  protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
+  protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
 
   ngOnInit(): void {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
@@ -256,11 +290,15 @@ export class CandidatesPage implements OnInit, OnDestroy {
       .map(([name, p]) => `${name} ${fmtScore(p.score)}`);
   }
 
-  load(): void {
+  /** Reloads; `pulse` opens the Filters charts for a moment so they animate to the new homes. */
+  load(pulse = false): void {
     this.loading.set(true);
-    this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.hideRejected,
+    this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.fs.hideRejected(),
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
-      next: (res) => { this.rows.set(res.items); this.order.set(res.items.map((l) => l.short_id)); this.cursor.set(0); this.loading.set(false); this.error.set(''); },
+      next: (res) => {
+        this.all.set(res.items); this.fs.base.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set('');
+        if (pulse) this.fs.flash();
+      },
       error: (e) => { this.error.set(apiError(e)); this.loading.set(false); },
     });
   }
@@ -332,7 +370,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
 
   private setStatus(r: Listing, status: string): void {
     const prev = r.status;
-    this.rows.update((rows) => rows.map((x) => (x.short_id === r.short_id ? { ...x, status } : x)));
+    this.all.update((rows) => rows.map((x) => (x.short_id === r.short_id ? { ...x, status } : x)));
     this.api.setStatus(r.short_id, status).subscribe({
       next: () => this.message.set(`${r.short_id}: ${prev} → ${status}`),
       error: (e) => { this.error.set(apiError(e)); this.load(); },
