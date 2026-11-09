@@ -327,7 +327,7 @@ pre.fh-pre {
   position: fixed; z-index: 2000; width: 320px; max-width: calc(100vw - 16px); padding: 10px 12px;
   background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18); font-size: 0.82rem; font-weight: 400; color: var(--bs-body-color);
-  text-transform: none; letter-spacing: 0; text-align: left; cursor: default; white-space: normal;
+  text-transform: none; letter-spacing: 0; text-align: left; cursor: default; white-space: normal; overflow: auto;
 }
 .fh-info-title { font-weight: 600; margin-bottom: 4px; }
 .fh-info-text { line-height: 1.4; }

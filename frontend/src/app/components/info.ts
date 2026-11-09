@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, computed, inject, input, isDevMode, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, HostListener, computed, inject, input, isDevMode, signal } from '@angular/core';
 import { Derivation, help } from '../help';
 import { ExplainDialog } from './explain';
 
@@ -15,7 +15,8 @@ import { ExplainDialog } from './explain';
       <button type="button" class="fh-info-btn" [attr.aria-label]="'About: ' + e.title" [attr.aria-expanded]="open()"
         (click)="toggle($event)">ⓘ</button>
       @if (open()) {
-        <div class="fh-info-pop" role="dialog" [style.top.px]="pos().top" [style.left.px]="pos().left" (click)="$event.stopPropagation()">
+        <div class="fh-info-pop" role="dialog" [style.top.px]="pos().top" [style.bottom.px]="pos().bottom" [style.left.px]="pos().left"
+          [style.max-height.px]="pos().maxH" (click)="$event.stopPropagation()">
           <div class="fh-info-title">{{ e.title }}</div>
           <div class="fh-info-text">{{ e.short }}</div>
           @if (e.formula) { <div class="fh-info-formula">{{ e.formula }}</div> }
@@ -39,7 +40,8 @@ export class InfoButton {
   readonly quiet = input(false);
   protected open = signal(false);
   protected dialog = signal(false);
-  protected pos = signal({ top: 0, left: 0 });
+  /** Below the button, or above it when there is more room there (an ⓘ near the bottom of the screen). */
+  protected pos = signal<{ top: number | null; bottom: number | null; left: number; maxH: number }>({ top: 0, bottom: null, left: 0, maxH: 400 });
   private el = inject(ElementRef<HTMLElement>);
   protected entry = computed(() => {
     const e = help(this.id());
@@ -51,9 +53,19 @@ export class InfoButton {
     ev.stopPropagation();
     if (this.open()) { this.open.set(false); return; }
     const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-    const width = 320, vw = typeof window === 'undefined' ? 1024 : window.innerWidth;
-    this.pos.set({ top: r.bottom + 6, left: Math.max(8, Math.min(r.left - width / 2, vw - width - 8)) });
+    const width = 320, vw = window.innerWidth, vh = window.innerHeight;
+    const left = Math.max(8, Math.min(r.left - width / 2, vw - width - 8));
+    const below = vh - r.bottom - 14, above = r.top - 14;
+    const up = below < 260 && above > below;
+    this.pos.set({ top: up ? null : r.bottom + 6, bottom: up ? vh - r.top + 6 : null, left, maxH: Math.max(120, up ? above : below) });
     this.open.set(true);
+  }
+
+  constructor() {
+    // the page scrolls inside a box, not the window: close on any scroll outside the popover (capture phase)
+    const onScroll = (ev: Event) => { if (this.open() && !(this.el.nativeElement as HTMLElement).contains(ev.target as Node)) this.open.set(false); };
+    document.addEventListener('scroll', onScroll, true);
+    inject(DestroyRef).onDestroy(() => document.removeEventListener('scroll', onScroll, true));
   }
   protected more(): void { this.open.set(false); this.dialog.set(true); }
 
@@ -61,6 +73,4 @@ export class InfoButton {
   onDocClick(ev: Event): void { if (this.open() && !this.el.nativeElement.contains(ev.target as Node)) this.open.set(false); }
   @HostListener('document:keydown.escape')
   onEsc(): void { this.open.set(false); }
-  @HostListener('window:scroll')
-  onScroll(): void { this.open.set(false); }
 }
