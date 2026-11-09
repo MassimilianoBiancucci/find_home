@@ -8,7 +8,9 @@ export interface ScaleField {
   /** Sorted values of the listings still in the running (scored, not rejected by a filter or by you). */
   values: number[];
 }
-export interface ValueScale { n: number; fields: Record<ValueField, ScaleField>; }
+/** Your move-in window from config/profile.yaml hard_filters (ISO dates, null when not set). */
+export interface MoveInWindow { from: string | null; to: string | null; }
+export interface ValueScale { n: number; fields: Record<ValueField, ScaleField>; move_in?: MoveInWindow; }
 export interface ValueRating { score: number; colour: string; title: string; }
 
 const UNIT: Record<ValueField, (v: number) => string> = {
@@ -48,6 +50,19 @@ export function rateValue(v: number | null | undefined, f: ValueField, s: ScaleF
   return { score, colour, title: `${fmt(Math.round(v * 10) / 10)}: ${fails ? 'past your limit · ' : ''}${parts.join(' · ')}` };
 }
 
+/**
+ * A move-in date against your window: inside it green, before it amber (you would pay two rents or wait), after it
+ * red (the move_in_to hard filter rejects it). No window set: no colour. ISO dates compare as strings.
+ */
+export function rateMoveIn(date: string | null | undefined, w: MoveInWindow | null | undefined): ValueRating | null {
+  if (!date || !w || (!w.from && !w.to)) return null;
+  const d = date.slice(0, 10);
+  const win = `your window ${w.from ?? '…'} → ${w.to ?? '…'} (config/profile.yaml)`;
+  if (w.to && d > w.to) return { score: 0, colour: 'var(--fh-bad)', title: `${d}: after ${win}, rejected by move_in_to` };
+  if (w.from && d < w.from) return { score: 0.5, colour: 'var(--fh-mid)', title: `${d}: before ${win}` };
+  return { score: 1, colour: 'var(--fh-good)', title: `${d}: inside ${win}` };
+}
+
 /** The value scale, loaded once (and again after a recompute of the scores). */
 @Injectable({ providedIn: 'root' })
 export class ValueScaleStore {
@@ -64,4 +79,6 @@ export class ValueScaleStore {
   rate(l: Pick<Listing, 'rent_sek' | 'size_m2' | 'rooms_rok'>, f: ValueField): ValueRating | null {
     return rateValue(valueOf(l, f), f, this.scale()?.fields[f]);
   }
+
+  moveIn(l: Pick<Listing, 'available_from'>): ValueRating | null { return rateMoveIn(l.available_from, this.scale()?.move_in); }
 }

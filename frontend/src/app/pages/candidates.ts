@@ -90,13 +90,15 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       <thead><tr><th>Id</th><th>Score</th>
         <th class="text-center" title="The home's transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby">Transport</th>
         <th class="text-center" title="The home's services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near">Services</th>
-        <th>Status</th><th>Area / address</th><th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
+        <th>Status</th><th>Area / address</th>
+        <th title="The move-in date the ad gives, against your window in config/profile.yaml (move_in_from → move_in_to): green inside, amber before, red after (rejected)">Move in</th>
+        <th>Rooms</th><th>m²</th><th>Rent</th><th>kr/m²</th><th>Pets</th><th>Contract</th></tr></thead>
       <tbody>
         @for (r of pageRows(); track r.short_id; let j = $index) {
           @let i = page() * pageSize() + j;
           <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
             (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()">
-            <td class="fh-mono"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
+            <td class="fh-mono text-nowrap"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
             <td>
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
               @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
@@ -106,10 +108,12 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             <td>{{ r.status }}</td>
             <td>@if (r.origin_site) { <fh-site-logo class="me-1" [slug]="r.origin_site" [title]="originTip(r)" /> }{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
             @let ro = values.rate(r, 'rooms_rok'); @let rs = values.rate(r, 'size_m2');
-            @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2');
+            @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2'); @let mv = values.moveIn(r);
+            <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
+              {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td>
             <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
             <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td>
-            <td [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
+            <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
             <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
             <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td>
             <td class="small">{{ r.contract_type ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
@@ -120,7 +124,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     </div>
     <ng-container [ngTemplateOutlet]="pager" />
     @if (values.scale(); as sc) {
-      <div class="small text-body-secondary">Rooms, m², rent and kr/m² are coloured against the {{ sc.n }} listings still in the running
+      <div class="small text-body-secondary">Move in is coloured against your move-in window in config/profile.yaml: green inside, amber before, red after.
+        Rooms, m², rent and kr/m² are coloured against the {{ sc.n }} listings still in the running
         (scored, not rejected) and your targets in config/profile.yaml: green good, amber middling, red poor or past your limit. Hover a value for why.</div>
     }
   }
@@ -147,7 +152,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
         <span>Pets</span><span><fh-pet-badge [status]="t.pet_status" [source]="t.pet_source" />
           @if (t.pet_evidence) { <span class="text-body-secondary"> “{{ t.pet_evidence }}”</span> }</span>
         @if (t.origin_site) { <span>Origin</span><span><fh-site-logo [slug]="t.origin_site" [withName]="true" /></span> }
-        <span>Contract</span><span>{{ t.contract_type ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}{{ t.available_from ? ' · from ' + t.available_from : '' }}</span>
+        <span>Move in</span><span [style.color]="values.moveIn(t)?.colour">{{ t.available_from ? (t.available_from | date: 'd MMM y') : '?' }}</span>
+        <span>Contract</span><span>{{ t.contract_type ?? '?' }}{{ t.contract_end ? ' → ' + t.contract_end : '' }}</span>
         <span>Status</span><span>{{ t.status }} · seen {{ t.first_seen_at | date: 'mediumDate' }}</span>
         @if (t.rejected_by?.length) { <span>Rejected by</span><span class="text-danger">{{ t.rejected_by!.join(', ') }}</span> }
         @else if (topGroups(t).length) { <span>Best for</span><span>{{ topGroups(t).join(' · ') }}</span> }

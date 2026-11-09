@@ -72,8 +72,9 @@ import { TagsStore } from '../services/tags.store';
               <span class="fh-fact-v">{{ L.floor ?? '?' }}</span><span class="fh-fact-n">{{ L.build_year ? 'built ' + L.build_year : '\u00a0' }}</span></div>
             <div class="fh-fact"><span class="fh-fact-l">Contract</span>
               <span class="fh-fact-v">{{ L.contract_type ? L.contract_type.replace('_', '-') : '?' }}</span><span class="fh-fact-n">{{ L.contract_end ? 'until ' + L.contract_end : '\u00a0' }}</span></div>
-            <div class="fh-fact"><span class="fh-fact-l">Move in</span>
-              <span class="fh-fact-v">{{ L.available_from ?? '?' }}</span><span class="fh-fact-n">&nbsp;</span></div>
+            @let mv = values.moveIn(L);
+            <div class="fh-fact" [style.--c]="mv?.colour" [title]="mv?.title ?? ''"><span class="fh-fact-l">Move in</span>
+              <span class="fh-fact-v">{{ L.available_from ? (L.available_from | date: 'd MMM y') : '?' }}</span><span class="fh-fact-n">&nbsp;</span></div>
           </div>
           <div class="fh-feats">
             @for (f of features(L); track f.label) {

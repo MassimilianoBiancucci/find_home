@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ScaleField, rateValue, valueOf } from './value-scale';
+import { ScaleField, rateMoveIn, rateValue, valueOf } from './value-scale';
 
 const rent: ScaleField = { better: 'low', limit: 13000, ideal: 9750, limit_key: null, ideal_key: null,
   values: [8000, 9000, 10000, 11000, 12000, 12500] };
@@ -22,5 +22,20 @@ describe('value colours', () => {
     expect(rateValue(150, 'rent_per_m2', perM2)!.score).toBeCloseTo(0.875);
     expect(valueOf({ rent_sek: 10000, size_m2: 50, rooms_rok: 2 }, 'rent_per_m2')).toBe(200);
     expect(valueOf({ rent_sek: 10000, size_m2: null, rooms_rok: 2 }, 'rent_per_m2')).toBeNull();
+  });
+});
+
+describe('rateMoveIn', () => {
+  const w = { from: '2030-03-01', to: '2030-06-30' };
+  it('is green inside the window, amber before it, red after it', () => {
+    expect(rateMoveIn('2030-04-15', w)?.colour).toBe('var(--fh-good)');
+    expect(rateMoveIn('2030-06-30', w)?.colour).toBe('var(--fh-good)');
+    expect(rateMoveIn('2030-02-01', w)?.colour).toBe('var(--fh-mid)');
+    expect(rateMoveIn('2030-07-01', w)?.colour).toBe('var(--fh-bad)');
+  });
+  it('has no colour without a date or a window', () => {
+    expect(rateMoveIn(null, w)).toBeNull();
+    expect(rateMoveIn('2030-04-15', { from: null, to: null })).toBeNull();
+    expect(rateMoveIn('2030-04-15', undefined)).toBeNull();
   });
 });

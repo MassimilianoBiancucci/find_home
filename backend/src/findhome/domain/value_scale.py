@@ -1,5 +1,6 @@
 """Value scale of the listing facts (rent, size, rooms, rent per m²) for colouring them in the UI: the values of the
 listings still in the running (scored, not rejected by a hard filter or by you) and your targets from the profile.
+It also carries your move-in window (`hard_filters.move_in_from` / `move_in_to`) for colouring the move-in date.
 
 The UI rates a value from its percentile among those listings and, where you set one, its place between your limit
 (hard filter) and your ideal (score parameter), with the same defaults as the cost and space score groups. Pure.
@@ -37,6 +38,13 @@ def targets(prof: KindProfile | None) -> dict[str, dict[str, Any]]:
     }
 
 
+def move_in(prof: KindProfile | None) -> dict[str, str | None]:
+    """Your move-in window as ISO dates (None when not set): after `to` is a hard-filter rejection."""
+    hf = prof.hard_filters if prof else {}
+    iso = lambda v: None if v in (None, "") else str(v)[:10]          # YAML may give a date object
+    return {"from": iso(hf.get("move_in_from")), "to": iso(hf.get("move_in_to"))}
+
+
 def in_running(row: dict[str, Any]) -> bool:
     """Scored and not rejected: by a hard filter (no total) or by you (status rejected or archived)."""
     return row.get("score") is not None and not row.get("rejected_by") and row.get("status") not in ("rejected", "archived")
@@ -52,4 +60,4 @@ def value_scale(rows: list[dict[str, Any]], prof: KindProfile | None) -> dict[st
         else:
             vals = [float(r[f]) for r in live if r.get(f) is not None]
         out[f] = {**t, "values": sorted(round(v, 1) for v in vals)}
-    return {"n": len(live), "fields": out}
+    return {"n": len(live), "fields": out, "move_in": move_in(prof)}

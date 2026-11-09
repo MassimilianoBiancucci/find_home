@@ -83,6 +83,17 @@ def test_value_scale_keeps_listings_in_the_running_and_reads_the_targets():
     assert f["rent_sek"]["limit"] == 12000 and f["rent_sek"]["ideal"] == 9000           # 0.75 × max, as the cost group
     assert f["size_m2"]["ideal"] == 50 and f["rooms_rok"]["limit"] == 2
     assert f["rent_per_m2"]["values"] == [200.0, 200.0]
+    assert s["move_in"] == {"from": None, "to": None}
+
+
+def test_value_scale_carries_the_move_in_window():
+    import datetime as dt
+    from findhome.config.models import KindProfile
+    from findhome.domain.value_scale import value_scale
+
+    prof = KindProfile.model_validate({"enabled": True, "hard_filters": {"move_in_from": dt.date(2030, 3, 1), "move_in_to": "2030-06-30"}})
+    assert value_scale([], prof)["move_in"] == {"from": "2030-03-01", "to": "2030-06-30"}
+    assert value_scale([], None)["move_in"] == {"from": None, "to": None}
 
 
 def test_transport_and_services_groups_hold_the_commute_and_flag_estimates(tmp_repo):
