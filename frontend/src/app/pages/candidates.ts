@@ -11,6 +11,7 @@ import { ValueScaleStore, valueOf } from '../value-scale';
 import { indexColour } from '../house/house-bubbles';
 import { Listing, RecomputeStatus } from '../models';
 import { ApiService, apiError } from '../services/api.service';
+import { CandidateOrderStore } from '../services/candidate-order.store';
 import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
@@ -161,6 +162,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   private route = inject(ActivatedRoute);
   protected sites = inject(SitesStore);
   protected tags = inject(TagsStore);
+  private order = inject(CandidateOrderStore);
   /** Scope from the link that opened the page (?origin= / ?site= / ?scan_run=), shown as removable chips. */
   protected origin = signal('');
   protected site = signal('');
@@ -252,7 +254,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
     this.loading.set(true);
     this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.hideRejected,
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
-      next: (res) => { this.rows.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set(''); },
+      next: (res) => { this.rows.set(res.items); this.order.set(res.items.map((l) => l.short_id)); this.cursor.set(0); this.loading.set(false); this.error.set(''); },
       error: (e) => { this.error.set(apiError(e)); this.loading.set(false); },
     });
   }

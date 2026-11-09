@@ -364,6 +364,29 @@ pre.fh-pre {
     fh-info { margin-left: auto; } }
 }
 .fh-hcard-main { box-shadow: inset 3px 0 0 var(--fh-violet); }
+/* a card that folds to its header: the title is the toggle */
+.fh-hcard-tg { border: 0; background: none; padding: 0; font: inherit; color: inherit; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  &::before { content: '▸'; font-size: 0.8em; color: var(--fh-violet); transition: transform 0.15s; }
+  &[aria-expanded='true']::before { transform: rotate(90deg); }
+  &:hover { color: var(--fh-violet); } }
+.fh-hcard.collapsed header { margin-bottom: 0; }
+/* the listing page: previous / next home of the candidates list, on the top edges */
+.fh-detail-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  .fh-detail-pos { flex: 1; text-align: center; font-size: 0.78rem; color: var(--bs-secondary-color); } }
+/* the listing page: key facts as labelled bubbles */
+.fh-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
+.fh-fact { position: relative; border-radius: 10px; padding: 6px 10px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+  border-top: 3px solid var(--c, var(--fh-violet-soft));
+  .fh-fact-l { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color); }
+  .fh-fact-v { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.2; color: var(--c, inherit); }
+  .fh-fact-n { display: block; font-size: 0.72rem; color: var(--bs-secondary-color); } }
+.fh-feats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fh-feat { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem;
+  border: 1px solid var(--bs-border-color); color: var(--bs-secondary-color);
+  &.yes { color: var(--fh-good); border-color: color-mix(in srgb, var(--fh-good) 45%, transparent); background: rgba(31, 157, 85, 0.1); }
+  &.no { color: var(--fh-bad); border-color: color-mix(in srgb, var(--fh-bad) 40%, transparent); } }
+.fh-desc-text { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--fh-violet-soft); border-radius: 0 8px 8px 0;
+  background: var(--bs-body-bg); font-size: 0.84rem; color: var(--bs-secondary-color); white-space: pre-line; }
 /* the candidates list: 0-100 indices, and its hover card */
 .fh-idx { font-weight: 600; font-variant-numeric: tabular-nums; text-align: center; }
 .fh-ltip { position: fixed; z-index: 1080; width: 380px; pointer-events: none; padding: 10px; border-radius: 10px;
@@ -419,6 +442,9 @@ pre.fh-pre {
     border-color: #44444e; border-top-color: #55555f; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 8px rgba(0, 0, 0, 0.3); }
   .fh-hcard-main { box-shadow: inset 3px 0 0 #b46cf0, inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 2px 8px rgba(0, 0, 0, 0.3); }
   .fh-hscore { background: rgba(0, 0, 0, 0.18); border-color: #3c3c46; }
+  .fh-fact, .fh-desc-text { background: rgba(0, 0, 0, 0.18); border-color: #3c3c46; }
+  .fh-fact { border-top-color: var(--c, #6a4a8e); }
+  .fh-desc-text { border-left-color: #6a4a8e; }
   .fh-badge-est { color: #d2b0ff; }
 }
 .fh-house-pop .maplibregl-popup-content { padding: 4px 8px; font-size: 0.8rem; background: #1c1c22; color: #eee; border: 1px solid #44444e; }

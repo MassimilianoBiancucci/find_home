@@ -1,7 +1,7 @@
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, HostListener, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, petSourceLabel, scoreColor } from '../format';
 import { GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
@@ -15,6 +15,7 @@ import { ValueScaleStore, valueOf } from '../value-scale';
 import { HouseMap } from '../house/house-map';
 import { CommuteRow, HouseLocation, Listing, ListingDetail } from '../models';
 import { ApiService, apiError } from '../services/api.service';
+import { CandidateOrderStore } from '../services/candidate-order.store';
 import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
@@ -22,6 +23,16 @@ import { TagsStore } from '../services/tags.store';
   selector: 'fh-detail',
   imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo],
   template: `
+  <nav class="fh-detail-nav" aria-label="Candidates">
+    @let n = nav();
+    <a class="btn btn-sm btn-outline-secondary" [class.disabled]="!n?.prev" [attr.aria-disabled]="!n?.prev"
+       [routerLink]="n?.prev ? ['/candidates', n!.prev] : null" title="Previous home in the candidates list (k)">‹ Prev
+       @if (n?.prev) { <span class="fh-mono small ms-1">{{ n!.prev }}</span> }</a>
+    <span class="fh-detail-pos">@if (n) { {{ n.pos }} / {{ n.total }} in the candidates list }</span>
+    <a class="btn btn-sm btn-outline-secondary" [class.disabled]="!n?.next" [attr.aria-disabled]="!n?.next"
+       [routerLink]="n?.next ? ['/candidates', n!.next] : null" title="Next home in the candidates list (j)">
+       @if (n?.next) { <span class="fh-mono small me-1">{{ n!.next }}</span> }Next ›</a>
+  </nav>
   <div class="fh-page-head">
     <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
     <h1 class="fh-mono">{{ shortId() }}</h1>
@@ -41,37 +52,51 @@ import { TagsStore } from '../services/tags.store';
     <div class="row g-3">
       <div class="col-lg-7">
         <fh-gallery [photos]="x.listing.photo_urls" [plans]="x.listing.floorplan_urls" [link]="x.listing.canonical_url"
-          [incomplete]="galleryIncomplete(x.listing)" />
+          [incomplete]="galleryIncomplete(x.listing)" [band]="true" />
+
+        @let L = x.listing;
+        <section class="fh-hcard fh-hcard-main">
+          <header><h2>{{ L.title || L.address_raw }}</h2><span class="fh-hsub">{{ L.area }}{{ L.title && L.address_raw ? ' · ' + L.address_raw : '' }}</span></header>
+          @let rr = values.rate(L, 'rent_sek'); @let rm = values.rate(L, 'rent_per_m2');
+          @let ro = values.rate(L, 'rooms_rok'); @let rs = values.rate(L, 'size_m2');
+          <div class="fh-facts">
+            <div class="fh-fact" [style.--c]="rr?.colour" [title]="rr?.title ?? ''"><span class="fh-fact-l">Rent</span>
+              <span class="fh-fact-v">{{ kr(L.rent_sek) }}</span><span class="fh-fact-n">per month</span></div>
+            <div class="fh-fact" [style.--c]="rm?.colour" [title]="rm?.title ?? ''"><span class="fh-fact-l">Per m²</span>
+              <span class="fh-fact-v">{{ kr(perM2(L)) }}</span><span class="fh-fact-n">per month</span></div>
+            <div class="fh-fact" [style.--c]="ro?.colour" [title]="ro?.title ?? ''"><span class="fh-fact-l">Rooms</span>
+              <span class="fh-fact-v">{{ num(L.rooms_rok) }} rok</span><span class="fh-fact-n">{{ L.has_sovalkov ? '+ sovalkov' : '\u00a0' }}</span></div>
+            <div class="fh-fact" [style.--c]="rs?.colour" [title]="rs?.title ?? ''"><span class="fh-fact-l">Size</span>
+              <span class="fh-fact-v">{{ num(L.size_m2, ' m²') }}</span><span class="fh-fact-n">&nbsp;</span></div>
+            <div class="fh-fact"><span class="fh-fact-l">Floor</span>
+              <span class="fh-fact-v">{{ L.floor ?? '?' }}</span><span class="fh-fact-n">{{ L.build_year ? 'built ' + L.build_year : '\u00a0' }}</span></div>
+            <div class="fh-fact"><span class="fh-fact-l">Contract</span>
+              <span class="fh-fact-v">{{ L.contract_type ? L.contract_type.replace('_', '-') : '?' }}</span><span class="fh-fact-n">{{ L.contract_end ? 'until ' + L.contract_end : '\u00a0' }}</span></div>
+            <div class="fh-fact"><span class="fh-fact-l">Move in</span>
+              <span class="fh-fact-v">{{ L.available_from ?? '?' }}</span><span class="fh-fact-n">&nbsp;</span></div>
+          </div>
+          <div class="fh-feats">
+            @for (f of features(L); track f.label) {
+              <span class="fh-feat" [class.yes]="f.v === true" [class.no]="f.v === false">{{ f.v === true ? '✓' : f.v === false ? '✕' : '?' }} {{ f.label }}</span>
+            }
+          </div>
+          @if (L.description_excerpt) { <p class="fh-desc-text">{{ L.description_excerpt }}</p> }
+        </section>
+
+        @if (L.lat != null && L.lon != null) {
+          <fh-house-map [lat]="L.lat" [lon]="L.lon" [shortId]="L.short_id" [loc]="loc()" [outside]="outside()" />
+        }
         @if (loc(); as l) {
           <div class="row g-3">
             <div class="col-xl-6"><fh-house-home [loc]="l" [transit]="travel.results()[l.listing.short_id] ?? null" /></div>
             <div class="col-xl-6"><fh-house-zone [loc]="l" /></div>
           </div>
+          <fh-house-travel [loc]="l" [collapsed]="true" /><fh-house-transit [loc]="l" [collapsed]="true" />
         } @else if (locError() && !outside()) {
           <div class="fh-hcard"><div class="fh-hnote">House analysis not available: {{ locError() }}</div></div>
         } @else if (!locError()) {
           <div class="fh-hcard"><div class="fh-hnote">Measuring the home from its address… (a few seconds the first time)</div></div>
         }
-        @if (x.listing.lat != null && x.listing.lon != null) {
-          <fh-house-map [lat]="x.listing.lat" [lon]="x.listing.lon" [shortId]="x.listing.short_id" [loc]="loc()" [outside]="outside()" />
-        }
-        @if (loc(); as l) { <fh-house-travel [loc]="l" /><fh-house-transit [loc]="l" /> }
-        <div class="card mb-3"><div class="card-body">
-          <h2 class="h6">{{ x.listing.title || x.listing.address_raw }}</h2>
-          <div class="mb-2">{{ x.listing.area }} · {{ x.listing.address_raw }}</div>
-          <div class="d-flex flex-wrap gap-3 small">
-            @let rr = values.rate(x.listing, 'rent_sek'); @let rm = values.rate(x.listing, 'rent_per_m2');
-            @let ro = values.rate(x.listing, 'rooms_rok'); @let rs = values.rate(x.listing, 'size_m2');
-            <span [title]="rr?.title ?? ''"><b [style.color]="rr?.colour">{{ kr(x.listing.rent_sek) }}</b>/month
-              @if (rm) { <span class="ms-1" [style.color]="rm.colour" [title]="rm.title">({{ kr(perM2(x.listing)) }}/m²)</span> }</span>
-            <span [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(x.listing.rooms_rok) }} rok{{ x.listing.has_sovalkov ? ' + sovalkov' : '' }}</span>
-            <span [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(x.listing.size_m2, ' m²') }}</span>
-            <span>floor {{ x.listing.floor ?? '?' }}{{ x.listing.has_elevator ? ', lift' : '' }}{{ x.listing.has_balcony ? ', balcony' : '' }}</span>
-            <span>{{ x.listing.contract_type ?? 'contract ?' }}{{ x.listing.contract_end ? ' → ' + x.listing.contract_end : '' }}</span>
-            @if (x.listing.available_from) { <span>from {{ x.listing.available_from }}</span> }
-          </div>
-          @if (x.listing.description_excerpt) { <p class="small text-body-secondary mt-2 mb-0">{{ x.listing.description_excerpt }}</p> }
-        </div></div>
 
         <div class="card mb-3"><div class="card-body">
           <div class="d-flex align-items-center gap-2 mb-2">
@@ -121,13 +146,15 @@ import { TagsStore } from '../services/tags.store';
       <div class="col-lg-5">
         <div class="fh-hcard">
           <header><h2>Where</h2><span class="fh-hsub">{{ x.listing.area }}</span><fh-info id="listing.where" /></header>
-          <fh-zone-minimap [lat]="x.listing.lat" [lon]="x.listing.lon" [zoneId]="x.listing.zone_id" [zoneName]="x.listing.zone_name" [height]="230" />
+          <fh-zone-minimap [lat]="x.listing.lat" [lon]="x.listing.lon" [zoneId]="x.listing.zone_id" [zoneName]="x.listing.zone_name" [height]="260"
+            [interactive]="true" />
         </div>
-        <div class="card mb-3"><div class="card-body">
-          <h2 class="h6">Score
+        <section class="fh-hcard" [class.collapsed]="!scoreOpen()">
+          <header><h2><button type="button" class="fh-hcard-tg" [attr.aria-expanded]="scoreOpen()" (click)="scoreOpen.set(!scoreOpen())">Score</button></h2>
             <fh-score-tip [total]="x.score?.total" [breakdown]="x.score?.breakdown" [rejected]="x.score?.rejected_by" />
             <fh-info id="score.total" />
-          </h2>
+          </header>
+          @if (scoreOpen()) {
           @if (x.score_stale) { <div class="small text-warning">No score for the current config. <a href="" (click)="$event.preventDefault(); recompute()">Recompute</a></div> }
           @if (x.score?.rejected_by?.length) { <div class="small text-danger">Rejected by: {{ x.score!.rejected_by.join(', ') }}</div> }
           @for (g of breakdown(); track g.name) {
@@ -136,7 +163,8 @@ import { TagsStore } from '../services/tags.store';
               @if (g.estimated) { <span class="fh-badge-est" title="Part of this value is estimated (Connectivity minutes): compute the transit routes to your points to make it exact">estimate</span> }</span>
               <span [title]="g.why" class="position-relative">{{ g.score == null ? 'n/a' : score(g.score) }}@if (g.estimated) { <i class="fh-est-dot inline"></i> }</span></div>
           }
-        </div></div>
+          }
+        </section>
 
         <div class="card mb-3"><div class="card-body">
           <div class="d-flex align-items-center gap-2 mb-2">
@@ -222,6 +250,12 @@ import { TagsStore } from '../services/tags.store';
 export class DetailPage {
   readonly shortId = input.required<string>();
   private api = inject(ApiService);
+  private router = inject(Router);
+  private order = inject(CandidateOrderStore);
+  /** Previous and next home of the candidates list, and this one's position in it. */
+  protected nav = computed(() => this.order.around(this.shortId()));
+  /** The score card shows only the total until opened. */
+  protected scoreOpen = signal(false);
   protected tags = inject(TagsStore);
   protected sites = inject(SitesStore);
   protected petAnswers = ['yes', 'no', 'ask'] as const;
@@ -257,6 +291,7 @@ export class DetailPage {
   }
 
   load(id: string): void {
+    this.order.ensure(id);
     this.commuteAsk.set(null);
     this.api.listing(id).subscribe({ next: (x) => { this.d.set(x); this.error.set(''); }, error: (e) => this.error.set(apiError(e)) });
     if (this.loc()?.listing.short_id !== id) { this.loc.set(null); this.locError.set(''); }
@@ -266,6 +301,20 @@ export class DetailPage {
   /** Scans before the full-gallery fix kept 6 photos and no photo_count: the next browser scan fills them in. */
   galleryIncomplete(l: Listing): boolean { return l.photo_urls.length === 6 && l.attributes?.['photo_count'] == null; }
   protected perM2 = (l: Listing) => valueOf(l, 'rent_per_m2');
+  /** Yes / no / unknown features, shown as ✓ / ✕ / ? chips. */
+  protected features(l: Listing): { label: string; v: boolean | null }[] {
+    return [{ label: 'lift', v: l.has_elevator ?? null }, { label: 'balcony', v: l.has_balcony ?? null },
+      ...(l.has_sovalkov ? [{ label: 'sovalkov', v: true }] : [])];
+  }
+
+  /** j / k: next / previous home of the candidates list (not while typing, nor in the photo viewer). */
+  @HostListener('document:keydown', ['$event'])
+  onKey(ev: KeyboardEvent): void {
+    const t = ev.target as HTMLElement;
+    if (ev.metaKey || ev.ctrlKey || ev.altKey || ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) || document.querySelector('.fh-gal-viewer')) return;
+    const to = ev.key === 'j' ? this.nav()?.next : ev.key === 'k' ? this.nav()?.prev : null;
+    if (to) { ev.preventDefault(); this.router.navigate(['/candidates', to]); }
+  }
   min(v: number | null): string { return v == null ? '–' : `${Math.round(v)}′`; }
   spread(c: CommuteRow): boolean { return (c.spread_min ?? 0) > 10; }
   toggle(k: string): void { this.picked.has(k) ? this.picked.delete(k) : this.picked.add(k); }

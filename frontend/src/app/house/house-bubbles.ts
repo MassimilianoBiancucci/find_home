@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, linkedSignal, untracked } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { ExplainInline } from '../components/explain';
@@ -171,8 +171,10 @@ export class HouseZone {
   imports: [InfoButton, DecimalPipe],
   template: `
   @let l = loc();
-  <section class="fh-hcard">
-    <header><h2>Travel to your points</h2><fh-info id="house.travel" /></header>
+  <section class="fh-hcard" [class.collapsed]="!open()">
+    <header><h2><button type="button" class="fh-hcard-tg" [attr.aria-expanded]="open()" (click)="open.set(!open())">Travel to your points</button></h2>
+      <span class="fh-hsub">{{ l.estimates.length }} point{{ l.estimates.length === 1 ? '' : 's' }}</span><fh-info id="house.travel" /></header>
+    @if (open()) {
     @for (e of l.estimates; track e.point_id) {
       @let t = trip(e.point_id);
       <div class="fh-trow" [class.fh-hot-able]="!!t" [class.hot]="!!t && store.hover() === e.point_id"
@@ -204,10 +206,14 @@ export class HouseZone {
     }
     @if (!l.estimates.length) { <div class="fh-hnote">No points with trips in config/locations.yaml.</div> }
     @if (!store.isDone(id(), 'points')) { <div class="fh-hnote">Exact times: <b>Compute transit routes to your points</b> in Transit routes.</div> }
+    }
   </section>`,
 })
 export class HouseTravel {
   readonly loc = input.required<HouseLocation>();
+  /** Start folded to the header (the listing page); the header's toggle opens it. */
+  readonly collapsed = input(false);
+  protected open = linkedSignal(() => !this.collapsed());
   protected store = inject(HouseTravelStore);
   protected id = computed(() => this.loc().listing.short_id);
   protected result = computed(() => this.store.results()[this.id()] ?? null);
@@ -234,8 +240,10 @@ export class HouseTravel {
   selector: 'fh-house-transit',
   imports: [InfoButton, DecimalPipe, NgTemplateOutlet],
   template: `
-  <section class="fh-hcard">
-    <header><h2>Transit routes</h2><span class="fh-hsub">ResRobot, from this home</span><fh-info id="house.transit" /></header>
+  <section class="fh-hcard" [class.collapsed]="!open()">
+    <header><h2><button type="button" class="fh-hcard-tg" [attr.aria-expanded]="open()" (click)="open.set(!open())">Transit routes</button></h2>
+      <span class="fh-hsub">ResRobot, from this home</span><fh-info id="house.transit" /></header>
+    @if (open()) {
     <div class="fh-tbtns">
       @for (b of buttons; track b.which) {
         <button type="button" class="btn btn-sm" [class.btn-primary]="!store.isDone(id(), b.which)" [class.btn-outline-primary]="store.isDone(id(), b.which)"
@@ -262,6 +270,7 @@ export class HouseTravel {
     }
     @if (!points().length && !services().length) {
       <div class="fh-hnote">Nothing computed yet. Each button asks ResRobot once per destination; answers are cached, so a second press is free.</div>
+    }
     }
     <ng-template #row let-t>
       <div class="fh-trow fh-hot-able" [class.hot]="store.hover() === t.point_id" (mouseenter)="store.hover.set(t.point_id)" (mouseleave)="store.hover.set(null)">
@@ -290,6 +299,9 @@ export class HouseTravel {
 })
 export class HouseTransit {
   readonly loc = input.required<HouseLocation>();
+  /** Start folded to the header (the listing page); the header's toggle opens it. */
+  readonly collapsed = input(false);
+  protected open = linkedSignal(() => !this.collapsed());
   protected store = inject(HouseTravelStore);
   protected id = computed(() => this.loc().listing.short_id);
   protected buttons: { which: TransitWhich; label: string }[] = [

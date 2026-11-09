@@ -1,4 +1,4 @@
-import { Component, HostListener, computed, effect, input, signal, untracked } from '@angular/core';
+import { Component, HostListener, computed, effect, input, linkedSignal, signal, untracked } from '@angular/core';
 import { InfoButton } from './info';
 
 type Tab = 'photos' | 'plans';
@@ -6,7 +6,9 @@ type Tab = 'photos' | 'plans';
 /**
  * Photo gallery of a listing: Photos / Floor plans tabs, a main image with a thumbnail strip, and a full-screen
  * viewer (arrow keys, Esc, swipe, double-click for 1:1). Images load lazily from the listing site's own URLs.
- * `compact` shows only a strip of three thumbnails (map panel); a click opens the viewer.
+ * `compact` shows only a strip of three thumbnails (map panel); a click opens the viewer. `band` makes the gallery
+ * fold (listing page): folded, the tabs and every thumbnail in one scrolling band; a thumbnail or the toggle unfolds
+ * it to the main image on that photo. In band mode only the ⛶ button opens the full-screen viewer.
  */
 @Component({
   selector: 'fh-gallery',
@@ -26,6 +28,10 @@ type Tab = 'photos' | 'plans';
   } @else {
     <section class="fh-gal">
       <header class="fh-gal-head">
+        @if (band()) {
+          <button type="button" class="fh-hcard-tg fh-gal-fold" [attr.aria-expanded]="!folded()" (click)="folded.set(!folded())"
+            [title]="folded() ? 'Show the large photo' : 'Thumbnails only'" [attr.aria-label]="folded() ? 'Show the large photo' : 'Thumbnails only'"></button>
+        }
         <div class="fh-gal-tabs" role="tablist">
           <button type="button" role="tab" [class.active]="tab() === 'photos'" [attr.aria-selected]="tab() === 'photos'" (click)="setTab('photos')">
             Photos <span>{{ shown('photos').length }}</span></button>
@@ -38,12 +44,13 @@ type Tab = 'photos' | 'plans';
         @if (list().length) { <button type="button" class="fh-gal-fs" title="Full screen" (click)="openViewer(tab(), index())">⛶</button> }
       </header>
       @if (list().length) {
-        <div class="fh-gal-main" [class.plan]="tab() === 'plans'">
+        @if (!folded()) {
+        <div class="fh-gal-main" [class.plan]="tab() === 'plans'" [class.still]="band()">
           @if (isPdf(list()[index()])) {
             <a class="fh-gal-pdf" [href]="list()[index()]" target="_blank" rel="noopener">PDF floor plan ↗<small>opens in a new tab</small></a>
           } @else {
           <img [src]="list()[index()]" decoding="async" [alt]="(tab() === 'plans' ? 'Floor plan ' : 'Photo ') + (index() + 1)"
-            (click)="openViewer(tab(), index())" (error)="broken(list()[index()])" />
+            (click)="band() || openViewer(tab(), index())" (error)="broken(list()[index()])" />
           }
           @if (list().length > 1) {
             <button type="button" class="fh-gal-nav prev" aria-label="Previous" (click)="step(-1)">‹</button>
@@ -51,10 +58,12 @@ type Tab = 'photos' | 'plans';
           }
           <span class="fh-gal-count">{{ index() + 1 }} / {{ list().length }}</span>
         </div>
-        @if (list().length > 1) {
-          <div class="fh-gal-thumbs">
+        }
+        @if (folded() || list().length > 1) {
+          <div class="fh-gal-thumbs" [class.band]="folded()">
             @for (u of list(); track u; let i = $index) {
-              <button type="button" class="fh-gal-thumb" [class.active]="i === index()" (click)="index.set(i)" [attr.aria-label]="'Show ' + (i + 1)">
+              <button type="button" class="fh-gal-thumb" [class.active]="!folded() && i === index()" (click)="index.set(i); folded.set(false)"
+                [attr.aria-label]="'Show ' + (i + 1)">
                 @if (isPdf(u)) { <span class="fh-gal-pdf-thumb">PDF</span> } @else { <img [src]="u" loading="lazy" decoding="async" alt="" (error)="broken(u)" /> }
               </button>
             }
@@ -105,6 +114,10 @@ type Tab = 'photos' | 'plans';
     .fh-gal-main { position: relative; border-radius: 8px; overflow: hidden; background: #111116; aspect-ratio: 16 / 10;
       box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); }
     .fh-gal-main img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; display: block; }
+    .fh-gal-main.still img { cursor: default; }
+    .fh-gal-fold { font-size: 1.15rem; width: 26px; height: 26px; justify-content: center; border-radius: 50%; }
+    .fh-gal-fold::before { font-size: 1em; }
+    .fh-gal-fold:hover { background: var(--fh-violet-soft); }
     .fh-gal-main.plan { background: #f4f4f6; } .fh-gal-main.plan img { object-fit: contain; }
     .fh-gal-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; border-radius: 50%;
       border: 1px solid rgba(255,255,255,.35); background: rgba(20,20,26,.55); color: #fff; font-size: 1.3rem; line-height: 1; }
@@ -117,6 +130,9 @@ type Tab = 'photos' | 'plans';
     .fh-gal-thumb { position: relative; flex: none; width: 72px; height: 50px; padding: 0; border-radius: 6px; overflow: hidden;
       border: 2px solid transparent; background: #1a1a20; }
     .fh-gal-strip .fh-gal-thumb { width: 33%; flex: 1; height: 64px; }
+    .fh-gal-thumbs.band { margin-top: 0; padding-bottom: 4px; scrollbar-width: thin; }
+    .fh-gal-thumbs.band .fh-gal-thumb { width: 148px; height: 100px; cursor: pointer; transition: transform .12s, border-color .12s; }
+    .fh-gal-thumbs.band .fh-gal-thumb:hover { border-color: var(--fh-violet); transform: translateY(-1px); }
     .fh-gal-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .fh-gal-thumb.active { border-color: var(--fh-violet); box-shadow: 0 0 0 1px rgba(255,255,255,.5); }
     .fh-gal-more { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff;
@@ -144,6 +160,10 @@ export class GalleryComponent {
   readonly photos = input<string[]>([]);
   readonly plans = input<string[]>([]);
   readonly compact = input(false);
+  /** Foldable (listing page): starts folded to a band of thumbnails; only ⛶ opens the full-screen viewer. */
+  readonly band = input(false);
+  /** Folded to the thumbnail band (band mode only). */
+  protected folded = linkedSignal(() => this.band());
   /** The ad's page, linked from the viewer. */
   readonly link = input<string | null | undefined>(null);
   readonly incomplete = input(false);

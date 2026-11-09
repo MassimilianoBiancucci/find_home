@@ -26,7 +26,8 @@ export function bounds(geom: any, extra: number[][] = []): [[number, number], [n
 
 /**
  * A small locator map: half of the analysed area, the home's zone filled orange, your points, the area outside the
- * analysed zones grey, a standing pin on the home, and the zone's name. Outside every zone: the pin only, in the grey. Not interactive;
+ * analysed zones grey, a standing pin on the home, and the zone's name. Outside every zone: the pin only, in the grey.
+ * Not interactive unless `interactive` (pan, zoom, +/− buttons and a button back to the first view);
  * one map per instance, redrawn in place when the inputs change (the list tooltip reuses one).
  */
 @Component({
@@ -37,6 +38,7 @@ export function bounds(geom: any, extra: number[][] = []): [[number, number], [n
       <div class="fh-mm-label">
         @if (zoneName()) { <i class="fh-mm-sw"></i>{{ zoneName() }} } @else if (lat() != null) { outside the analysed zones } @else { no position }
       </div>
+      @if (interactive()) { <button type="button" class="fh-mm-reset" title="Back to the first view" aria-label="Back to the first view" (click)="frame()">⟲</button> }
     </div>`,
   styles: [`
     :host { display: block; }
@@ -46,6 +48,9 @@ export function bounds(geom: any, extra: number[][] = []): [[number, number], [n
       background: rgba(16,16,22,.78); color: #fff; display: inline-flex; align-items: center; gap: 6px; pointer-events: none;
       box-shadow: 0 1px 4px rgba(0,0,0,.4); }
     .fh-mm-sw { width: 10px; height: 10px; border-radius: 3px; background: ${ZONE}; box-shadow: 0 0 6px ${ZONE}; }
+    .fh-mm-reset { position: absolute; left: 8px; bottom: 8px; width: 29px; height: 29px; border-radius: 4px; border: 0; background: #fff;
+      color: #333; font-size: 1rem; line-height: 1; box-shadow: 0 0 0 2px rgba(0,0,0,.1); }
+    .fh-mm-reset:hover { background: #f2f2f2; }
     :host ::ng-deep .maplibregl-ctrl-attrib { font-size: 9px; }
   `],
 })
@@ -55,6 +60,8 @@ export class ZoneMinimap {
   readonly zoneId = input<string | null | undefined>(null);
   readonly zoneName = input<string | null | undefined>(null);
   readonly height = input(200);
+  /** Pan and zoom with the mouse, touch and +/− buttons. */
+  readonly interactive = input(false);
 
   private geo = inject(ZoneGeoStore);
   private theme = inject(ThemeService);
@@ -100,9 +107,13 @@ export class ZoneMinimap {
         this.settings = s;
         this.dark = this.theme.theme() === 'dark';
         const map: MlMap = new ml.Map({ container: this.el().nativeElement, style: (this.dark && s.style_url_dark) || s.style_url,
-          center: [this.lon() ?? 18.07, this.lat() ?? 59.33], zoom: 11, interactive: false,
-          attributionControl: { customAttribution: s.attribution, compact: true } });
+          center: [this.lon() ?? 18.07, this.lat() ?? 59.33], zoom: 11, interactive: this.interactive(),
+          dragRotate: false, pitchWithRotate: false, attributionControl: { customAttribution: s.attribution, compact: true } });
         this.map = map;
+        if (this.interactive()) {
+          map.touchZoomRotate.disableRotation();
+          map.addControl(new ml.NavigationControl({ showCompass: false }), 'top-right');
+        }
         destroy.onDestroy(() => { map.remove(); this.map = null; });
         new ResizeObserver(() => map.resize()).observe(this.el().nativeElement);
         map.on('styleimagemissing', (e) => { installPin(map, e.id); installBlip(map, e.id); });
@@ -144,6 +155,15 @@ export class ZoneMinimap {
       paint: { 'text-color': '#ffffff', 'text-halo-color': '#101014', 'text-halo-width': 1.3 } });
     add({ id: 'mm-pin', type: 'symbol', source: 'mm-here',
       layout: { 'icon-image': PIN, 'icon-anchor': 'bottom', 'icon-size': 0.78, 'icon-allow-overlap': true, 'icon-ignore-placement': true } });
+    this.frame();
+  }
+
+  /** The first view: much of the analysed area around the home. */
+  protected frame(): void {
+    const map = this.map;
+    if (!map) return;
+    const lat = this.lat(), lon = this.lon();
+    const here = lat != null && lon != null ? [lon, lat] : null;
     // much of the analysed area, so the home's place in the city is clear: zoomed in on it just enough to keep
     // half of it in view, then moved only as far as needed to keep the home's pin inside the frame
     const rb = this.region ? bounds(this.region.outline) : null;

@@ -46,6 +46,29 @@ describe('fh-gallery', () => {
     expect((f.nativeElement as HTMLElement).querySelector('.fh-gal-viewer')).toBeNull();
   });
 
+  it('band mode starts folded to the thumbnails; a thumbnail unfolds it on that photo, only ⛶ opens the viewer', () => {
+    const f = make({ photos, band: true });
+    const el = f.nativeElement as HTMLElement;
+    expect(el.querySelector('.fh-gal-main')).toBeNull();
+    const thumbs = el.querySelectorAll<HTMLButtonElement>('.fh-gal-thumbs.band .fh-gal-thumb');
+    expect(thumbs.length).toBe(4);
+    thumbs[2].click();
+    f.detectChanges();
+    const main = el.querySelector('.fh-gal-main img') as HTMLImageElement;
+    expect(main.src).toContain('c.jpg');
+    expect(el.querySelector('.fh-gal-thumbs.band')).toBeNull();
+    main.click();
+    f.detectChanges();
+    expect(el.querySelector('.fh-gal-viewer')).toBeNull();
+    (el.querySelector('.fh-gal-fs') as HTMLButtonElement).click();
+    f.detectChanges();
+    expect((el.querySelector('.fh-gal-vimg img') as HTMLImageElement).src).toContain('c.jpg');
+    key('Escape'); f.detectChanges();
+    (el.querySelector('.fh-gal-fold') as HTMLButtonElement).click();
+    f.detectChanges();
+    expect(el.querySelector('.fh-gal-main')).toBeNull();
+  });
+
   it('compact mode shows three thumbnails and the rest as +N', () => {
     const el = make({ photos, compact: true }).nativeElement as HTMLElement;
     expect(el.querySelectorAll('.fh-gal-strip .fh-gal-thumb').length).toBe(3);
