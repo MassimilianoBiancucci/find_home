@@ -118,6 +118,47 @@ sites, runs, jobs, job, settings) and a folder for the map. [`services/api.servi
 [`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF).
 Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
 
+**Candidates list.** [`candidates.ts`](../../frontend/src/app/pages/candidates.ts) is the triage table (keys in
+its header). The server applies the status, the search, the scope chips and **Hide rejected** (a red badge: filled
+while rejected homes show, outlined while they are hidden). The page then applies the ranges of the **Filters**
+bubble (ranges and chips) and the sort ([`rows`](../../frontend/src/app/pages/candidates.ts#L200)). Every column header but Id sorts:
+the first click puts the better end first (score high, rent low, move-in early), the second reverses, and homes
+without the value stay last. The default is score, high first.
+
+The Filters bubble ([`fh-candidate-filters`](../../frontend/src/app/pages/candidate-filters.ts#L335), registered in
+box 1) has one two-ended slider per value: score, rent, rent per m², move-in date, rooms, size, transport and
+services. A slider spans the 2nd to 98th percentile of the homes' values
+([`domainOf()`](../../frontend/src/app/pages/candidate-filters.ts#L76)). An end left at the edge is open, so outliers
+stay in and the label shows ≤ / +. Homes without the value stay in unless you untick "no value". Move in has a
+**your window** shortcut (`hard_filters.move_in_from` → `move_in_to`). On hover a slider unfolds its distribution
+([`histogram()`](../../frontend/src/app/pages/candidate-filters.ts#L91)): the bars count the homes that pass every
+*other* filter, and their bright part is the share inside this one. A long range gets bars of a whole number of
+steps (rent bars of 1 000 kr); a short one, one bar per value (rooms). Hovering a bar shows its values and how many
+homes it holds ([`showTip()`](../../frontend/src/app/pages/candidate-filters.ts#L385)).
+
+Under the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets** and
+**Contract** ([`CAT_FIELDS`](../../frontend/src/app/pages/candidate-filters.ts#L55)). Chosen chips of one group are
+alternatives (any of them); groups and sliders combine. A chip is outlined until chosen, then filled with its
+colour and glowing, like the Hide rejected badge; its count is the homes it would keep with the other filters. After Hide rejected changes, every chart opens
+for a moment ([`flash()`](../../frontend/src/app/pages/candidate-filters.ts#L168)) and animates to the new homes.
+[`CandidateFiltersStore`](../../frontend/src/app/pages/candidate-filters.ts#L140) keeps the ranges, sort and Hide
+rejected while you open homes and come back.
+
+```mermaid
+flowchart LR
+  API[GET /api/listings: status, search, scope, hide rejected] --> ALL[all]
+  ALL -->|base| B[Filters bubble: domains, histograms]
+  ALL --> F[applyAll: ranges and chips]
+  B -->|ranges, chips| F
+  F --> SO[sortRows: column, direction] --> R[rows: table pages, j/k, prev/next order]
+```
+
+| Step | Code |
+|---|---|
+| Ranges and chips | [`applyAll()`](../../frontend/src/app/pages/candidate-filters.ts#L65), [`applyFilters()`](../../frontend/src/app/pages/candidate-filters.ts#L46) |
+| Sort | [`sortRows()`](../../frontend/src/app/pages/candidate-filters.ts#L127) |
+| Hide rejected reload and chart flash | [`toggleRejected()`](../../frontend/src/app/pages/candidates.ts#L246) |
+
 **Sites, Runs and Jobs.** [`sites.ts`](../../frontend/src/app/pages/sites.ts) shows one fixed-size
 [`site-card`](../../frontend/src/app/pages/site-card.ts) per site (scannable, to onboard, then a collapsed
 origin-only section): status and role chips, one row per scan method with the reason when it is off, counts that
@@ -137,8 +178,10 @@ the status (U / A / S / K) and the evidence; the detail page lets you set your o
 **Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) (PDF floor plans as links) shows a listing's `photo_urls` and
 `floorplan_urls` (Photos / Floor plans tabs, thumbnails, a full-screen viewer with arrow keys, Esc, swipe and
 double-click for 1:1). It loads the images lazily from the site's own URLs; images that fail to load are dropped
-from the count. The detail page shows it at the top; the map's listing panel shows a three-thumbnail strip
-(`compact`), fetching the listing on selection because map features carry no photos. Listings with exactly 6
+from the count. The detail page shows it at the top, foldable
+([`band`](../../frontend/src/app/components/gallery.ts#L164)): folded (the default), one band of thumbnails; a
+thumbnail or the ▸ toggle unfolds it to the main image on that photo. There, only ⛶ opens the viewer; the map's
+listing panel shows a three-thumbnail strip (`compact`), fetching the listing on selection because map features carry no photos. Listings with exactly 6
 photos and no `attributes.photo_count` come from scans that kept only 6, and the gallery says the next browser
 scan fills them in.
 
@@ -157,9 +200,14 @@ through [`LayoutService`](../../frontend/src/app/services/layout.service.ts) `re
 the page is destroyed. Box widths and collapsed bubbles persist in localStorage; drag handles resize the boxes.
 
 **House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) loads the listing and its
-house analysis (`GET /api/listings/{id}/location`) side by side. Under the gallery it shows the bubbles of
-[`house-bubbles.ts`](../../frontend/src/app/house/house-bubbles.ts), clustered by meaning:
-- **This home** (first, accented): the home's transport, services and combined scores, each with an ⓘ and its
+house analysis (`GET /api/listings/{id}/location`) side by side. Its main column, top to bottom: the photo band;
+the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, ✓ / ✕ / ?
+chips for lift and balcony, the ad's text); **On the map**; **This home** and **Its zone** side by side; **Travel to
+your points** and **Transit routes**, both folded to their header until clicked (`collapsed`); the **Commute** table;
+the latest agent evaluation. The side column holds **Where**, **Score** (folded to its total until clicked), Pets,
+Feedback, the agent digest and the sources. The cards of
+[`house-bubbles.ts`](../../frontend/src/app/house/house-bubbles.ts):
+- **This home** (accented): the home's transport, services and combined scores, each with an ⓘ and its
   derivation. Then one row per set (grocery, pharmacy, gym, park, vet, rail, bus): the walk minutes coloured
   green / yellow / red by `zone.yaml` `walk_colours`, the metres, and the count within the choice window;
 - **Its zone**: the same rows with the zone's medians, and the zone's indices with their percentile;
@@ -188,6 +236,27 @@ house analysis (`GET /api/listings/{id}/location`) side by side. Under the galle
   with its call count from the dry run (no API call) on the button and in its tooltip; the switch for the
   services' routes on the map; and the computed routes, hoverable.
 
+**Previous and next home.** The bar on top of the detail page steps through the candidates list in the order you
+last saw it, with its filters, ranges and sort (also `j` / `k`). A home that is not in that list (opened from the map or by URL)
+falls back to the unfiltered list.
+
+```mermaid
+flowchart LR
+  C[Candidates rows: filtered and sorted] -->|short ids in order| S[CandidateOrderStore + sessionStorage]
+  D[Detail page opens id] --> Q{id in the list?}
+  Q -->|no| A[GET /api/listings, no filters] --> S
+  Q -->|yes| N[prev / next / position]
+  S --> N
+```
+
+| Step | Code |
+|---|---|
+| Candidates records its order | [`constructor()` effect](../../frontend/src/app/pages/candidates.ts#L242) |
+| The store | [`CandidateOrderStore.set()`](../../frontend/src/app/services/candidate-order.store.ts#L17) |
+| Fallback to the unfiltered list | [`ensure()`](../../frontend/src/app/services/candidate-order.store.ts#L23) |
+| Neighbours and position | [`around()`](../../frontend/src/app/services/candidate-order.store.ts#L33), [`nav`](../../frontend/src/app/pages/detail.ts#L257) |
+| `j` / `k` keys | [`onKey()`](../../frontend/src/app/pages/detail.ts#L313) |
+
 The results live in [`HouseTravelStore`](../../frontend/src/app/house/house-travel.store.ts), per listing, so
 the 3D house view reuses them. A service row shows "or N min by transit" when transit beats walking to the same
 target. Set colours come from [`set-colours.ts`](../../frontend/src/app/set-colours.ts) (shared with the zone view).
@@ -196,8 +265,9 @@ target. Set colours come from [`set-colours.ts`](../../frontend/src/app/set-colo
 [`help.ts`](../../frontend/src/app/help.ts) (`HELP`, keyed by dotted ids: `bubble.<id>`, `panel.<title>`,
 `score.<group>`, `zone.<index>`). Each entry has a title, a short text, an optional formula and the config files
 and keys behind the value.
-- [`fh-info`](../../frontend/src/app/components/info.ts) is the ⓘ button. It opens a popover with the entry; an
-  unknown id renders nothing and warns in development.
+- [`fh-info`](../../frontend/src/app/components/info.ts) is the ⓘ button. It opens a popover with the entry, below
+  the button or, when there is more room there, [above it](../../frontend/src/app/components/info.ts#L52), scrolling
+  within the screen; any scroll of the page closes it. An unknown id renders nothing and warns in development.
 - A bubble shows its ⓘ in the header when `bubble.<id>` exists, or when `Bubble.info` names another entry. The
   right panel does the same with `panel.<title>`.
 - [`fh-explain`](../../frontend/src/app/components/explain.ts) (inline "How is this calculated?") and
@@ -270,14 +340,15 @@ hover it lists every score group (score, weight, contribution, reason) and the h
 listing; a click opens the explanation dialog. It is used in the candidates table, the map's listing panel and
 the detail page.
 
-**Where the home is.** [`fh-zone-minimap`](../../frontend/src/app/components/zone-minimap.ts) is a small,
-non-interactive locator: half of the analysed area in view (its fitted zoom plus `AREA_ZOOM_IN`, then panned only
+**Where the home is.** [`fh-zone-minimap`](../../frontend/src/app/components/zone-minimap.ts) is a small
+locator, not interactive unless `interactive`: half of the analysed area in view (its fitted zoom plus `AREA_ZOOM_IN`, then panned only
 as far as needed to keep the pin inside), the home's zone filled orange, the area outside the analysed zones grey
 (the `GET /api/zone/region` mask), a standing pin on the home, your points (`GET /api/map/points`) in their category
 icon and colour, and the zone's name; outside every zone, the pin in the grey. Zones, region, points and map style
 are fetched once per session
 ([`ZoneGeoStore`](../../frontend/src/app/services/zone-geo.store.ts)). The listing page has it as the **Where**
-card at the top of its side column. The candidates table reuses one instance in its hover card (after
+card at the top of its side column, interactive: drag, wheel and +/− zoom, and ⟲ back to the first view
+([`frame()`](../../frontend/src/app/components/zone-minimap.ts#L162)). The candidates table reuses one instance in its hover card (after
 250 ms on a row), with the photo, rent and rent per m², rooms and size, building, pets, contract, status and the
 two score groups that add most. Each listing carries `zone_id` / `zone_name` (`GET /api/listings`, by point in
 polygon on the zones) and `house_transport` / `house_services`, the home's own 0-100 scores from its cached house
@@ -293,12 +364,16 @@ developer".
 
 **Value colours.** Rooms, m², rent and rent per m² are coloured in the candidates table, its hover card and the
 listing page. `GET /api/listings/scale`
-([`value_scale()`](../../backend/src/findhome/domain/value_scale.py#L45)) returns the sorted values of the listings
+([`value_scale()`](../../backend/src/findhome/domain/value_scale.py#L53)) returns the sorted values of the listings
 still in the running (scored, not rejected by a hard filter, not rejected or archived by you) and your targets:
 `hard_filters.max_rent_sek` / `min_size_m2` / `min_rooms_rok` as limits, `cost.ideal_rent_sek` (else 0.75 × the
 max, as the cost group) and `space.ideal_size_m2` as ideals.
 [`rateValue()`](../../frontend/src/app/value-scale.ts) averages the percentile (better than N %) with the place
 between limit and ideal; past the limit is red. Green from 0.67, amber from 0.33. The tooltip of a value says why.
+The move-in date (the candidates table's **Move in** column, its hover card and the listing page) is coloured
+against your window, `hard_filters.move_in_from` → `move_in_to`, which the same response carries as `move_in`:
+[`rateMoveIn()`](../../frontend/src/app/value-scale.ts#L57) gives green inside, amber before (not rejected),
+red after (rejected by `move_in_to`), and no colour when no window is set.
 
 **Zone mode** (`/map/zone`, `/map/zone/:id`, [`zone-mode.ts`](../../frontend/src/app/pages/map/zone-mode.ts#L116)) studies one zone.
 Without an id it is a picker: every zone is outlined, hover highlights one, a click opens it.
