@@ -183,6 +183,14 @@ class GeoConfig(_Base):
     attribution: list[str] = Field(default_factory=list)
 
 
+class AreaReach(_Base):
+    """A reach piece's rule: the zones within max_min minutes from a point (or the weighted mix) in a travel period."""
+    from_: str = Field("weighted", alias="from")        # "weighted" or a point id
+    max_min: float = 40
+    window: str | None = None                           # "day_type|window_label"; None = every period, weighted
+    exclude_estimates: bool = False
+
+
 class AreaPiece(_Base):
     id: str
     kind: Literal["zones", "shape", "eraser"]
@@ -192,6 +200,7 @@ class AreaPiece(_Base):
     zones: list[str] = Field(default_factory=list)
     geometry: dict[str, Any] | None = None
     visible: bool = True
+    reach: AreaReach | None = None
 
 
 class SearchArea(_Base):

@@ -89,8 +89,8 @@ export const HELP: Record<string, HelpEntry> = {
   'explore.listings': {
     title: 'Listing statistics', short: 'From the listings that pass the Listing filters, placed in their zone: how many, per km², and the median rent, rent per m², size and rooms. Zones with fewer listings than the minimum are shown as no data.',
   },
-  'bubble.area-tools': { title: 'Tools', short: 'Draw and edit the pieces of your search area.', config: ['config/search_area.yaml'] },
-  'bubble.area-pieces': { title: 'Area pieces', short: 'The pieces of your search area, each with a weight that scales the area score.', config: ['config/search_area.yaml'] },
+  'bubble.area-tools': { title: 'Tools', short: 'Draw and edit the pieces of your search area. Reach selects the zones within a travel time of your points.', config: ['config/search_area.yaml'] },
+  'bubble.area-pieces': { title: 'Area pieces', short: 'The pieces of your search area, each with a weight that scales the area score. A reach piece keeps its rule here: from which point, travel period, minutes.', config: ['config/search_area.yaml'] },
   'bubble.area-zones': { title: 'Zones', short: 'The zones (districts) of the region, grouped by municipality and district.' },
 
   // ── Listing ───────────────────────────────────────────────────────────────────────────

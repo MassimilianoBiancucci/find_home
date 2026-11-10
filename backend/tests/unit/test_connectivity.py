@@ -75,6 +75,16 @@ def test_aggregate_uses_window_and_point_weights(bundle):
     assert out["Z0"]["estimate"] is True and "Z1" not in out
 
 
+def test_periods_group_points_by_day_type_and_window():
+    rows = [{"point_id": "b", "day_type": "weekday", "window_label": "arrive_by 08:00-09:00"},
+            {"point_id": "a", "day_type": "weekday", "window_label": "arrive_by 08:00-09:00"},
+            {"point_id": "a", "day_type": "sunday", "window_label": "grid 07:00-03:00"}]
+    out = cn.periods(rows)
+    assert [p["key"] for p in out] == ["sunday|grid 07:00-03:00", "weekday|arrive_by 08:00-09:00"]
+    assert out[1] == {"key": "weekday|arrive_by 08:00-09:00", "label": "arrive_by 08:00-09:00 · weekday", "points": ["a", "b"]}
+    assert cn.period_key(rows[0]) == "weekday|arrive_by 08:00-09:00"
+
+
 class MemStore:
     """In-memory ConnectivityStore."""
 

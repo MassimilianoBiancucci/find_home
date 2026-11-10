@@ -113,6 +113,14 @@ async def restore(conn, b, pl: Planned) -> dict:
         return {"restored": len(writes), "still_missing": len(todo) - len(writes)}
 
 
+def _points(b) -> list[dict]:
+    """The enabled points with their category colour and icon and their effective weight."""
+    cats = b.locations.categories
+    return [{"id": p.id, "label": p.label, "color": cats[p.category].color if p.category in cats else None,
+             "icon": cats[p.category].icon if p.category in cats else None, "weight": b.locations.effective_weight(p)}
+            for p in b.locations.points if p.enabled]
+
+
 @router.get("")
 async def matrix(conn=Depends(get_conn)):
     b, zones = bundle(), _zones_or_404()
@@ -126,16 +134,33 @@ async def matrix(conn=Depends(get_conn)):
     stored = await repo.read_rows(conn, h)
     route_rows = stored if pl.kind == "zone" else await repo.read_rows(conn, h, "stations")
     counts = cs.counts(pl.reqs, route_rows, ttl, datetime.now(UTC), cn.JOB.running)
-    cats = b.locations.categories
-    points = [{"id": p.id, "label": p.label, "color": cats[p.category].color if p.category in cats else None,
-               "icon": cats[p.category].icon if p.category in cats else None, "weight": b.locations.effective_weight(p)}
-              for p in b.locations.points if p.enabled]
+    points = _points(b)
     data = cn.aggregate(rows, b)
     real = cn.aggregate([r for r in rows if not r["estimate"]], b) if any(r["estimate"] for r in rows) else data
     failed_zones = sorted({k[0] for k, v in stored.items() if v.status == "failed"} - set(data))
     return {"inputs_hash": h, "points": points, "zones": data, "zones_real": real, "covered": len(data), "zone_count": len(zones.zones),
             "failed_zones": failed_zones, "stale_rows": old["n"], "counts": counts, "origin": pl.kind,
             "restored": restored["restored"], "job": cn.JOB.public()}
+
+
+@router.get("/minutes")
+async def minutes(window: str | None = None, conn=Depends(get_conn)):
+    """Zone minutes per point and the weighted mix for one travel period (`day_type|window_label`), or over every
+    period as the matrix does; plus the periods there are. Used by the Area mode's reach pieces."""
+    b = bundle()
+    rows = await (await conn.execute(
+        "SELECT zone_id, point_id, day_type, window_label, window_weight, minutes, estimate FROM zone_commute"
+        " WHERE inputs_hash = %s", (cn.inputs_hash(b),))).fetchall()
+    rows = [dict(r) for r in rows]
+    periods = cn.periods(rows)
+    if window:
+        if window not in {p["key"] for p in periods}:
+            raise HTTPException(404, f"unknown travel period {window!r}")
+        rows = [r for r in rows if cn.period_key(r) == window]
+    real = [r for r in rows if not r["estimate"]]
+    data = cn.aggregate(rows, b)
+    return {"window": window or None, "points": _points(b), "periods": periods, "zones": data,
+            "zones_real": cn.aggregate(real, b) if len(real) < len(rows) else data}
 
 
 @router.post("/restore")

@@ -325,6 +325,23 @@ async def run(store: ConnectivityStore, registry, bundle: ConfigBundle, zones: Z
         JOB.finished_at = clock.monotonic()
 
 
+def period_key(row: dict) -> str:
+    """A travel period: the day type and the time window, both directions together (as the matrix averages them)."""
+    return f"{row['day_type']}|{row['window_label']}"
+
+
+def periods(rows: list[dict]) -> list[dict[str, Any]]:
+    """Every travel period in the matrix rows, with the points that are timed in it, in a stable order."""
+    by: dict[str, set[str]] = {}
+    for r in rows:
+        by.setdefault(period_key(r), set()).add(r["point_id"])
+    out = []
+    for key in sorted(by):
+        day, window = key.split("|", 1)
+        out.append({"key": key, "label": f"{window} · {day}", "points": sorted(by[key])})
+    return out
+
+
 def aggregate(rows: list[dict], bundle: ConfigBundle) -> dict[str, dict[str, Any]]:
     """Per zone: minutes per point (window-weighted mean over directions and windows) and the point-weighted mean,
     the same weights the commute score group uses."""

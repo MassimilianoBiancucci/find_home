@@ -14,7 +14,7 @@
           "label": {"type": "string"},
           "weight": {"type": "number", "minimum": 0, "maximum": 1},
           "kind": {"enum": ["zones", "shape", "eraser"]},
-          "source": {"enum": ["zones", "brush", "circle", "lasso", "polygon"]},
+          "source": {"enum": ["zones", "reach", "brush", "circle", "lasso", "polygon"]},
           "zones": {"type": "array", "items": {"type": "string"}},
           "geometry": {
             "type": "object",
@@ -24,7 +24,19 @@
             },
             "required": ["type", "coordinates"]
           },
-          "visible": {"type": "boolean"}
+          "visible": {"type": "boolean"},
+          "reach": {
+            "description": "Zones within max_min minutes of transit from a point (or the weighted mix of your points) in one travel period (day_type|window_label; absent: every period, weighted), from the Connectivity matrix",
+            "type": "object",
+            "properties": {
+              "from": {"type": "string"},
+              "max_min": {"type": "number", "minimum": 1, "maximum": 300},
+              "window": {"type": "string"},
+              "exclude_estimates": {"type": "boolean"}
+            },
+            "additionalProperties": false,
+            "required": ["from", "max_min"]
+          }
         },
         "additionalProperties": false,
         "required": ["id", "kind"],

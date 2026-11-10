@@ -285,9 +285,13 @@ Every planned route has a **status**, derived in one place
 stores ok / estimated / failed and `fetched_at` the provider's answer time; `GET /api/connectivity` returns the
 counts, `GET /api/connectivity/routes` the filtered, paged list.
 
-[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L328) gives per zone the window-weighted minutes per point and the
+[`aggregate()`](../../backend/src/findhome/domain/connectivity.py#L345) gives per zone the window-weighted minutes per point and the
 point-weighted mix (point weights as in the commute score); the matrix endpoint returns it with and without
-estimates (`zones`, `zones_real`) and lists the zones with only failed routes.
+estimates (`zones`, `zones_real`) and lists the zones with only failed routes. `GET /api/connectivity/minutes`
+returns the same aggregate for one **travel period** (`?window=day_type|window_label`, both directions together,
+[`period_key()`](../../backend/src/findhome/domain/connectivity.py#L328)) or for every period, plus the periods there
+are with the points timed in each ([`periods()`](../../backend/src/findhome/domain/connectivity.py#L333)) and the
+points; the Area mode's reach pieces read it.
 
 ## Zones and the search area
 
@@ -302,7 +306,7 @@ search area, the analysed region) do not fail; the area compiler repairs drawn s
 changes) with an STRtree. Geometry runs in SWEREF 99 TM (EPSG:3006, metres) through
 [`geo/crs.py`](../../backend/src/findhome/geo/crs.py); files and the API use WGS84.
 
-The **search area** (`search_area.yaml`) is a list of pieces: `zones` (RegSO ids), `shape` (a GeoJSON polygon
+The **search area** (`search_area.yaml`) is a list of pieces: `zones` (RegSO ids; a reach piece also keeps its rule), `shape` (a GeoJSON polygon
 from the brush, lasso, circle or polygon tool) and `eraser` (cuts every other piece), each with a weight 0..1, plus
 `buffer_m`. [`geo/area.py`](../../backend/src/findhome/geo/area.py) `compile_area` unions each piece, removes the
 erasers and caches the result per content and zones file; `area_eval(lat, lon)` returns inside, the distance to
@@ -310,7 +314,43 @@ the nearest piece, the depth inside, the per-piece contributions and the score
 `max(weight × falloff)`, where the falloff is 1 inside and falls linearly to 0 at `buffer_m` outside. The Area
 mode edits the pieces and saves them through the config writer. Its Zones bubble has **Select all N zones**
 (every mapped zone into the zone piece, then the Zones tool, so a click on the map removes an unwanted one) and
-**Clear zones**. `POST /api/area/brush` turns a painted stroke
+**Clear zones**.
+
+A **reach piece** is a zones piece (`source: reach`) that follows a rule saved with it
+([`AreaReach`](../../backend/src/findhome/config/models.py#L186), `reach: {from, max_min, window, exclude_estimates}`):
+the zones within `max_min` minutes of transit from one point or the weighted mix (`from: weighted`), in one travel
+period (`window`; absent: every period, weighted), optionally without straight-line estimates. The **Reach** tool adds
+one; its rule is set on its card in Area pieces (From chips, Travel period, Within slider, Exclude estimates), which
+also shows how many zones are within, farther, or have no minutes (left out). The zone list is computed in the
+browser from the Connectivity matrix and saved like any zones piece, so the server and the scoring only see zone ids.
+When the matrix changes later, the card counts the zones that differ and **Re-apply** recomputes them. **Trim other
+pieces** unticks the farther zones in the manual zone pieces; clicks of the Zones tool go to a manual zone piece, never
+to a reach piece.
+
+```mermaid
+sequenceDiagram
+  participant U as You
+  participant A as AreaMode
+  participant API as GET /api/connectivity/minutes
+  participant C as config writer
+  U->>A: Reach tool, + Reach piece / change the rule
+  A->>API: ?window=period (once per period)
+  API-->>A: zone minutes per point and mix, periods, points
+  A->>A: reachSplit(zones, minutes, rule) → within / farther / no data
+  A->>A: piece.zones = within (draft, painted on the map)
+  U->>A: Save area
+  A->>C: PATCH search_area pieces (zones + reach rule)
+```
+
+| Step | Code |
+|---|---|
+| Add a piece, change its rule | [`addReach()`](../../frontend/src/app/pages/map/area-mode.ts#L430), [`setReach()`](../../frontend/src/app/pages/map/area-mode.ts#L436) |
+| Load the minutes of a period | [`ensureMinutes()`](../../frontend/src/app/pages/map/area-mode.ts#L453), [`minutes()`](../../backend/src/findhome/api/routers/connectivity.py#L147) |
+| Split the zones by the rule | [`reachSplit()`](../../frontend/src/app/pages/map/area-reach.ts#L17), [`applyPendingReach()`](../../frontend/src/app/pages/map/area-mode.ts#L462) |
+| Counts on the card | [`reachStats`](../../frontend/src/app/pages/map/area-mode.ts#L257) |
+| Trim the manual zone pieces | [`trimOthers()`](../../frontend/src/app/pages/map/area-mode.ts#L488) |
+
+`POST /api/area/brush` turns a painted stroke
 into a polygon (buffered in metres, unioned with or cut from a base piece). Agents read the area with
 `findhome area show` and the history digest's Search area section.
 

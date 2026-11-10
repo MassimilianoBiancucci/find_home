@@ -201,7 +201,14 @@ export interface AddressSuggestion { label: string; lat: number; lon: number; so
 
 export interface AreaPiece {
   id: string; kind: 'zones' | 'shape' | 'eraser'; label?: string; weight?: number;
-  source?: 'zones' | 'brush' | 'circle' | 'lasso' | 'polygon'; zones?: string[]; geometry?: any; visible?: boolean;
+  source?: 'zones' | 'reach' | 'brush' | 'circle' | 'lasso' | 'polygon'; zones?: string[]; geometry?: any; visible?: boolean;
+  reach?: AreaReach;
+}
+/** A reach piece's rule: zones within max_min minutes from a point (or 'weighted') in one travel period (absent: all). */
+export interface AreaReach { from: string; max_min: number; window?: string; exclude_estimates?: boolean; }
+export interface TravelPeriod { key: string; label: string; points: string[]; }
+export interface ConnectivityMinutes {
+  window: string | null; points: ConnectivityMatrix['points']; periods: TravelPeriod[]; zones: Record<string, ZoneMinutes>; zones_real: Record<string, ZoneMinutes>;
 }
 export interface AreaState {
   config_hash: string; buffer_m: number; pieces: AreaPiece[]; defined: boolean; outline: any | null;

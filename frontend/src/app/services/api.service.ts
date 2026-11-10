@@ -5,7 +5,7 @@ import type { MapSettings } from '../pages/map/map-state.service';
 import {
   RecomputeStatus,
   AddressSuggestion, AgentProfile, AgentRun, AgentStart, Job, JobPreview, JobRun, JobRunDetail, JobRunStart, JobSettings, Launcher,
-  RunsTimeline, ScanRunDetail, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix,
+  RunsTimeline, ScanRunDetail, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix, ConnectivityMinutes,
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, HouseLocation, Listing, ListingDetail, TransitResult, ZoneStats,
   PoiCategory, ProbeResult, SavedProbe, Site, TransitLine, TransitMeta, ZoneCommute,
@@ -128,6 +128,9 @@ export class ApiService {
   transitLine(mode: string, ref: string) { return this.http.get<TransitLine>(`/api/geo/transit/line/${mode}/${encodeURIComponent(ref)}`); }
 
   connectivity() { return this.http.get<ConnectivityMatrix>('/api/connectivity'); }
+  connectivityMinutes(window?: string) {
+    return this.http.get<ConnectivityMinutes>('/api/connectivity/minutes', { params: window ? new HttpParams().set('window', window) : undefined });
+  }
   connectivityZone(id: string) { return this.http.get<ZoneCommute>(`/api/connectivity/zone/${encodeURIComponent(id)}`); }
   connectivityStatus() { return this.http.get<ConnectivityJob>('/api/connectivity/status'); }
   connectivityRefresh(scope?: ConnectivityScope[]) { return this.http.post<ConnectivityJob>('/api/connectivity/refresh', scope ? { scope } : {}); }

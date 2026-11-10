@@ -1,3 +1,4 @@
+import os
 import time
 from pathlib import Path
 
@@ -242,3 +243,32 @@ def test_background_recompute_analyses_then_scores(client, sample_listings):
     # every home with coordinates was analysed, or reported as failed when the test repo has no geodata for it
     assert st["result"]["analysed"] + st["result"]["failed"] == sum(1 for i in items if i["lat"] is not None)
     assert client.post("/api/scores/recompute", json={}).json()["scored"] == len(items)   # the synchronous path stays
+
+
+def test_connectivity_minutes_per_period_and_reach_piece(client):
+    import psycopg
+
+    from findhome.api.state import bundle
+    from findhome.domain import connectivity as cn
+
+    b = bundle()
+    pid = next(p.id for p in b.locations.points if p.enabled)
+    rows = [("Z1", "weekday", "am", 20), ("Z1", "weekday", "pm", 40), ("Z2", "weekday", "pm", 70)]
+    with psycopg.connect(os.environ["FINDHOME_DATABASE_URL"], autocommit=True) as conn:
+        for zid, day, win, m in rows:
+            conn.execute("INSERT INTO zone_commute (inputs_hash, zone_id, point_id, direction, day_type, window_label,"
+                         " window_weight, provider, minutes) VALUES (%s, %s, %s, 'to_point', %s, %s, 1, 'test', %s)",
+                         (cn.inputs_hash(b), zid, pid, day, win, m))
+    every = client.get("/api/connectivity/minutes").json()
+    assert [p["key"] for p in every["periods"]] == ["weekday|am", "weekday|pm"]
+    assert every["zones"]["Z1"]["by_point"][pid] == 30.0 and pid in {p["id"] for p in every["points"]}
+    am = client.get("/api/connectivity/minutes", params={"window": "weekday|am"}).json()
+    assert am["window"] == "weekday|am" and set(am["zones"]) == {"Z1"} and am["zones"]["Z1"]["by_point"][pid] == 20.0
+    assert client.get("/api/connectivity/minutes", params={"window": "weekday|night"}).status_code == 404
+    res = client.patch("/api/config/search_area", json={"ops": [{"op": "replace", "path": "/pieces", "value": [
+        {"id": "reach-1", "kind": "zones", "source": "reach", "zones": [],
+         "reach": {"from": "weighted", "max_min": 35, "window": "weekday|am"}}]}]})
+    assert res.status_code == 200, res.text
+    bad = client.patch("/api/config/search_area", json={"ops": [{"op": "replace", "path": "/pieces/0/reach/max_min", "value": 0}]})
+    assert bad.status_code == 422
+
