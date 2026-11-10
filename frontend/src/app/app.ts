@@ -3,6 +3,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { BubbleComponent } from './components/bubble';
 import { InfoButton } from './components/info';
+import { NavIcon } from './components/nav-icon';
 import { Toasts } from './components/toasts';
 import { Health } from './models';
 import { ApiService } from './services/api.service';
@@ -10,11 +11,13 @@ import { LayoutService } from './services/layout.service';
 import { TagsStore } from './services/tags.store';
 import { ThemeService } from './services/theme.service';
 
-interface NavItem { path: string; label: string; key: string; children?: { path: string; label: string }[]; }
+/** A page in the Pages menu: its icon (NAV_ICONS) and the two colours of its bright badge. */
+interface NavLink { path: string; label: string; icon: string; hue: [string, string]; }
+interface NavItem extends NavLink { key: string; children?: NavLink[]; }
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgTemplateOutlet, BubbleComponent, InfoButton, Toasts],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, NgTemplateOutlet, BubbleComponent, InfoButton, NavIcon, Toasts],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
@@ -27,16 +30,18 @@ export class App implements OnInit {
   protected apiDown = signal(false);
 
   protected readonly nav: NavItem[] = [
-    { path: '/candidates', label: 'Candidates', key: 'C' },
-    { path: '/map', label: 'Map', key: 'M', children: [
-      { path: '/map/explore', label: 'Explore' }, { path: '/map/area', label: 'Area' },
-      { path: '/map/connectivity', label: 'Connectivity' }, { path: '/map/zone', label: 'Zone' },
+    { path: '/candidates', label: 'Candidates', key: 'C', icon: 'home', hue: ['#ff6ad5', '#c43dff'] },
+    { path: '/map', label: 'Map', key: 'M', icon: 'map', hue: ['#6ff3ff', '#19b8e6'], children: [
+      { path: '/map/explore', label: 'Explore', icon: 'compass', hue: ['#6ff3ff', '#19b8e6'] },
+      { path: '/map/area', label: 'Area', icon: 'area', hue: ['#d68bff', '#a020f0'] },
+      { path: '/map/connectivity', label: 'Connectivity', icon: 'route', hue: ['#7ab8ff', '#2f6bff'] },
+      { path: '/map/zone', label: 'Zone', icon: 'zone', hue: ['#ffc46b', '#f08c00'] },
     ] },
-    { path: '/locations', label: 'Locations', key: 'L' },
-    { path: '/sites', label: 'Sites', key: 'S' },
-    { path: '/runs', label: 'Runs', key: 'R' },
-    { path: '/jobs', label: 'Jobs', key: 'J' },
-    { path: '/settings', label: 'Settings', key: 'G' },
+    { path: '/locations', label: 'Locations', key: 'L', icon: 'pin', hue: ['#5cf2a0', '#16c172'] },
+    { path: '/sites', label: 'Sites', key: 'S', icon: 'globe', hue: ['#8f9bff', '#6a5cff'] },
+    { path: '/runs', label: 'Runs', key: 'R', icon: 'pulse', hue: ['#ff8fb1', '#ff2d78'] },
+    { path: '/jobs', label: 'Jobs', key: 'J', icon: 'jobs', hue: ['#ffd36b', '#ffa51f'] },
+    { path: '/settings', label: 'Settings', key: 'G', icon: 'sliders', hue: ['#c9c9d6', '#8a8aa0'] },
   ];
 
   ngOnInit(): void {
