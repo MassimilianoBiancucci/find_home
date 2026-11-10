@@ -347,14 +347,15 @@ listing; a click opens the explanation dialog. It is used in the candidates tabl
 the detail page.
 
 **Where the home is.** [`fh-zone-minimap`](../../frontend/src/app/components/zone-minimap.ts) is a small
-locator, not interactive unless `interactive`: half of the analysed area in view (its fitted zoom plus `AREA_ZOOM_IN`, then panned only
-as far as needed to keep the pin inside), the home's zone filled orange, the area outside the analysed zones grey
-(the `GET /api/zone/region` mask), a standing pin on the home, your points (`GET /api/map/points`) in their category
-icon and colour, and the zone's name; outside every zone, the pin in the grey. Zones, region, points and map style
-are fetched once per session
-([`ZoneGeoStore`](../../frontend/src/app/services/zone-geo.store.ts)). The listing page has it as the **Where**
+locator, not interactive unless `interactive`: half of the boundary in view (its fitted zoom plus `AREA_ZOOM_IN`, then panned only
+as far as needed to keep the pin inside), the home's zone filled orange, the area outside the boundary grey
+(the `GET /api/area/region` mask: the saved search area, or the analysed zones while none is defined), a standing pin
+on the home, your points (`GET /api/map/points`) in their category icon and colour, and the zone's name; outside the
+boundary, the pin in the grey. Zones, boundary, points and map style are fetched once per session
+([`ZoneGeoStore`](../../frontend/src/app/services/zone-geo.store.ts)); saving the area in Map → Area fetches the
+boundary again ([`reloadRegion()`](../../frontend/src/app/services/zone-geo.store.ts#L15)), so every open map redraws it. The listing page has it as the **Where**
 card at the top of its side column, interactive: drag, wheel and +/− zoom, and ⟲ back to the first view
-([`frame()`](../../frontend/src/app/components/zone-minimap.ts#L162)). The candidates table reuses one instance in its hover card (after
+([`frame()`](../../frontend/src/app/components/zone-minimap.ts#L163)). The candidates table reuses one instance in its hover card (after
 250 ms on a row), with the photo, rent and rent per m², rooms and size, building, pets, contract, status and the
 two score groups that add most. Each listing carries `zone_id` / `zone_name` (`GET /api/listings`, by point in
 polygon on the zones) and `house_transport` / `house_services`, the home's own 0-100 scores from its cached house

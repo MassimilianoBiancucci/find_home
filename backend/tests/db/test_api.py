@@ -272,3 +272,15 @@ def test_connectivity_minutes_per_period_and_reach_piece(client):
     bad = client.patch("/api/config/search_area", json={"ops": [{"op": "replace", "path": "/pieces/0/reach/max_min", "value": 0}]})
     assert bad.status_code == 422
 
+
+def test_area_region_follows_the_saved_search_area(client):
+    before = client.get("/api/area/region")
+    assert before.status_code == 404 or before.json()["source"] == "zones"      # no search area: the analysed zones
+    square = {"type": "Polygon", "coordinates": [[[18.0, 59.3], [18.1, 59.3], [18.1, 59.35], [18.0, 59.35], [18.0, 59.3]]]}
+    res = client.patch("/api/config/search_area", json={"ops": [{"op": "replace", "path": "/pieces", "value": [
+        {"id": "core", "kind": "shape", "source": "polygon", "geometry": square}]}]})
+    assert res.status_code == 200, res.text
+    r = client.get("/api/area/region").json()
+    assert r["source"] == "search_area" and r["outline"]["type"] == "Polygon" and r["mask"]["type"] == "Polygon"
+    xs = [x for x, _ in r["outline"]["coordinates"][0]]
+    assert 17.99 < min(xs) and max(xs) < 18.11

@@ -1,3 +1,4 @@
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import type { GeoJSONSource, Map as MlMap } from 'maplibre-gl';
 import { applyDarkWater } from '../pages/map/dark-style';
@@ -99,7 +100,7 @@ export class ZoneMinimap {
     const mod: any = await import('maplibre-gl');
     const ml = mod.default ?? mod;
     this.geo.zones$.subscribe({ next: (z) => { this.zones = z as FC; this.ready.update((n) => n + 1); }, error: () => undefined });
-    this.geo.region$.subscribe({ next: (r) => { this.region = r; this.ready.update((n) => n + 1); }, error: () => undefined });
+    this.geo.region$.pipe(takeUntilDestroyed(destroy)).subscribe({ next: (r) => { this.region = r; this.ready.update((n) => n + 1); }, error: () => undefined });
     this.geo.points$.subscribe({ next: (p) => { this.points = fc((p as FC).features.filter((f) => f.geometry)); this.ready.update((n) => n + 1); },
       error: () => undefined });
     this.geo.settings$.subscribe({
@@ -158,7 +159,7 @@ export class ZoneMinimap {
     this.frame();
   }
 
-  /** The first view: much of the analysed area around the home. */
+  /** The first view: much of the boundary (search area or analysed zones) around the home. */
   protected frame(): void {
     const map = this.map;
     if (!map) return;

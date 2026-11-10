@@ -166,6 +166,8 @@ export class ApiService {
     return this.http.post<TransitResult>(`/api/listings/${id}/transit`, {}, { params: new HttpParams().set('dry', String(dry)).set('which', which) });
   }
   listingScale() { return this.http.get<import('../value-scale').ValueScale>('/api/listings/scale'); }
+  /** The boundary the house maps draw: the saved search area, or the analysed zones while none is defined. */
+  areaRegion() { return this.http.get<{ source: 'search_area' | 'zones'; outline: any; mask: any }>('/api/area/region'); }
   zoneRegion() { return this.http.get<{ zones: number; outline: any; mask: any }>('/api/zone/region'); }
   zoneStats(filters: Record<string, string | number | null | undefined>) {
     let params = new HttpParams();

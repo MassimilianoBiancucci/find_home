@@ -135,6 +135,29 @@ async def area(conn=Depends(get_conn)):
             "area_km2": round(a.union.area / 1e6, 2) if a.union is not None else 0, "listings": stats}
 
 
+_area_region: dict[int, dict] = {}
+
+
+@router.get("/area/region")
+async def area_region():
+    """The boundary the house maps draw: the saved search area (outline + a world-minus-area mask to grey out the
+    rest), or the analysed zones (GET /api/zone/region) while no search area is defined."""
+    a = _area()
+    if not a.defined or a.union is None:
+        from findhome.api.routers.zone import region
+
+        return {"source": "zones", **(await region())}
+    key = id(a)
+    if key not in _area_region:
+        from shapely.geometry import box
+
+        outline = to_wgs84(a.union.simplify(20))
+        _area_region.clear()
+        _area_region[key] = {"source": "search_area", "outline": mapping(outline),
+                             "mask": mapping(box(-179, -85, 179, 85).difference(outline))}
+    return _area_region[key]
+
+
 @router.get("/area/summary")
 async def summary():
     """What an agent needs to stay inside the search area."""

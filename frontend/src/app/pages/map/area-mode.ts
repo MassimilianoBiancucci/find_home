@@ -7,6 +7,7 @@ import { TerraDrawMapLibreGLAdapter } from 'terra-draw-maplibre-gl-adapter';
 import { AreaPiece, AreaReach, AreaResult, AreaState, ConnectivityMinutes, GeoCollection, GeoFeature, TravelPeriod } from '../../models';
 import { ApiService, apiError } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
+import { ZoneGeoStore } from '../../services/zone-geo.store';
 import { DEFAULT_REACH, ReachSplit, reachLabel, reachMinutes, reachSplit } from './area-reach';
 import { MapStateService } from './map-state.service';
 import { ProbePanel } from './probe-panel';
@@ -213,6 +214,7 @@ export class AreaMode {
   private api = inject(ApiService);
   private layout = inject(LayoutService);
   private state = inject(MapStateService);
+  private geo = inject(ZoneGeoStore);
   private toolsTpl = viewChild.required<TemplateRef<unknown>>('toolsTpl');
   private piecesTpl = viewChild.required<TemplateRef<unknown>>('piecesTpl');
   private zonesTpl = viewChild.required<TemplateRef<unknown>>('zonesTpl');
@@ -335,7 +337,7 @@ export class AreaMode {
     });
     this.api.patchConfig('search_area', [{ op: 'replace', path: '/buffer_m', value: this.buffer() }, { op: 'replace', path: '/pieces', value: pieces }])
       .subscribe({
-        next: (r) => { this.info.set(`Area saved · config ${r.config_hash.slice(0, 7)} · recompute scores to apply it`); this.error.set(''); this.load(); },
+        next: (r) => { this.info.set(`Area saved · config ${r.config_hash.slice(0, 7)} · recompute scores to apply it`); this.error.set(''); this.load(); this.geo.reloadRegion(); },
         error: (e) => this.error.set(apiError(e)),
       });
   }

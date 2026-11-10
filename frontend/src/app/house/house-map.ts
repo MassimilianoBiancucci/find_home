@@ -1,3 +1,4 @@
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router } from '@angular/router';
 import type { GeoJSONSource, Map as MlMap, Popup, StyleSpecification } from 'maplibre-gl';
@@ -6,6 +7,7 @@ import { blipExpr, blipId, installBlip, installObject, installPin } from '../com
 import { toneColor, walkTone } from '../format';
 import { HouseLocation, TransitMeta } from '../models';
 import { applyDarkWater } from '../pages/map/dark-style';
+import { ZoneGeoStore } from '../services/zone-geo.store';
 import { ApiService } from '../services/api.service';
 import { ThemeService } from '../services/theme.service';
 import { setColour } from '../set-colours';
@@ -123,6 +125,7 @@ export class HouseMap {
   readonly outside = input(false);
 
   private api = inject(ApiService);
+  private geo = inject(ZoneGeoStore);
   private theme = inject(ThemeService);
   private router = inject(Router);
   private el = viewChild.required<ElementRef<HTMLDivElement>>('mapEl');
@@ -130,7 +133,7 @@ export class HouseMap {
   private popup: Popup | null = null;
   private styleReady = signal(0);
   protected travel = inject(HouseTravelStore);
-  /** Your points (locations.yaml) with coordinates, and the analysed area (outline + mask), loaded once. */
+  /** Your points (locations.yaml) with coordinates, and the boundary (search area or analysed zones: outline + mask). */
   protected points = signal<any[]>([]);
   private region = signal<{ outline: any; mask: any } | null>(null);
   private zoneLines = signal<any | null>(null);
@@ -192,7 +195,7 @@ export class HouseMap {
     this.api.mapSettings().subscribe({
       next: (s) => {
         const dark = this.theme.theme() === 'dark';
-        this.api.zoneRegion().subscribe({ next: (r) => this.region.set(r), error: () => undefined });
+        this.geo.region$.pipe(takeUntilDestroyed(destroy)).subscribe({ next: (r) => this.region.set(r), error: () => undefined });
         this.api.geoZones().subscribe({ next: (z) => this.zoneLines.set(z), error: () => undefined });
         this.api.mapPoints().subscribe({ next: (p) => this.points.set(p.features.filter((f: any) => f.geometry)), error: () => undefined });
         this.api.transitMeta().subscribe({ next: (m) => this.transitMeta.set(m.built ? m : null), error: () => undefined });
