@@ -198,6 +198,9 @@ the navigation bubble (pages, with the map modes as child entries) and the bubbl
 the routed page; box 3 is an optional right panel. A page publishes its bubbles and panel as `TemplateRef`s
 through [`LayoutService`](../../frontend/src/app/services/layout.service.ts) `register`, which removes them when
 the page is destroyed. Box widths and collapsed bubbles persist in localStorage; drag handles resize the boxes.
+In the Pages bubble each page has its own colour and a line icon ([`fh-nav-icon`](../../frontend/src/app/components/nav-icon.ts)),
+shown on the right of its row in a round badge: outlined at rest, filled and glowing for the current page. Collapsed,
+box 1 is a rail of the same badges.
 
 **House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) loads the listing and its
 house analysis (`GET /api/listings/{id}/location`) side by side. Its main column, top to bottom: the photo band;

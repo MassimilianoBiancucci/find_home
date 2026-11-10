@@ -13,12 +13,15 @@
         <fh-bubble id="nav" title="Pages">
           <nav class="fh-navlist">
             @for (item of nav; track item.path) {
-              <a [routerLink]="item.path" routerLinkActive="active" class="fh-nav">
-                {{ item.label }} <span class="fh-key">{{ item.key }}</span></a>
+              <a [routerLink]="item.path" routerLinkActive="active" class="fh-nav" [style.--c1]="item.hue[0]" [style.--c2]="item.hue[1]"
+                [title]="item.label + ' (' + item.key + ')'">
+                <span class="fh-nav-l">{{ item.label }}</span><span class="fh-key">{{ item.key }}</span>
+                <span class="fh-nav-ic"><fh-nav-icon [name]="item.icon" /></span></a>
               @if (item.children) {
                 <div class="fh-nav-children">
                   @for (c of item.children; track c.path) {
-                    <a [routerLink]="c.path" routerLinkActive="active" class="fh-nav fh-nav-child">{{ c.label }}</a>
+                    <a [routerLink]="c.path" routerLinkActive="active" class="fh-nav fh-nav-child" [style.--c1]="c.hue[0]" [style.--c2]="c.hue[1]">
+                      <span class="fh-nav-l">{{ c.label }}</span><span class="fh-nav-ic"><fh-nav-icon [name]="c.icon" [size]="13" /></span></a>
                   }
                 </div>
               }
@@ -35,8 +38,8 @@
                 @if (h.config_errors.length) { <span class="text-warning">· config errors</span> }
               </div>
             }
-            <button class="btn btn-sm btn-outline-secondary mt-2" (click)="theme.toggle()">
-              {{ theme.theme() === 'dark' ? 'Light' : 'Dark' }} mode
+            <button type="button" class="fh-btn-ghost mt-2" (click)="theme.toggle()">
+              {{ theme.theme() === 'dark' ? '☀ Light' : '☾ Dark' }} mode
             </button>
           </div>
         </fh-bubble>
@@ -47,7 +50,8 @@
     } @else {
       <nav class="fh-rail">
         @for (item of nav; track item.path) {
-          <a [routerLink]="item.path" routerLinkActive="active" class="fh-rail-item" [title]="item.label">{{ item.key }}</a>
+          <a [routerLink]="item.path" routerLinkActive="active" class="fh-rail-item" [style.--c1]="item.hue[0]" [style.--c2]="item.hue[1]"
+            [title]="item.label + ' (' + item.key + ')'" [attr.aria-label]="item.label"><fh-nav-icon [name]="item.icon" [size]="17" /></a>
         }
       </nav>
     }
