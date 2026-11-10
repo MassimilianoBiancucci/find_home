@@ -76,8 +76,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
   } @else {
     <ng-template #pager>
       <div class="fh-pager">
-        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="page() === 0" (click)="goPage(page() - 1)"
-                aria-label="Previous page">← Prev</button>
+        <button type="button" class="fh-btn-nav" [disabled]="page() === 0" (click)="goPage(page() - 1)"
+                aria-label="Previous page"><span class="fh-nav-arrow" aria-hidden="true">‹</span>Prev</button>
         <span class="fh-pager-mid">
           Page <b>{{ page() + 1 }}</b> / {{ pages() }} · {{ rows().length }} homes ·
           <select class="form-select form-select-sm d-inline-block w-auto" [ngModel]="pageSize()" (ngModelChange)="setPageSize(+$event)"
@@ -85,8 +85,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             @for (n of pageSizes; track n) { <option [value]="n">{{ n }}</option> }
           </select> per page
         </span>
-        <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="page() >= pages() - 1" (click)="goPage(page() + 1)"
-                aria-label="Next page">Next →</button>
+        <button type="button" class="fh-btn-nav next" [disabled]="page() >= pages() - 1" (click)="goPage(page() + 1)"
+                aria-label="Next page">Next<span class="fh-nav-arrow" aria-hidden="true">›</span></button>
       </div>
     </ng-template>
     <ng-container [ngTemplateOutlet]="pager" />

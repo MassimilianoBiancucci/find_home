@@ -125,7 +125,7 @@ bubble (ranges and chips) and the sort ([`rows`](../../frontend/src/app/pages/ca
 the first click puts the better end first (score high, rent low, move-in early), the second reverses, and homes
 without the value stay last. The default is score, high first.
 
-The Filters bubble ([`fh-candidate-filters`](../../frontend/src/app/pages/candidate-filters.ts#L335), registered in
+The Filters bubble ([`fh-candidate-filters`](../../frontend/src/app/pages/candidate-filters.ts#L316), registered in
 box 1) has one two-ended slider per value: score, rent, rent per m², move-in date, rooms, size, transport and
 services. A slider spans the 2nd to 98th percentile of the homes' values
 ([`domainOf()`](../../frontend/src/app/pages/candidate-filters.ts#L76)). An end left at the edge is open, so outliers
@@ -134,7 +134,7 @@ stay in and the label shows ≤ / +. Homes without the value stay in unless you 
 ([`histogram()`](../../frontend/src/app/pages/candidate-filters.ts#L91)): the bars count the homes that pass every
 *other* filter, and their bright part is the share inside this one. A long range gets bars of a whole number of
 steps (rent bars of 1 000 kr); a short one, one bar per value (rooms). Hovering a bar shows its values and how many
-homes it holds ([`showTip()`](../../frontend/src/app/pages/candidate-filters.ts#L385)).
+homes it holds ([`showTip()`](../../frontend/src/app/pages/candidate-filters.ts#L366)).
 
 Under the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets** and
 **Contract** ([`CAT_FIELDS`](../../frontend/src/app/pages/candidate-filters.ts#L55)). Chosen chips of one group are
@@ -204,8 +204,14 @@ house analysis (`GET /api/listings/{id}/location`) side by side. Its main column
 the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, ✓ / ✕ / ?
 chips for lift and balcony, the ad's text); **On the map**; **This home** and **Its zone** side by side; **Travel to
 your points** and **Transit routes**, both folded to their header until clicked (`collapsed`); the **Commute** table;
-the latest agent evaluation. The side column holds **Where**, **Score** (folded to its total until clicked), Pets,
-Feedback, the agent digest and the sources. The cards of
+the latest agent evaluation (pros, cons and questions for the landlord as lists). The side column holds **Where**,
+**Score** (folded to its total until clicked; each group as a bar coloured by its score), **Pets** (your answer as
+chips), **Feedback** (polarity and tags as chips, then the saved feedback), the agent digest (folded, with a copy
+chip) and **Sources & timeline** (the status changes as a timeline). Every card uses the `.fh-hcard` look; choices are
+bright badges (`.fh-chipf`: outlined until chosen, then filled and glowing) and the main action of a card is a
+glowing pill (`.fh-btn-glow`, the others `.fh-btn-ghost`). Navigation buttons (previous and next home with the
+neighbour's id in pink, back to the candidates, the pager of the candidates list) are white pills with the arrow in a
+glowing round badge (`.fh-btn-nav`). All of these live in [`styles.scss`](../../frontend/src/styles.scss). The cards of
 [`house-bubbles.ts`](../../frontend/src/app/house/house-bubbles.ts):
 - **This home** (accented): the home's transport, services and combined scores, each with an ⓘ and its
   derivation. Then one row per set (grocery, pharmacy, gym, park, vet, rail, bus): the walk minutes coloured
@@ -213,8 +219,8 @@ Feedback, the agent digest and the sources. The cards of
 - **Its zone**: the same rows with the zone's medians, and the zone's indices with their percentile;
 - **On the map** ([`house-map.ts`](../../frontend/src/app/house/house-map.ts)): a MapLibre map of its own
   (same style and theme as the main map), centred on the home.
-  - The analysed area (`GET /api/zone/region`: the union of the zones and a world-minus-area mask) is outlined;
-    everything outside it is grey. Every zone keeps a thin outline.
+  - The boundary (`GET /api/area/region`: the saved search area of Map → Area, or the analysed zones while none is
+    defined, with a world-minus-area mask) is outlined; everything outside it is grey. Every zone keeps a thin outline.
   - Inside the mapped zones: every target within reach (`walks[set].nearby`, nearest first, capped per set) as
     the zone view's 3D pin or object (`TARGET_ICONS`), with the nearest one of each set larger and glowing. The
     walking path to that nearest target carries its minutes in green / yellow / red. Icons show from zoom 13;
@@ -254,8 +260,8 @@ flowchart LR
 | Candidates records its order | [`constructor()` effect](../../frontend/src/app/pages/candidates.ts#L242) |
 | The store | [`CandidateOrderStore.set()`](../../frontend/src/app/services/candidate-order.store.ts#L17) |
 | Fallback to the unfiltered list | [`ensure()`](../../frontend/src/app/services/candidate-order.store.ts#L23) |
-| Neighbours and position | [`around()`](../../frontend/src/app/services/candidate-order.store.ts#L33), [`nav`](../../frontend/src/app/pages/detail.ts#L257) |
-| `j` / `k` keys | [`onKey()`](../../frontend/src/app/pages/detail.ts#L313) |
+| Neighbours and position | [`around()`](../../frontend/src/app/services/candidate-order.store.ts#L33), [`nav`](../../frontend/src/app/pages/detail.ts#L280) |
+| `j` / `k` keys | [`onKey()`](../../frontend/src/app/pages/detail.ts#L339) |
 
 The results live in [`HouseTravelStore`](../../frontend/src/app/house/house-travel.store.ts), per listing, so
 the 3D house view reuses them. A service row shows "or N min by transit" when transit beats walking to the same

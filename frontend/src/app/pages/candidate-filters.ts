@@ -306,26 +306,7 @@ interface Tip { key: FilterKey; x: number; y: number; edge: 'l' | 'r' | null; he
 
     /* category chips: the bright badge look, outlined until chosen, then filled and glowing */
     .fh-cg { padding: 6px 0 4px; border-top: 1px dashed var(--bs-border-color); margin-top: 4px; }
-    .fh-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
-    .fh-chipf { --c1: #ff6ad5; --c2: #c43dff; --c3: #6a5cff; --glow: rgba(196, 61, 255, .6);
-      display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 6px; border-radius: 999px; font-size: .74rem; font-weight: 700;
-      cursor: pointer; color: var(--c2); background: transparent; border: 1.5px solid var(--c2);
-      transition: background .2s, color .2s, box-shadow .2s, transform .12s, opacity .2s; }
-    .fh-chipf:hover { transform: translateY(-1px); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c2) 18%, transparent); }
-    .fh-chipf.sel { color: #fff; border-color: var(--c2); background: linear-gradient(135deg, var(--c1) 0%, var(--c2) 50%, var(--c3) 100%);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--c2) 22%, transparent), 0 4px 14px -4px var(--glow); text-shadow: 0 1px 1px rgba(0,0,0,.25); }
-    .fh-chipf.zero:not(.sel) { opacity: .4; }
-    .fh-chipf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--c2); box-shadow: 0 0 5px var(--c2); }
-    .fh-chipf.sel .fh-chipf-dot { background: #fff; box-shadow: 0 0 6px #fff; }
-    .fh-chipf { max-width: 100%; white-space: nowrap; }
-    .fh-chipf-t { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-    .fh-chipf-n { font-weight: 500; opacity: .75; font-variant-numeric: tabular-nums; }
-    .fh-chipf.t-yes { --c1: #5cf2a0; --c2: #16c172; --c3: #0b9b5a; --glow: rgba(22, 193, 114, .65); }
-    .fh-chipf.t-no { --c1: #ff7a8f; --c2: #ff2d55; --c3: #d70f3d; --glow: rgba(255, 45, 85, .65); }
-    .fh-chipf.t-ask { --c1: #ffd36b; --c2: #ffa51f; --c3: #f07b00; --glow: rgba(255, 165, 31, .65); }
-    .fh-chipf.t-unknown { --c1: #c9c9d6; --c2: #9494a8; --c3: #6e6e82; --glow: rgba(148, 148, 168, .55); }
-    .fh-chipf.t-conflict { --c1: #ff6ad5; --c2: #e040fb; --c3: #a020f0; }
-    .fh-chipf.t-contract { --c1: #6ff3ff; --c2: #19b8e6; --c3: #2f6bff; --glow: rgba(25, 184, 230, .6); }
+    /* the chips themselves (.fh-chips, .fh-chipf) are global: styles.scss */
 
     @media (prefers-reduced-motion: reduce) {
       .fh-rf-chart, .fh-rf-bar, .fh-rf-bar b { transition: none; animation: none; }

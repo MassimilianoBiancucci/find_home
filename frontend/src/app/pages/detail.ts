@@ -25,24 +25,26 @@ import { TagsStore } from '../services/tags.store';
   template: `
   <nav class="fh-detail-nav" aria-label="Candidates">
     @let n = nav();
-    <a class="btn btn-sm btn-outline-secondary" [class.disabled]="!n?.prev" [attr.aria-disabled]="!n?.prev"
-       [routerLink]="n?.prev ? ['/candidates', n!.prev] : null" title="Previous home in the candidates list (k)">‹ Prev
-       @if (n?.prev) { <span class="fh-mono small ms-1">{{ n!.prev }}</span> }</a>
-    <span class="fh-detail-pos">@if (n) { {{ n.pos }} / {{ n.total }} in the candidates list }</span>
-    <a class="btn btn-sm btn-outline-secondary" [class.disabled]="!n?.next" [attr.aria-disabled]="!n?.next"
+    <a class="fh-btn-nav" [class.disabled]="!n?.prev" [attr.aria-disabled]="!n?.prev"
+       [routerLink]="n?.prev ? ['/candidates', n!.prev] : null" title="Previous home in the candidates list (k)">
+       <span class="fh-nav-arrow" aria-hidden="true">‹</span>Prev
+       @if (n?.prev) { <span class="fh-nav-id">{{ n!.prev }}</span> }</a>
+    <span class="fh-detail-pos">@if (n) { <b>{{ n.pos }}</b> / {{ n.total }} in the candidates list }</span>
+    <a class="fh-btn-nav next" [class.disabled]="!n?.next" [attr.aria-disabled]="!n?.next"
        [routerLink]="n?.next ? ['/candidates', n!.next] : null" title="Next home in the candidates list (j)">
-       @if (n?.next) { <span class="fh-mono small me-1">{{ n!.next }}</span> }Next ›</a>
+       @if (n?.next) { <span class="fh-nav-id">{{ n!.next }}</span> }Next
+       <span class="fh-nav-arrow" aria-hidden="true">›</span></a>
   </nav>
   <div class="fh-page-head">
-    <a routerLink="/candidates" class="btn btn-sm btn-outline-secondary">← Candidates</a>
+    <a routerLink="/candidates" class="fh-btn-nav"><span class="fh-nav-arrow" aria-hidden="true">←</span>Candidates</a>
     <h1 class="fh-mono">{{ shortId() }}</h1>
     @if (d(); as x) {
       <fh-pet-badge prefix="pets " [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
       @if (x.listing.origin_site) { <fh-site-logo [slug]="x.listing.origin_site" [withName]="true" [title]="'First published on ' + sites.name(x.listing.origin_site)" /> }
-      <select class="form-select form-select-sm w-auto" [ngModel]="x.listing.status" (ngModelChange)="setStatus($event)">
+      <select class="form-select form-select-sm fh-status-select" title="Status" aria-label="Status" [ngModel]="x.listing.status" (ngModelChange)="setStatus($event)">
         @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
       </select>
-      @if (x.listing.canonical_url) { <a class="btn btn-sm btn-outline-primary" [href]="x.listing.canonical_url" target="_blank" rel="noopener">Open on site ↗</a> }
+      @if (x.listing.canonical_url) { <a class="fh-btn-glow" [href]="x.listing.canonical_url" target="_blank" rel="noopener">Open on site ↗</a> }
     }
   </div>
   @if (error()) { <div class="alert alert-danger py-1 small" style="white-space:pre-wrap">{{ error() }}</div> }
@@ -99,48 +101,49 @@ import { TagsStore } from '../services/tags.store';
           <div class="fh-hcard"><div class="fh-hnote">Measuring the home from its address… (a few seconds the first time)</div></div>
         }
 
-        <div class="card mb-3"><div class="card-body">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <h2 class="h6 m-0">Commute</h2><fh-info id="listing.commute" />
-            <button class="btn btn-sm btn-outline-secondary" (click)="commute(true)">Dry run</button>
-            <button class="btn btn-sm btn-outline-primary" [disabled]="commuteBusy()" (click)="computeCommute(x.listing)">Compute</button>
+        <section class="fh-hcard">
+          <header><h2>Commute</h2><span class="fh-hsub">{{ x.commute.length ? x.commute.length + ' trips' : 'not computed' }}</span><fh-info id="listing.commute" /></header>
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <button type="button" class="fh-btn-ghost" (click)="commute(true)" title="Count the calls, without calling">Dry run</button>
+            <button type="button" class="fh-btn-glow" [disabled]="commuteBusy()" (click)="computeCommute(x.listing)">Compute</button>
           </div>
           @if (commuteAsk(); as a) {
             <div class="alert alert-warning py-2 small mb-2">
               This home is outside the analysed zones, so there is no free estimate: computing its commute asks
               <b>{{ a.calls }} ResRobot call{{ a.calls === 1 ? '' : 's' }}</b> ({{ a.requests }} requests, {{ a.cached }} cached{{ a.estimated ? ', ' + a.estimated + ' estimated' : '' }}).
               <div class="d-flex gap-2 mt-2">
-                <button class="btn btn-sm btn-warning" (click)="commuteAsk.set(null); commute(false)">Proceed ({{ a.calls }} call{{ a.calls === 1 ? '' : 's' }})</button>
-                <button class="btn btn-sm btn-outline-secondary" (click)="commuteAsk.set(null); info.set('')">Cancel</button>
+                <button type="button" class="fh-btn-glow t-warn" (click)="commuteAsk.set(null); commute(false)">Proceed ({{ a.calls }} call{{ a.calls === 1 ? '' : 's' }})</button>
+                <button type="button" class="fh-btn-ghost" (click)="commuteAsk.set(null); info.set('')">Cancel</button>
               </div>
             </div>
           }
-          @if (!x.commute.length) { <div class="small text-body-secondary">Not computed for this config yet.</div> }
+          @if (!x.commute.length) { <div class="fh-hnote">Not computed for this config yet.</div> }
           @else {
-            <div class="table-responsive"><table class="table table-sm small mb-0">
+            <div class="table-responsive"><table class="fh-ctable">
               <thead><tr><th>Point</th><th></th><th>Window</th><th>Day</th><th>Mode</th><th>Median</th><th>p90</th><th>Worst</th><th>Source</th></tr></thead>
               <tbody>
               @for (c of x.commute; track $index) {
                 <tr>
                   <td>{{ c.point_id }}</td><td>{{ c.direction === 'to_point' ? '→' : '←' }}</td><td>{{ c.window_label }}</td>
                   <td>{{ c.day_type }}</td><td>{{ c.mode }}</td>
-                  <td><b>{{ min(c.median_min) }}</b></td><td [class.text-warning]="spread(c)">{{ min(c.p90_min) }}</td><td>{{ min(c.worst_min) }}</td>
+                  <td class="fh-cmed">{{ min(c.median_min) }}</td><td [class.text-warning]="spread(c)" [title]="spread(c) ? 'The times spread over more than 10 minutes' : ''">{{ min(c.p90_min) }}</td><td>{{ min(c.worst_min) }}</td>
                   <td class="text-body-secondary">{{ c.provider === 'haversine' ? 'estimate' : c.provider }}</td>
                 </tr>
               }
               </tbody>
             </table></div>
           }
-        </div></div>
+        </section>
 
         @for (e of x.evaluations.slice(0, 1); track e.at) {
-          <div class="card mb-3"><div class="card-body small">
-            <h2 class="h6">Agent evaluation <span class="text-body-secondary">{{ e.at | date: 'short' }}</span></h2>
-            <p>{{ e.summary }}</p>
-            @if (e.pros.length) { <div>+ {{ e.pros.join(' · ') }}</div> }
-            @if (e.cons.length) { <div>− {{ e.cons.join(' · ') }}</div> }
-            @if (e.questions_for_landlord.length) { <div>? {{ e.questions_for_landlord.join(' · ') }}</div> }
-          </div></div>
+          <section class="fh-hcard fh-hcard-main">
+            <header><h2>Agent evaluation</h2><span class="fh-hsub">{{ e.at | date: 'short' }}</span></header>
+            <p class="small mb-2">{{ e.summary }}</p>
+            @if (e.pros.length) { <div class="fh-hlabel">Pros</div><ul class="fh-evlist pro">@for (t of e.pros; track $index) { <li>{{ t }}</li> }</ul> }
+            @if (e.cons.length) { <div class="fh-hlabel">Cons</div><ul class="fh-evlist con">@for (t of e.cons; track $index) { <li>{{ t }}</li> }</ul> }
+            @if (e.questions_for_landlord.length) { <div class="fh-hlabel">Ask the landlord</div>
+              <ul class="fh-evlist ask">@for (t of e.questions_for_landlord; track $index) { <li>{{ t }}</li> }</ul> }
+          </section>
         }
       </div>
 
@@ -156,68 +159,83 @@ import { TagsStore } from '../services/tags.store';
             <fh-info id="score.total" />
           </header>
           @if (scoreOpen()) {
-          @if (x.score_stale) { <div class="small text-warning">No score for the current config. <a href="" (click)="$event.preventDefault(); recompute()">Recompute</a></div> }
-          @if (x.score?.rejected_by?.length) { <div class="small text-danger">Rejected by: {{ x.score!.rejected_by.join(', ') }}</div> }
+          @if (x.score_stale) { <div class="small text-warning mb-1">No score for the current config. <a href="" (click)="$event.preventDefault(); recompute()">Recompute</a></div> }
+          @if (x.score?.rejected_by?.length) {
+            <div class="fh-chips mb-2">@for (r of x.score!.rejected_by; track r) { <span class="fh-chipf t-no sel" title="Rejected by this hard filter">✕ {{ r }}</span> }</div>
+          }
           @for (g of breakdown(); track g.name) {
-            <div class="d-flex small justify-content-between"><span>{{ g.name }} <span class="text-body-secondary">×{{ g.weight }}</span>
-              <fh-info [id]="'score.' + g.name" [quiet]="true" [derivation]="g.detail ?? null" />
-              @if (g.estimated) { <span class="fh-badge-est" title="Part of this value is estimated (Connectivity minutes): compute the transit routes to your points to make it exact">estimate</span> }</span>
-              <span [title]="g.why" class="position-relative">{{ g.score == null ? 'n/a' : score(g.score) }}@if (g.estimated) { <i class="fh-est-dot inline"></i> }</span></div>
+            <div class="fh-sbar">
+              <span class="fh-sbar-n">{{ g.name }} <span class="text-body-secondary">×{{ g.weight }}</span>
+                <fh-info [id]="'score.' + g.name" [quiet]="true" [derivation]="g.detail ?? null" />
+                @if (g.estimated) { <span class="fh-badge-est" title="Part of this value is estimated (Connectivity minutes): compute the transit routes to your points to make it exact">estimate</span> }</span>
+              <span class="fh-sbar-t" [title]="g.why"><i [style.width.%]="(g.score ?? 0) * 100" [style.--c]="color(g.score)"></i></span>
+              <span class="fh-sbar-v" [title]="g.why" [style.color]="color(g.score)">{{ g.score == null ? 'n/a' : score(g.score) }}@if (g.estimated) { <i class="fh-est-dot inline"></i> }</span>
+            </div>
           }
           }
         </section>
 
-        <div class="card mb-3"><div class="card-body">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <h2 class="h6 m-0">Pets</h2>
+        <section class="fh-hcard" [class.fh-hcard-main]="x.listing.pet_status === 'conflict'">
+          <header><h2>Pets</h2>
             <fh-pet-badge [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
-            <span class="small text-body-secondary">{{ x.listing.pet_source ? 'set by ' + petSource(x.listing.pet_source) : 'nobody has decided yet' }}</span>
-          </div>
+            <span class="fh-hsub">{{ x.listing.pet_source ? 'set by ' + petSource(x.listing.pet_source) : 'nobody has decided yet' }}</span>
+          </header>
           @if (x.listing.pet_status === 'conflict') {
             <div class="small text-warning-emphasis mb-2">The sources disagree: your answer settles it.</div>
           }
-          @if (x.listing.pet_evidence) { <div class="fh-quote mb-2" style="-webkit-line-clamp:4; max-width:none">“{{ x.listing.pet_evidence }}”</div> }
-          <div class="d-flex flex-wrap gap-1 align-items-center">
-            <span class="small text-body-secondary me-1">Your answer:</span>
+          @if (x.listing.pet_evidence) { <p class="fh-desc-text mt-0 mb-2">“{{ x.listing.pet_evidence }}”</p> }
+          <div class="fh-hlabel">Your answer</div>
+          <div class="fh-chips">
             @for (p of petAnswers; track p) {
-              <button class="btn btn-sm" [class]="x.listing.pet_source === 'user' && x.listing.pet_status === p ? 'btn-primary' : 'btn-outline-secondary'"
-                      [disabled]="petBusy()" (click)="setPet(p)">{{ p }}</button>
+              <button type="button" class="fh-chipf" [class]="'fh-chipf t-' + p" [class.sel]="x.listing.pet_source === 'user' && x.listing.pet_status === p"
+                [attr.aria-pressed]="x.listing.pet_source === 'user' && x.listing.pet_status === p" [disabled]="petBusy()" (click)="setPet(p)">
+                <i class="fh-chipf-dot"></i>{{ p }}</button>
             }
             @if (x.listing.pet_source === 'user') {
-              <button class="btn btn-sm btn-link" [disabled]="petBusy()" (click)="setPet('unknown')" title="Forget your answer: the agent, the site and the rules decide again">clear</button>
+              <button type="button" class="btn btn-link btn-sm p-0 ms-1" [disabled]="petBusy()" (click)="setPet('unknown')" title="Forget your answer: the agent, the site and the rules decide again">clear</button>
             }
           </div>
           <input class="form-control form-control-sm mt-2" placeholder="note, e.g. what the landlord said (optional)" [(ngModel)]="petNote" title="Saved with the answer you click" />
-        </div></div>
+        </section>
 
-        <div class="card mb-3"><div class="card-body">
-          <h2 class="h6">Feedback</h2>
-          <div class="btn-group btn-group-sm mb-2">
+        <section class="fh-hcard fh-hcard-main">
+          <header><h2>Feedback</h2><span class="fh-hsub">{{ x.feedback.length ? x.feedback.length + ' saved' : 'tell the search what you think' }}</span></header>
+          <div class="fh-chips">
             @for (p of polarities; track p) {
-              <button class="btn" [class.btn-primary]="polarity === p" [class.btn-outline-secondary]="polarity !== p" (click)="polarity = p">{{ p }}</button>
+              <button type="button" [class]="'fh-chipf ' + polarityTone(p)" [class.sel]="polarity === p" [attr.aria-pressed]="polarity === p" (click)="polarity = p">
+                <i class="fh-chipf-dot"></i>{{ p }}</button>
             }
           </div>
-          <div>
+          <div class="fh-hlabel">{{ polarity === 'dislike' ? 'What is wrong' : 'What is good' }}</div>
+          <div class="fh-chips mt-0">
             @for (t of (polarity === 'dislike' ? tags.negative() : tags.positive()); track t.key) {
-              <button class="btn btn-sm me-1 mb-1" [class.btn-primary]="picked.has(t.key)" [class.btn-outline-secondary]="!picked.has(t.key)" (click)="toggle(t.key)">{{ t.label }}</button>
+              <button type="button" [class]="'fh-chipf ' + (polarity === 'dislike' ? 't-no' : 't-violet')" [class.sel]="picked.has(t.key)"
+                [attr.aria-pressed]="picked.has(t.key)" (click)="toggle(t.key)">{{ t.label }}</button>
             }
           </div>
-          <textarea class="form-control form-control-sm mt-1" rows="2" placeholder="note" [(ngModel)]="note"></textarea>
-          <button class="btn btn-sm btn-primary mt-2" (click)="sendFeedback()">Save feedback</button>
-          @for (f of x.feedback; track f.at) {
-            <div class="small mt-2">{{ f.polarity === 'like' ? '+' : f.polarity === 'dislike' ? '−' : '·' }} {{ f.tags.join(', ') }} {{ f.note }}
-              <span class="text-body-secondary">{{ f.at | date: 'short' }}</span></div>
+          <textarea class="form-control form-control-sm mt-2" rows="2" placeholder="note (optional)" [(ngModel)]="note"></textarea>
+          <div class="d-flex mt-2"><button type="button" class="fh-btn-glow ms-auto" (click)="sendFeedback()">Save feedback</button></div>
+          @if (x.feedback.length) {
+            <div class="fh-hlabel">Saved</div>
+            @for (f of x.feedback; track f.at) {
+              <div class="fh-fb-row">
+                <span [class]="'fh-chipf sel ' + polarityTone(f.polarity)"><i class="fh-chipf-dot"></i>{{ f.polarity }}</span>
+                @for (t of f.tags; track t) { <span class="fh-chipf" [class.t-no]="f.polarity === 'dislike'">{{ t }}</span> }
+                @if (f.note) { <span>{{ f.note }}</span> }
+                <span class="fh-fb-at">{{ f.at | date: 'short' }}</span>
+              </div>
+            }
           }
-        </div></div>
+        </section>
 
-        <div class="card mb-3"><div class="card-body">
-          <div class="d-flex align-items-center gap-2 mb-1"><h2 class="h6 m-0">Digest for agents</h2>
-            <button class="btn btn-sm btn-outline-secondary" (click)="copy()">Copy</button></div>
-          <pre class="fh-pre fh-mono">{{ digest() }}</pre>
-        </div></div>
+        <section class="fh-hcard" [class.collapsed]="!digestOpen()">
+          <header><h2><button type="button" class="fh-hcard-tg" [attr.aria-expanded]="digestOpen()" (click)="digestOpen.set(!digestOpen())">Digest for agents</button></h2>
+            <button type="button" class="fh-chipf ms-auto" (click)="copy()" title="Copy the digest to paste it to an agent">copy</button></header>
+          @if (digestOpen()) { <pre class="fh-pre fh-mono mt-2 mb-0">{{ digest() }}</pre> }
+        </section>
 
-        <div class="card"><div class="card-body small">
-          <h2 class="h6">Sources & timeline</h2>
+        <section class="fh-hcard small">
+          <header><h2>Sources & timeline</h2><span class="fh-hsub">{{ x.sources.length }} source{{ x.sources.length === 1 ? '' : 's' }}</span></header>
           @if (x.listing.origin_site; as o) {
             <div class="d-flex align-items-center gap-2 mb-2">
               <fh-site-logo [slug]="o" size="md" />
@@ -229,7 +247,7 @@ import { TagsStore } from '../services/tags.store';
               <fh-site-logo [slug]="s.site_slug" />
               <span class="text-truncate">{{ sites.name(s.site_slug) }} ·
                 @if (s.url) { <a [href]="s.url" target="_blank" rel="noopener" class="fh-mono">{{ s.external_id }} ↗</a> } @else { <span class="fh-mono">{{ s.external_id }}</span> }
-                <span class="fh-chip fh-tone-muted ms-1">{{ s.source_method === 'agent_browser' ? 'browser' : s.source_method }}</span>
+                <span class="fh-chipf t-contract ms-1" style="font-size:.66rem; padding:0 7px">{{ s.source_method === 'agent_browser' ? 'browser' : s.source_method }}</span>
                 @if (s.first_scan_run_id || s.scan_run_id) {
                   <a class="ms-1" style="font-size:0.74rem" [routerLink]="['/runs']" [queryParams]="{ scan: s.first_scan_run_id || s.scan_run_id }"
                      title="The scan run that found this source">run ↗</a>
@@ -238,11 +256,16 @@ import { TagsStore } from '../services/tags.store';
                 {{ s.first_seen_at | date: 'shortDate' }}{{ (s.last_seen_at | date: 'shortDate') !== (s.first_seen_at | date: 'shortDate') ? ' → ' + (s.last_seen_at | date: 'shortDate') : '' }}</span>
             </div>
           }
-          <hr class="my-2" />
-          @for (e of x.events; track e.at) {
-            <div>{{ e.at | date: 'short' }} · {{ e.from_status ?? '∅' }} → {{ e.to_status }} ({{ e.actor }}) {{ e.note }}</div>
+          @if (x.events.length) {
+            <div class="fh-hlabel">Timeline</div>
+            <ul class="fh-tl">
+              @for (e of x.events; track e.at) {
+                <li><b>{{ e.from_status ?? 'found' }} → {{ e.to_status }}</b><span class="text-body-secondary ms-1">by {{ e.actor }}</span>
+                  @if (e.note) { · {{ e.note }} }<div class="fh-tl-at">{{ e.at | date: 'medium' }}</div></li>
+              }
+            </ul>
           }
-        </div></div>
+        </section>
       </div>
     </div>
   }
@@ -257,6 +280,9 @@ export class DetailPage {
   protected nav = computed(() => this.order.around(this.shortId()));
   /** The score card shows only the total until opened. */
   protected scoreOpen = signal(false);
+  /** The agent digest folds to its header (copy still works). */
+  protected digestOpen = signal(false);
+  protected polarityTone = (p: string) => (p === 'like' ? 't-yes' : p === 'dislike' ? 't-no' : 't-unknown');
   protected tags = inject(TagsStore);
   protected sites = inject(SitesStore);
   protected petAnswers = ['yes', 'no', 'ask'] as const;

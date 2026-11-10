@@ -90,11 +90,11 @@ export function houseMapFeatures(loc: HouseLocation): { pois: FC; walks: FC; lab
       This home is outside the zones the app has mapped: its position only, without services or walking paths (the walking network covers the mapped zones).</div>
     }
     <div class="d-flex gap-2 align-items-center mt-2">
-      <button type="button" class="btn btn-sm btn-primary" [disabled]="!loc()" (click)="openFullscreen()"
+      <button type="button" class="fh-btn-glow" [disabled]="!loc()" (click)="openFullscreen()"
         [title]="loc() ? 'Open the zone view focused on this home, full screen, in 3D' : 'Available for homes inside the mapped zones'">
         ⛶ Full-screen zone view</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" (click)="recentre()">Re-centre</button>
-      <button type="button" class="btn btn-sm btn-outline-secondary" [disabled]="!points().length" (click)="fitAll()"
+      <button type="button" class="fh-btn-ghost" (click)="recentre()">Re-centre</button>
+      <button type="button" class="fh-btn-ghost" [disabled]="!points().length" (click)="fitAll()"
         [title]="routes() ? 'Zoom out to the home, your points and the transit routes' : 'Zoom out to the home and your points (compute the transit routes to draw them)'">
         ⤢ Home, your points{{ routes() ? ' and routes' : '' }}</button>
     </div>
