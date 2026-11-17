@@ -126,6 +126,14 @@ def config_schema(which: str = typer.Argument("ingest", help="ingest"),
             ann = str(f.annotation).replace("typing.", "").replace("<class '", "").replace("'>", "")
             ann = ann.replace("findhome.domain.models.", "").replace("|", "\\|")
             lines.append(f"| `{fname}` | {ann} | {'yes' if f.is_required() else ''} | {f.description or ''} |")
+    from findhome.domain.attributes import attribute_summary
+
+    lines += ["\n### ListingIn.attributes: fixed keys\n",
+              ("Checked at ingest; any other key is free. Keep the raw wording next to a parsed value "
+               "(`guaranteed_raw`, `notice_raw`, `move_in_raw`). `?` = may be null.\n"), "| Key | Shape |", "|---|---|"]
+    for key, shape in attribute_summary().items():
+        cell = shape.replace("|", "\\|")
+        lines.append(f"| `{key}` | `{cell}` |")
     typer.echo("\n".join(lines))
 
 

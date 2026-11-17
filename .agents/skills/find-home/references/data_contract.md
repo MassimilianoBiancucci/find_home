@@ -43,7 +43,7 @@ Minimal listing: `{"source": {"site_slug": "qasa", "external_id": "123", "url": 
 | `description_excerpt` | str \| None |  |  |
 | `photo_urls` | list[str] |  |  |
 | `floorplan_urls` | list[str] |  |  |
-| `attributes` | dict[str, Any] |  | Anything not yet a column |
+| `attributes` | dict[str, Any] |  | Anything not yet a column; the fixed keys (contract_terms, requirements, amenities, floorplans, units, ranges, address_parts, price, move_in_raw, details_checked_at) are checked |
 
 ### SourceIn
 
@@ -69,3 +69,20 @@ Minimal listing: `{"source": {"site_slug": "qasa", "external_id": "123", "url": 
 | `pet_status` | Optional[Literal['yes', 'no', 'ask', 'unknown', 'conflict']] |  | Only with pet_evidence |
 | `pet_evidence` | str \| None |  |  |
 | `agent_run_id` | str \| None |  |  |
+
+### ListingIn.attributes: fixed keys
+
+Checked at ingest; any other key is free. Keep the raw wording next to a parsed value (`guaranteed_raw`, `notice_raw`, `move_in_raw`). `?` = may be null.
+
+| Key | Shape |
+|---|---|
+| `contract_terms` | `{guaranteed_months: int?, guaranteed_raw: str?, notice_months: int?, notice_raw: str?, extension_raw: str?, max_total_months: int?, short_term: bool?}` |
+| `requirements` | `{min_income_sek: int?, max_household: int?, raw: list[str]?}` |
+| `amenities` | `list[str]` |
+| `floorplans` | `list[{url: str, kind: Literal['image', 'pdf', 'viewer'], preview: str?, unit: str?}]` |
+| `units` | `list[{label: str?, rent_sek: int?, floor: int?, rooms_rok: float?, size_m2: float?, available_from: str?, floorplan_url: str?}]` |
+| `ranges` | `dict[str, Any]` |
+| `address_parts` | `{street: str?, number: str?, locality: str?, postcode: str?}` |
+| `price` | `{rent: int?, tenant_base_fee: int?, monthly_cost: int?}` |
+| `move_in_raw` | `str` |
+| `details_checked_at` | `str` |

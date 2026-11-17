@@ -593,8 +593,10 @@ comes from filtering on posting dates.
 - **neighbourhood** (off by default) combines three 0-100 parts: the home's services score, the home's transport
   score and the zone's services index, by default `house_services 0.5, house_transport 0.3, zone_services 0.2`;
   missing parts renormalise. Scoring reads only cached values
-  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L65)). The Candidates page's **Recompute
-  scores** runs [`_recompute_all()`](../../backend/src/findhome/api/routers/scoring.py#L143) in the background
+  ([`location_for()`](../../backend/src/findhome/rescore.py#L30)). [`rescore.py`](../../backend/src/findhome/rescore.py)
+  holds the scoring of stored listings for every caller: the recompute endpoint, and `score_listings()`, which
+  scans and jobs call to re-score only the listings they touched. The Candidates page's **Recompute
+  scores** runs [`_recompute_all()`](../../backend/src/findhome/api/routers/scoring.py#L84) in the background
   (`POST /api/scores/recompute {"background": true}`, progress on `GET /api/scores/recompute/status`): it geocodes
   up to 60 listings without coordinates, computes the house analysis of every home that has none for the current
   inputs (local data, about 1-2 s each), then scores every listing. `findhome scores recompute` stays synchronous and

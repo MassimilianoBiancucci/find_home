@@ -63,7 +63,9 @@ and `job_items`.
 rounded size, 500 SEK price band, plus a fuzzy address check). Change detection uses the source's own content
 hash, so two sites listing the same flat do not overwrite each other on every scan. Each listing records its
 `origin_site`, the site it was first published on: an aggregator's `platforms` map turns `attributes.platform`
-into a site slug (Qasa carries HomeQ and Blocket Bostad homes), otherwise the site it was found on. The pet status
+into a site slug (Qasa carries HomeQ and Blocket Bostad homes), otherwise the site it was found on. An update
+merges `attributes` key by key, so a list-only scan keeps what a listing-page read stored; the keys with a fixed
+shape are checked at ingest ([agent_contract.md](agent_contract.md#writing-only-through-the-api)). The pet status
 is decided at ingest by source precedence ([pets.md](pets.md)). Ingest with a scan run id links each source to it
 ([agent_contract.md](agent_contract.md#runs)).
 

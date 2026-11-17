@@ -27,7 +27,7 @@ import re
 from typing import Any
 
 from findhome.config.models import SiteConfig
-from findhome.domain.models import ListingIn, SourceIn
+from findhome.domain.models import DESCRIPTION_MAX, ListingIn, SourceIn
 from findhome.scanning.base import Query, RawItem
 from findhome.scanning.generic import HttpListScanner
 
@@ -116,7 +116,7 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
         contract_start=_date(doc.get("startDate")),
         contract_end=_date(doc.get("endDate")),
         available_from=_date(doc.get("startDate")),
-        description_excerpt=(doc.get("description") or "")[:1200] or None,
+        description_excerpt=(doc.get("description") or "")[:DESCRIPTION_MAX] or None,
         photo_urls=photos,
         floorplan_urls=plans,
         attributes=attrs,

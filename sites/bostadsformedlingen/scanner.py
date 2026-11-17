@@ -15,7 +15,7 @@ from typing import Any
 from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from findhome.config.models import SiteConfig
-from findhome.domain.models import ListingIn, SourceIn
+from findhome.domain.models import DESCRIPTION_MAX, ListingIn, SourceIn
 from findhome.scanning.base import Query, RawItem
 from findhome.scanning.generic import HttpListScanner
 
@@ -23,7 +23,6 @@ BASE = "https://bostad.stockholm.se"
 FEED = f"{BASE}/AllaAnnonser/"
 TYPE_FLAGS = ("Vanlig", "Nyproduktion", "Korttid", "Student", "Ungdom", "Senior", "BostadSnabbt", "KortKotid",
               "Familjelagenhet", "Hyresradhus", "KompisUngdom")
-MAX_DESCRIPTION = 1200
 
 
 def _num(v: Any) -> float | None:
@@ -87,7 +86,7 @@ def description_text(html: str) -> str | None:
     if node is None:
         return None
     text = " ".join(node.text(separator=" ").split())
-    return text[:MAX_DESCRIPTION] or None
+    return text[:DESCRIPTION_MAX] or None
 
 
 class BostadsformedlingenScanner(HttpListScanner):

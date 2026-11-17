@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from findhome.domain.attributes import validate_attributes
 
 PetStatus = Literal["yes", "no", "ask", "unknown", "conflict"]
 ContractType = Literal["first_hand", "second_hand", "sublet", "unknown"]
 SourceMethod = Literal["script", "agent_browser", "manual"]
+DESCRIPTION_MAX = 10000      # characters kept from an ad's description (scanners cut to this, never shorter)
 
 
 class SourceIn(BaseModel):
@@ -51,10 +54,17 @@ class ListingIn(BaseModel):
     pet_status: PetStatus = "unknown"
     pet_evidence: str | None = Field(None, description="Quoted text the pet_status is based on")
     available_from: date | None = None
-    description_excerpt: str | None = Field(None, max_length=1200)
+    description_excerpt: str | None = Field(None, max_length=DESCRIPTION_MAX)
     photo_urls: list[str] = Field(default_factory=list)
     floorplan_urls: list[str] = Field(default_factory=list)
-    attributes: dict[str, Any] = Field(default_factory=dict, description="Anything not yet a column")
+    attributes: dict[str, Any] = Field(default_factory=dict, description="Anything not yet a column; the fixed keys "
+                                       "(contract_terms, requirements, amenities, floorplans, units, ranges, "
+                                       "address_parts, price, move_in_raw, details_checked_at) are checked")
+
+    @field_validator("attributes")
+    @classmethod
+    def _fixed_keys(cls, v: dict[str, Any]) -> dict[str, Any]:
+        return validate_attributes(v)
 
 
 class IngestRequest(BaseModel):

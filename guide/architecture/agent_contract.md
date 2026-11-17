@@ -49,6 +49,22 @@ The contract models are in [`domain/models.py`](../../backend/src/findhome/domai
 decides a listing's pet status (user > agent > site > keywords) is described in
 [config_and_locations.md](pets.md); agents never set `conflict`, and scanners hand the site's
 pet badge over as `attributes.pets_flag` instead of setting `pet_status`.
+
+`attributes` holds what is not a column. A few keys have a fixed shape, defined in
+[`domain/attributes.py`](../../backend/src/findhome/domain/attributes.py) and checked at ingest: `contract_terms`,
+`requirements`, `amenities`, `floorplans`, `units`, `ranges`, `address_parts`, `price`, `move_in_raw` and
+`details_checked_at`. Every other key is the site's own and passes as it is. A parsed value keeps its raw wording
+next to it, for example:
+
+```json
+{"contract_terms": {"guaranteed_months": 2, "guaranteed_raw": "Garanterad boendetid: 2 månader"},
+ "move_in_raw": "enligt överenskommelse", "address_parts": {"street": "Exempelgatan", "number": null}}
+```
+
+An update merges `attributes` key by key ([`_update_listing()`](../../backend/src/findhome/db/repo.py#L79)): a key
+sent again replaces its old value whole, and keys not sent are kept. So a scan that reads only a site's list keeps
+what an earlier read of the listing page stored. Descriptions are kept up to 10 000 characters (`DESCRIPTION_MAX`);
+digests cut them shorter.
 When `FINDHOME_AGENT_RUN_ID` is set, `ingest evaluations` links the evaluations to that run.
 
 ## File inbox (agents without API access)
@@ -151,7 +167,7 @@ agent pulls listings with `findhome jobs next` and records each answer with `fin
 | Concern | File |
 |---|---|
 | CLI | [`cli/main.py`](../../backend/src/findhome/cli/main.py) |
-| Contract models | [`domain/models.py`](../../backend/src/findhome/domain/models.py) |
+| Contract models | [`domain/models.py`](../../backend/src/findhome/domain/models.py), fixed attribute keys in [`domain/attributes.py`](../../backend/src/findhome/domain/attributes.py) |
 | Ingest and dedupe | [`db/repo.py`](../../backend/src/findhome/db/repo.py) |
 | Digests | [`digest/`](../../backend/src/findhome/digest/listing.py) |
 | Run folders, launcher | [`agentrun/`](../../backend/src/findhome/agentrun/launcher.py) |

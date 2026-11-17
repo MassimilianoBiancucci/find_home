@@ -85,10 +85,14 @@ async def _update_listing(conn, listing_id, item: ListingIn, current: dict, chas
     for k in ("photo_urls", "floorplan_urls"):
         if not data.get(k):
             data.pop(k, None)
-    if not data.get("attributes"):
-        data.pop("attributes", None)
+    # attributes are merged key by key in SQL (one level: a key's new value replaces its old one whole), so a
+    # feed-only scan keeps what a page read stored, and two writers at the same moment never lose each other's keys
+    attrs = data.pop("attributes", None)
     sets = ", ".join(f"{k} = %s" for k in data)
     params = [_val(k, v) for k, v in data.items()]
+    if attrs:
+        sets += (", " if sets else "") + "attributes = COALESCE(listings.attributes, '{}'::jsonb) || %s::jsonb"
+        params.append(Jsonb(attrs))
     await conn.execute(
         f"UPDATE listings SET {sets + ', ' if sets else ''}content_hash = %s, address_norm = %s, "
         "dedupe_key = COALESCE(%s, dedupe_key), last_seen_at = now(), last_changed_at = now() WHERE id = %s",
