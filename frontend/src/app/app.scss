@@ -29,7 +29,20 @@
   &:hover { color: var(--bs-emphasis-color); border-color: var(--fh-violet); }
 }
 
-.fh-navlist { display: flex; flex-direction: column; gap: 2px; }
+// A bright frame: a gradient outline (a padded layer masked to its border ring), a tinted fill and a soft glow.
+@mixin bright-frame($from, $mid, $to, $glow) {
+  position: relative;
+  background: linear-gradient(135deg, color-mix(in srgb, $from 8%, transparent), color-mix(in srgb, $to 6%, transparent));
+  box-shadow: 0 0 16px -6px $glow, inset 0 0 14px -10px $glow;
+  &::before { content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+    background: linear-gradient(135deg, $from 0%, $mid 50%, $to 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+}
+
+// The Pages list in its own bright frame.
+.fh-navlist { display: flex; flex-direction: column; gap: 2px; padding: 6px; border-radius: 20px;
+  @include bright-frame(#ff6ad5, #c43dff, #6a5cff, rgba(196, 61, 255, 0.55)); }
 // Pages menu: a row per page, its icon on the right in a round badge of the page's colour (--c1 → --c2).
 // Outlined at rest, filled and glowing when it is the current page (the bright badge look).
 .fh-nav {
@@ -54,7 +67,6 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--c2) 14%, transparent), 0 4px 16px -6px color-mix(in srgb, var(--c2) 70%, transparent);
     .fh-nav-ic { color: #fff; border-color: transparent; background: linear-gradient(135deg, var(--c1), var(--c2));
       box-shadow: 0 0 12px color-mix(in srgb, var(--c2) 75%, transparent); }
-    .fh-key { opacity: 0.8; }
   }
 }
 .fh-nav-ic {
@@ -63,9 +75,14 @@
   background: color-mix(in srgb, var(--c2) 10%, transparent);
   transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
 }
-.fh-key { font-size: 0.66rem; opacity: 0.45; font-family: ui-monospace, monospace; }
-.fh-nav-children { display: flex; flex-direction: column; gap: 2px; margin: 1px 0 3px 16px; padding-left: 8px;
-  border-left: 1.5px solid color-mix(in srgb, #19b8e6 35%, var(--bs-border-color)); }
+// Second-level pages (the map modes): a smaller cyan-to-violet frame inside the list, joined to its parent row by a
+// short glowing stem.
+.fh-nav-children {
+  display: flex; flex-direction: column; gap: 2px; margin: 6px 2px 6px 14px; padding: 5px; border-radius: 16px;
+  @include bright-frame(#6ff3ff, #19b8e6, #c43dff, rgba(25, 184, 230, 0.55));
+  &::after { content: ''; position: absolute; left: 18px; top: -7px; width: 2px; height: 7px; border-radius: 1px;
+    background: #19b8e6; box-shadow: 0 0 6px #19b8e6; }
+}
 .fh-nav-child { padding: 3px 4px 3px 10px; font-size: 0.85rem;
   .fh-nav-ic { width: 21px; height: 21px; } }
 .fh-nav-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--bs-border-color); }
