@@ -84,9 +84,15 @@ items parsed by [`scanning/generic.py`](../../backend/src/findhome/scanning/gene
 API with a field map) or by an optional `sites/<slug>/scanner.py` (for example
 [`sites/bostadsformedlingen/scanner.py`](../../sites/bostadsformedlingen/scanner.py), one request for the whole
 region's feed). `local_filter.search_area_buffer_m` drops items farther than that from the search area. A scanner
-may also implement `enrich`: the runner calls it for listings not seen before, up to `fetch.details.max_per_run`,
-and hashes the list-page view so later scans of the same listing stay `unchanged`. Then the items are ingested
-into a scan run. Raw pages are saved under `data/raw/`. Only `active` sites are scanned; a dry run works on any
+may also implement `enrich`, which reads a listing's own page
+([`enrich_details()`](../../backend/src/findhome/scanning/runner.py#L93)). With `fetch.details.only_passing`, the
+runner calls it for every listing that passes the profile's hard filters on the list's values
+([`passes_hard_filters()`](../../backend/src/findhome/scanning/runner.py#L71), commute left out) and is new, has no
+page read (`attributes.details_checked_at`) or one older than `refresh_days`; without it, for listings not seen
+before. Pages are read with the site's delay, up to `max_per_run`. The list-page view is hashed, so later list-only
+scans of the same listing stay `unchanged`, while a page read is always stored. Then the items are ingested into a
+scan run, and new and changed listings are scored at once
+([`score_listings()`](../../backend/src/findhome/rescore.py)). Raw pages are saved under `data/raw/`. Only `active` sites are scanned; a dry run works on any
 scriptable site and stores nothing. Browser-only sites (Qasa: 429 to scripts) are scanned by the browser agent
 ([agent_contract.md](agent_contract.md#runs)).
 [`scanning/probe.py`](../../backend/src/findhome/scanning/probe.py) inspects a new site and recommends a fetch method.

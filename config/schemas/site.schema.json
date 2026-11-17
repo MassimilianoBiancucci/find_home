@@ -304,10 +304,19 @@
         "details": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Optional detail-page enrichment for NEW listings (needs a site scanner.py with enrich())",
+          "description": "Optional listing-page reads in the scan (needs a site scanner.py with enrich()): NEW listings only, or with only_passing every listing that passes the hard filters and lacks a page read",
           "properties": {
             "enabled": {
               "type": "boolean"
+            },
+            "only_passing": {
+              "type": "boolean",
+              "description": "Read the page of every listing that passes the hard filters and is new, has no page read, or one older than refresh_days"
+            },
+            "refresh_days": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "With only_passing: read a listing's page again after this many days (default 30)"
             },
             "max_per_run": {
               "type": "integer",

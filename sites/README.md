@@ -16,7 +16,7 @@ One folder per website: `sites/<slug>/`
 | Site | Status | How it is scanned |
 |---|---|---|
 | [Qasa](qasa/site.yaml) | active | browser agent only ([`extract.js`](qasa/extract.js)): qasa.com answers scripts with 429; manual start, ≤ 20 pages (`risk_note`) |
-| [Bostadsförmedlingen](bostadsformedlingen/site.yaml) | active | script: one request to the region-wide JSON feed ([`scanner.py`](bostadsformedlingen/scanner.py)), new listings' pages read for the description |
+| [Bostadsförmedlingen](bostadsformedlingen/site.yaml) | active | script: one request to the region-wide JSON feed ([`scanner.py`](bostadsformedlingen/scanner.py)); the pages of listings that pass the hard filters are read in the same scan (move-in, photos, floor plans, contract terms, units of project ads, description) |
 | [Samtrygg](samtrygg/site.yaml) | active | browser agent only ([`extract.js`](samtrygg/extract.js)): every month of your move-in window, paged, including the search pages robots.txt disallows (`risk_note`) |
 | [Blocket Bostad](blocket-bostad/site.yaml), [HomeQ](homeq/site.yaml) | disabled, `role: origin` | never scanned: their listings arrive through Qasa (`platforms`) |
 
@@ -54,6 +54,12 @@ every key:
    in your Chrome ([`browser_scan_site.md`](../.agents/skills/find-home/prompts/browser_scan_site.md)), started
    from the Sites page (Claude CLI in the background, or a prefilled Claude Code tab in VS Code), and writes
    `inbox/` files the app imports into the run.
+
+A scripted site whose list lacks the listing's details reads each listing's page in the same scan, through
+`scanner.py` `enrich` and `fetch.details`: `enabled`, `only_passing` (read every listing that passes the hard
+filters and has no page read, or one older than `refresh_days`, default 30; without it, new listings only) and
+`max_per_run`, a safety cap. Pages are saved under `data/raw/<slug>/<stamp>/pages/`. Floor plan links go through
+`classify_floorplan()` (image, PDF with a cached preview, or viewer page).
 
 Scripted methods use no tokens. Only `active` sites with `scan.script` enabled are scanned (`findhome scan --all`);
 `--dry-run` works on any status and is how a scripted site is verified.

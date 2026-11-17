@@ -163,6 +163,7 @@ async def ingest(conn, req: IngestRequest) -> IngestResult:
         # enrichment (detail pages) only happens for new items; hashing the list-page view keeps
         # the next scan's un-enriched copy of the same listing "unchanged"
         chash = item.attributes.pop("_list_hash", None) or content_hash(item)
+        details = bool(item.attributes.pop("_details", False))    # a listing-page read: store it even if the list is the same
         key = dedupe_key(item)
         src = await _fetchone(
             conn, """SELECT l.id, l.short_id, s.content_hash, l.pet_status, l.pet_source, l.address_norm
@@ -171,7 +172,7 @@ async def ingest(conn, req: IngestRequest) -> IngestResult:
             (item.source.site_slug, item.source.external_id))
         if src:
             # change detection is per source, so two sites listing the same flat do not flip-flop it
-            if src["content_hash"] == chash:
+            if src["content_hash"] == chash and not details:
                 await conn.execute("UPDATE listings SET last_seen_at = now() WHERE id = %s", (src["id"],))
                 outcome = "unchanged"
             else:
@@ -210,6 +211,13 @@ async def listing_sources(conn, listing_id) -> list[dict]:
     return await _fetchall(conn, "SELECT site_slug, external_id, url, source_method, first_seen_at, last_seen_at, "
                                  "scan_run_id, first_scan_run_id "
                                  "FROM listing_sources WHERE listing_id = %s ORDER BY first_seen_at", (listing_id,))
+
+
+async def source_attributes(conn, site: str, external_id: str) -> dict | None:
+    """The stored listing's attributes for a site item, or None when the item is new."""
+    row = await _fetchone(conn, """SELECT l.attributes FROM listing_sources s JOIN listings l ON l.id = s.listing_id
+                                   WHERE s.site_slug = %s AND s.external_id = %s""", (site, external_id))
+    return None if row is None else (row["attributes"] or {})
 
 
 async def source_exists(conn, site: str, ref: str) -> dict | None:

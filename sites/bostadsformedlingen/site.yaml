@@ -3,7 +3,8 @@
 #  Bostadsförmedlingen Stockholm — the municipal housing queue (first-hand contracts).
 #  The public list (https://bostad.stockholm.se/bostad/) is filled in the browser from one JSON feed,
 #  GET /AllaAnnonser/: the whole region in one response. A scan is that ONE request (scanner.py),
-#  filtered locally; new listings' pages are read for the description (pets wording), capped.
+#  filtered locally; the pages of listings that pass the hard filters are read in the scan (move-in, photos,
+#  floor plans, contract terms, description), 3 s apart.
 #  No robots.txt (404), no bot protection, no terms clause on automated access (probe 2026-11-05).
 #  The feed is not documented: if its shape changes the scan fails loudly → site_repair.md.
 #  Applying needs your queue registration and login (BankID): you do it, never the agent.
@@ -26,7 +27,7 @@ fetch:
   api: {endpoint: 'https://bostad.stockholm.se/AllaAnnonser/', method: GET, items_path: null, body: null}
   selectors: {}                 # not used: scanner.py maps the feed
   pagination: {type: none}      # the feed is the whole region
-  details: {enabled: true, max_per_run: 15}   # listing pages of NEW listings only: description for pet wording
+  details: {enabled: true, only_passing: true, max_per_run: 100, refresh_days: 30}   # listing pages of listings that pass the hard filters: move-in, photos, plans, terms, description
 local_filter:
   exclude_flags: [Student, Ungdom, Senior, KompisUngdom]   # special queues that do not apply; Korttid kept
   search_area_buffer_m: 3000    # drop listings farther than 3 km from your search area (the feed is region-wide)
