@@ -152,6 +152,7 @@ Format for each topic block:
 - **Question numbering is local to each topic**: every topic starts at Q1. Do NOT use global numbering across topics.
 - Within a topic, the Q -> A -> R sequence can repeat until agreement is reached. New questions on the same topic continue the local sequence (Q3 -> A3 -> R3 -> ...). Never create a "Topic (N) continued" section; append under the original topic.
 - After receiving answers, **write them to the file immediately** along with your reasoning (R).
+- **`<DERIVED>` answers:** if a question is already answered by a previous Q -> A -> R entry or by the chat (user messages, attached files, earlier findings), do NOT ask the user. Still record it in the QA file with `## A<n>:` set to the literal `<DERIVED>`, and write the reasoning directly in `## R<n>:`: the derivation, citing the source (e.g. "Topic 2, A1" or the chat message), with line links when it points at code. Derived questions do not count toward QA_BATCH_SIZE. If the source is ambiguous or only partially covers the question, ask it normally.
 - If an answer opens an entirely new topic, start a new topic section in the next batch.
 - If an answer triggers further investigation, run the analysis first, then update R with findings before asking follow-ups.
 - Propose wrapping up when you sense diminishing returns or sufficient clarity. The user can stop the loop at any time.
@@ -161,7 +162,7 @@ Format for each topic block:
 Batches exist to **prevent redundant questions**. Before generating each new batch:
 
 1. Review all prior Q -> A -> R entries across every topic.
-2. Eliminate any candidate question whose answer is already implied or covered.
+2. Derive, don't ask: for any candidate question whose answer is already implied or covered by a previous answer or by the chat, do not ask the user. Record it as `<DERIVED>` with the reasoning in R (see QA rules). Only questions with no such source go into the batch.
 3. Let previous answers sharpen the next batch rather than re-asking what's known.
 4. Generate the next QA_BATCH_SIZE questions from follow-ups within existing topics and new topics surfaced by answers.
 5. Each batch should progressively narrow the remaining unknowns, not expand them.
