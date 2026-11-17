@@ -177,10 +177,18 @@ live match count, N, launcher). Agent launches go through
 and copies the prompt). Pet badges ([`fh-pet-badge`](../../frontend/src/app/components/pet-badge.ts)) show who set
 the status (U / A / S / K) and the evidence; the detail page lets you set your own answer.
 
-**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) (PDF floor plans as links) shows a listing's `photo_urls` and
+**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) shows a listing's `photo_urls` and
 `floorplan_urls` (Photos / Floor plans tabs, thumbnails, a full-screen viewer with arrow keys, Esc, swipe and
-double-click for 1:1). It loads the images lazily from the site's own URLs; images that fail to load are dropped
-from the count. The detail page shows it at the top, foldable
+double-click for 1:1). It loads the images lazily from the site's own URLs; photos that fail to load are dropped
+from the count, while a plan that fails becomes a link card.
+
+**Floor plans.** Sites link plans as images, as PDFs (often without `.pdf` in the URL) or as interactive viewer
+pages. [`classify_floorplan()`](../../backend/src/findhome/scanning/floorplans.py) gives each link its kind once,
+from one HEAD request's content type (the extension when HEAD is refused), and renders a PDF's first page to
+`data/floorplans/<sha1>.png`, served by `GET /api/floorplans/<sha1>.png`. The result is kept in
+`attributes.floorplans` (`{url, kind, preview, unit}`), and a link already there is never fetched again. The gallery
+shows an image as it is, a PDF by its preview with a "PDF ↗" link to the original (a link card when there is no
+preview), and a viewer page as an "Interactive floor plan ↗" card. The detail page shows it at the top, foldable
 ([`band`](../../frontend/src/app/components/gallery.ts#L164)): folded (the default), one band of thumbnails; a
 thumbnail or the ▸ toggle unfolds it to the main image on that photo. There, only ⛶ opens the viewer; the map's
 listing panel shows a three-thumbnail strip (`compact`), fetching the listing on selection because map features carry no photos. Listings with exactly 6

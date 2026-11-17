@@ -26,6 +26,8 @@ playwright = { version = ">=1.48", optional = true }
 shapely = ">=2.0"
 pyproj = ">=3.6"
 networkx = ">=3.3"           # walking / cycling network of the zone analysis
+pypdfium2 = ">=4.30"
+pillow = ">=10.4"
 
 [tool.poetry.extras]
 scrape = ["playwright"]

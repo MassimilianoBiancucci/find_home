@@ -60,6 +60,7 @@ an OSM-based vector map style.
 | [`.vscode/`](../.vscode/launch.json) | debug configurations and tasks (`FH:` prefix) |
 | [`docker-compose.yml`](../docker-compose.yml) | Postgres :5434 (local storage in gitignored `data/postgres/`) and pgAdmin :5052 |
 | [`guide/documentation/`](documentation/api_keys.md) | how-to and reference pages for the user: provider keys, what each provider does, Google costs, ports, agent permissions |
+| `data/` | runtime data, gitignored: `postgres/`, raw scan pages (`raw/`), floor plan previews (`floorplans/`), geodata |
 | [`tasks/`](../tasks/README.md) | planning history and backlog (not current state) |
 | [`runs/`](../runs/README.md) | agent run folders (gitignored) |
 

@@ -3,7 +3,7 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, petSourceLabel, scoreColor } from '../format';
-import { GalleryComponent } from '../components/gallery';
+import { FloorPlanMeta, GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
 import { PetBadge } from '../components/pet-badge';
 import { SiteLogo } from '../components/site-logo';
@@ -53,8 +53,8 @@ import { TagsStore } from '../services/tags.store';
   @if (d(); as x) {
     <div class="row g-3">
       <div class="col-lg-7">
-        <fh-gallery [photos]="x.listing.photo_urls" [plans]="x.listing.floorplan_urls" [link]="x.listing.canonical_url"
-          [incomplete]="galleryIncomplete(x.listing)" [band]="true" />
+        <fh-gallery [photos]="x.listing.photo_urls" [plans]="x.listing.floorplan_urls" [plansMeta]="planMeta(x.listing)"
+          [link]="x.listing.canonical_url" [incomplete]="galleryIncomplete(x.listing)" [band]="true" />
 
         @let L = x.listing;
         <section class="fh-hcard fh-hcard-main">
@@ -327,6 +327,8 @@ export class DetailPage {
   }
   /** Scans before the full-gallery fix kept 6 photos and no photo_count: the next browser scan fills them in. */
   galleryIncomplete(l: Listing): boolean { return l.photo_urls.length === 6 && l.attributes?.['photo_count'] == null; }
+  /** Each floor plan's kind and cached preview (attributes.floorplans), so the gallery shows PDFs and viewer pages. */
+  planMeta(l: Listing): FloorPlanMeta[] { const v = l.attributes?.['floorplans']; return Array.isArray(v) ? (v as FloorPlanMeta[]) : []; }
   protected perM2 = (l: Listing) => valueOf(l, 'rent_per_m2');
   /** Yes / no / unknown features, shown as ✓ / ✕ / ? chips. */
   protected features(l: Listing): { label: string; v: boolean | null }[] {
