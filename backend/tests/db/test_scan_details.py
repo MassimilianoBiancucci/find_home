@@ -80,3 +80,5 @@ def test_scan_reads_passing_pages_once_and_stores_them(client, mocked_scan):
     again = client.post("/api/scans", json={"site": "bostadsformedlingen"}).json()["results"][0]
     assert again["details_read"] == 0 and sum(1 for _m, p in calls if p.startswith("/bostad/")) == reads
     assert _listing(client, "700001")["available_from"] == "2027-02-01"                   # a feed-only scan keeps it
+    forced = client.post("/api/scans", json={"site": "bostadsformedlingen", "refresh_details": True}).json()["results"][0]
+    assert forced["details_read"] == 2                                                   # after a parser fix

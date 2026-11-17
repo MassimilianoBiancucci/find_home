@@ -91,10 +91,10 @@ def _stale(checked_at: str | None, refresh_days: int) -> bool:
 
 
 async def enrich_details(conn, bundle: ConfigBundle, site: SiteConfig, scanner, items: list[ListingIn],
-                         limit: int | None = None) -> dict[str, int]:
+                         limit: int | None = None, refresh: bool = False) -> dict[str, int]:
     """Listing-page reads (scanner.enrich), polite and capped. With fetch.details.only_passing, every listing that
     passes the hard filters and is new, or has no page read (attributes.details_checked_at), or one older than
-    refresh_days; otherwise only listings not seen before. An enriched item is marked so ingest stores the page data
+    refresh_days (any age with `refresh`, after a parser fix); otherwise only listings not seen before. An enriched item is marked so ingest stores the page data
     even when the list view is unchanged."""
     cfg = site.fetch.get("details") or {}
     counts = {"details_read": 0, "details_failed": 0, "details_skipped_cap": 0}
@@ -108,7 +108,7 @@ async def enrich_details(conn, bundle: ConfigBundle, site: SiteConfig, scanner, 
         if only_passing:
             if not passes_hard_filters(bundle, item):
                 continue
-            if stored is not None and not _stale(stored.get("details_checked_at"), refresh_days):
+            if stored is not None and not refresh and not _stale(stored.get("details_checked_at"), refresh_days):
                 continue
         elif stored is not None:
             continue
@@ -194,7 +194,7 @@ def scriptable(bundle: ConfigBundle) -> list[str]:
 
 
 async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False, max_pages: int | None = None,
-                    trigger: str = "app") -> dict[str, Any]:
+                    trigger: str = "app", refresh_details: bool = False) -> dict[str, Any]:
     site = bundle.sites.get(slug)
     if site is None:
         raise ScanError(f"unknown site '{slug}'")
@@ -209,7 +209,8 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
     try:
         scanner = make_scanner(site)
         items, stats, filt = await collect(site, bundle, max_pages, scanner=scanner)
-        details = await enrich_details(conn, bundle, site, scanner, items, limit=2 if dry_run else None)
+        details = await enrich_details(conn, bundle, site, scanner, items, limit=2 if dry_run else None,
+                                       refresh=refresh_details)
     except Exception as exc:
         if run_id:
             await repo.finish_scan_run(conn, run_id, "error", {}, str(exc))

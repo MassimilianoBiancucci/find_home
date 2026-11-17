@@ -52,8 +52,8 @@ pet badge over as `attributes.pets_flag` instead of setting `pet_status`.
 
 `attributes` holds what is not a column. A few keys have a fixed shape, defined in
 [`domain/attributes.py`](../../backend/src/findhome/domain/attributes.py) and checked at ingest: `contract_terms`,
-`requirements`, `amenities`, `floorplans`, `units`, `ranges`, `address_parts`, `price`, `move_in_raw` and
-`details_checked_at`. Every other key is the site's own and passes as it is. A parsed value keeps its raw wording
+`requirements`, `amenities`, `utilities`, `floorplans`, `units`, `ranges`, `address_parts`, `price`, `move_in_raw`
+and `details_checked_at`. Every other key is the site's own and passes as it is. A parsed value keeps its raw wording
 next to it, for example:
 
 ```json

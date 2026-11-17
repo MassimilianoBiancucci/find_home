@@ -58,7 +58,7 @@ class ListingIn(BaseModel):
     photo_urls: list[str] = Field(default_factory=list)
     floorplan_urls: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict, description="Anything not yet a column; the fixed keys "
-                                       "(contract_terms, requirements, amenities, floorplans, units, ranges, "
+                                       "(contract_terms, requirements, amenities, utilities, floorplans, units, ranges, "
                                        "address_parts, price, move_in_raw, details_checked_at) are checked")
 
     @field_validator("attributes")
@@ -143,4 +143,6 @@ class ScanRequest(BaseModel):
     site: str = Field(description="Site slug or 'all'")
     dry_run: bool = False
     max_pages: int | None = None
+    refresh_details: bool = Field(False, description="Read the pages of passing listings again even when their last "
+                                                     "read is recent (after a parser fix)")
     trigger: Literal["app", "cli", "agent"] = "app"

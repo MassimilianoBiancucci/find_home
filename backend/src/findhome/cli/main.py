@@ -150,10 +150,12 @@ def serve(port: int = 8200, reload: bool = False):
 @app.command()
 def scan(site: str = typer.Argument(..., help="Site slug or --all"),
          dry_run: bool = typer.Option(False, "--dry-run", help="Fetch and parse, do not store."),
-         max_pages: Optional[int] = typer.Option(None, "--max-pages")):
+         max_pages: Optional[int] = typer.Option(None, "--max-pages"),
+         refresh_details: bool = typer.Option(False, "--refresh-details",
+                                              help="Read the pages of passing listings again (after a parser fix).")):
     """Scripted scan (api/http) of a site: fetch → normalize → dedupe → ingest. One line per site."""
     res = _api().post("/api/scans", {"site": "all" if site in ("--all", "all") else site, "dry_run": dry_run,
-                                     "max_pages": max_pages,
+                                     "max_pages": max_pages, "refresh_details": refresh_details,
                                      "trigger": "agent" if os.environ.get("FINDHOME_AGENT_RUN_ID") else "cli"})
     _out(res, "\n".join(r["line"] for r in res["results"]) or "no active sites")
 

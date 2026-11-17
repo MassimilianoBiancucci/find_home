@@ -24,8 +24,10 @@ def test_ordinary_page():
     # plans by their own link text, made absolute and deduped; the example image is not a plan
     assert [u for u, _ in p["floorplans"]] == ["https://bostad.stockholm.se/uploads/111ritning.pdf",
                                                 "https://exempel.bim.cloud/plan/111"]
-    assert p["amenities"] == ["Balkong", "Hiss", "Rökfritt"]
-    assert p["requirements"] == {"min_income_sek": 250000, "max_household": 3}
+    assert p["amenities"] == ["Balkong", "Hiss", "Rökfritt", "Cykelrum"]          # storage list merged, no duplicate
+    assert p["utilities"] == ["El ingår i hyran"]
+    assert p["requirements"] == {"min_income_sek": 250000, "max_household": 3, "residual_income_sek": 6000,
+                                 "residual_income_couple_sek": 9900}
     assert p["contract_terms"] == {}                     # the site menu's "Korttidskontrakt" is not the ad's text
     assert p["description"].startswith("Beskrivning") and p["units"] == []
 
@@ -36,6 +38,7 @@ def test_short_term_page():
     assert p["contract_start"] == "2027-01-18"
     t = p["contract_terms"]
     assert (t["guaranteed_months"], t["notice_months"], t["max_total_months"], t["short_term"]) == (2, 1, 48, True)
+    assert t["estimated_months"] == 5 and t["estimated_raw"].startswith("5 månader")
     assert t["guaranteed_raw"].startswith("2 mån")
 
 
@@ -59,3 +62,27 @@ def test_feed_project_ad_takes_the_lowest_values_and_keeps_ranges():
     a = m.to_listing(doc)
     assert (a.rent_sek, a.size_m2, a.rooms_rok) == (9900, 49, 2)
     assert a.attributes["ranges"] == {"rent": [9900, 10100], "size_m2": [49, 49.5], "rooms": [2, 2], "units": 3}
+
+
+async def test_enrich_project_ad_takes_the_lowest_floor_and_keeps_the_range(tmp_repo, tmp_path, monkeypatch):
+    import httpx
+
+    from findhome.config.loader import load_all
+
+    m = mod()
+    monkeypatch.setattr("findhome.scanning.generic.data_dir", lambda: tmp_path)
+    monkeypatch.setattr("findhome.scanning.floorplans.data_dir", lambda: tmp_path)
+
+    def handler(request):
+        if request.url.path.startswith("/uploads/"):
+            return httpx.Response(200, headers={"content-type": "image/png"})
+        return httpx.Response(200, text=(FIX / "page_project.html").read_text())
+
+    site = load_all(tmp_repo / "config", tmp_repo / "sites").sites["bostadsformedlingen"]
+    scanner = m.BostadsformedlingenScanner(site, client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    doc = {**json.loads((FIX / "feed.json").read_text())[0], "Antal": 3, "Vaning": None, "LagstaHyran": 9900,
+           "HogstaHyran": 10100}
+    item = await scanner.enrich(m.to_listing(doc))
+    assert item.floor == 0 and item.attributes["ranges"]["floor"] == [0, 3]
+    assert item.attributes["ranges"]["rent"] == [9900, 10100]                        # the feed's ranges kept
+    assert [p["unit"] for p in item.attributes["floorplans"]] == ["1000-1101", "1000-1201"]

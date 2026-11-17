@@ -58,7 +58,8 @@ every key:
 A scripted site whose list lacks the listing's details reads each listing's page in the same scan, through
 `scanner.py` `enrich` and `fetch.details`: `enabled`, `only_passing` (read every listing that passes the hard
 filters and has no page read, or one older than `refresh_days`, default 30; without it, new listings only) and
-`max_per_run`, a safety cap. Pages are saved under `data/raw/<slug>/<stamp>/pages/`. Floor plan links go through
+`max_per_run`, a safety cap. After a parser fix, `findhome scan <slug> --refresh-details` reads those pages again
+whatever their age. Pages are saved under `data/raw/<slug>/<stamp>/pages/`. Floor plan links go through
 `classify_floorplan()` (image, PDF with a cached preview, or viewer page).
 
 Scripted methods use no tokens. Only `active` sites with `scan.script` enabled are scanned (`findhome scan --all`);

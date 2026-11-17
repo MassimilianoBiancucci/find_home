@@ -199,25 +199,36 @@ def parse_page(html: str) -> dict[str, Any]:
                 if url not in [p for p, _ in plans]:
                     plans.append((url, None))
 
+    # the tag lists: Egenskaper, Förvaring/gemensamma utrymmen and Tillgänglighet are amenities; Förbrukning says
+    # what the rent includes and how utilities are metered
     amenities: list[str] = []
+    utilities: list[str] = []
     for box in t.css(".tag-list"):
         h = box.css_first("h2")
-        if h is not None and _clean(h.text()) == "Egenskaper":
-            amenities = [x for x in (_clean(li.text()) for li in box.css("li")) if x]
+        name = _clean(h.text()) if h is not None else None
+        items = [x for x in (_clean(li.text()) for li in box.css("li")) if x]
+        if name == "Förbrukning":
+            utilities += items
+        elif name in ("Egenskaper", "Förvaring/gemensamma utrymmen", "Tillgänglighet"):
+            amenities += [x for x in items if x not in amenities]
     page_text = _clean(t.body.text(separator=" ")) if t.body else ""
     if re.search(r"\bRökfri(tt)?\b", page_text or "") and "Rökfritt" not in amenities:
         amenities.append("Rökfritt")
     income = re.search(r"Lägsta årsinkomst:\s*([\d\s]+)\s*kronor", page_text or "")
     household = re.search(r"Max antal hushållsmedlemmar:\s*(\d+)", page_text or "")
+    residual = re.search(r"bestämt belopp kvar.{0,80}?([\d\s]+)\s*kronor för en ensamstående", page_text or "")
+    residual2 = re.search(r"två sammanboende.{0,60}?([\d\s]+)\s*kronor", page_text or "")
 
     move_in = facts.get("Inflytt")
     if not move_in and units:
         move_in = min((u["available_from"] for u in units if u.get("available_from")), default=None)
     guaranteed = labelled.get("Garanterad boendetid")
+    estimated = labelled.get("Beräknad boendetid")
     notice = labelled.get("Uppsägningstid")
     extension = labelled.get("Möjlighet till förlängning")
     terms = {k: v for k, v in {
         "guaranteed_raw": guaranteed, "guaranteed_months": _months(guaranteed),
+        "estimated_raw": estimated, "estimated_months": _months(estimated),
         "notice_raw": notice, "notice_months": _months(notice),
         "extension_raw": extension,
         "max_total_months": _months(extension.split("max")[-1]) if extension and "max" in extension else None,
@@ -227,7 +238,10 @@ def parse_page(html: str) -> dict[str, Any]:
     start = re.search(r"\bFrån:\s*(\d{4}-\d{2}-\d{2})", body_text)    # "Boendetid: Från: 2027-01-18"
     requirements = {k: v for k, v in {
         "min_income_sek": _int(income.group(1)) if income else None,
-        "max_household": int(household.group(1)) if household else None}.items() if v is not None}
+        "max_household": int(household.group(1)) if household else None,
+        "residual_income_sek": _int(residual.group(1)) if residual else None,
+        "residual_income_couple_sek": _int(residual2.group(1)) if residual and residual2 else None,
+    }.items() if v is not None}
     return {
         "available_from": move_in if move_in and DATE.fullmatch(move_in) else None,
         "move_in_raw": move_in,
@@ -237,6 +251,7 @@ def parse_page(html: str) -> dict[str, Any]:
         "photo_urls": photos,
         "floorplans": plans,
         "amenities": amenities,
+        "utilities": utilities,
         "requirements": requirements,
         "description": body_text[:DESCRIPTION_MAX] or None,
         "units": units,
@@ -291,9 +306,14 @@ class BostadsformedlingenScanner(HttpListScanner):
         if plans:
             update["floorplan_urls"] = [p["url"] for p in plans]
         attrs = {**item.attributes, "details_checked_at": datetime.now(UTC).isoformat(timespec="seconds")}
-        for key in ("contract_terms", "amenities", "requirements", "units"):
+        for key in ("contract_terms", "amenities", "utilities", "requirements", "units"):
             if page[key]:
                 attrs[key] = page[key]
+        floors = [u["floor"] for u in page["units"] if u.get("floor") is not None]
+        if floors:                      # a project ad: the lowest floor, like the lowest rent, and the range
+            if item.floor is None:
+                update["floor"] = min(floors)
+            attrs["ranges"] = {**(attrs.get("ranges") or {}), "floor": [min(floors), max(floors)]}
         if plans:
             attrs["floorplans"] = plans
         if page["move_in_raw"]:

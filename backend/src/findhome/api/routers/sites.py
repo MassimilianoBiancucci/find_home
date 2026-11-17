@@ -73,7 +73,8 @@ async def scan(body: ScanRequest, conn=Depends(get_conn)):
     results = []
     for slug in slugs:
         try:
-            s = await scan_site(conn, b, slug, body.dry_run, body.max_pages, trigger=body.trigger)
+            s = await scan_site(conn, b, slug, body.dry_run, body.max_pages, trigger=body.trigger,
+                                refresh_details=body.refresh_details)
             results.append({**s, "line": summary_line(s)})
         except ScanError as exc:
             if body.site not in ("all", "--all"):

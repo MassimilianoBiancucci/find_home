@@ -20,12 +20,16 @@ class ContractTerms(_Strict):
     notice_raw: str | None = None
     extension_raw: str | None = None          # "Möjlighet till förlängning: Ja ... Dock max 4 år"
     max_total_months: int | None = None       # 48
+    estimated_months: int | None = None       # "Beräknad boendetid: 5 månader" (an estimate, not guaranteed) -> 5
+    estimated_raw: str | None = None
     short_term: bool | None = None            # a short-term contract (no security of tenure)
 
 
 class Requirements(_Strict):
     min_income_sek: int | None = None
     max_household: int | None = None
+    residual_income_sek: int | None = None    # money left after rent, one adult ("ska ha ett bestämt belopp kvar")
+    residual_income_couple_sek: int | None = None
     raw: list[str] | None = None
 
 
@@ -66,6 +70,7 @@ ATTRIBUTE_KEYS: dict[str, Any] = {
     "contract_terms": ContractTerms,
     "requirements": Requirements,
     "amenities": list[str],
+    "utilities": list[str],                   # what the rent includes or how it is metered ("El ingår i hyran")
     "floorplans": list[FloorPlan],
     "units": list[Unit],
     "ranges": dict[str, Any],                 # project ads: {"rent": [lo, hi], "size_m2": [lo, hi], ...}
