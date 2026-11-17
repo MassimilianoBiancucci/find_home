@@ -15,7 +15,7 @@
             @for (item of nav; track item.path) {
               <a [routerLink]="item.path" routerLinkActive="active" class="fh-nav" [style.--c1]="item.hue[0]" [style.--c2]="item.hue[1]"
                 [title]="item.label + ' (' + item.key + ')'">
-                <span class="fh-nav-l">{{ item.label }}</span><span class="fh-key">{{ item.key }}</span>
+                <span class="fh-nav-l">{{ item.label }}</span>
                 <span class="fh-nav-ic"><fh-nav-icon [name]="item.icon" /></span></a>
               @if (item.children) {
                 <div class="fh-nav-children">
