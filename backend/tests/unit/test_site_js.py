@@ -56,8 +56,8 @@ def test_qasa_listing_page_home_object(mode):
     assert r["parsed_as_json"] and r["status"] == "normal" and (r["floor"], r["buildYear"]) == (2, 1962)
     assert r["duration"]["endUfn"] is True and [t["type"] for t in r["traits"]] == ["balcony", "pets", "furniture"]
     assert r["furnishing"] == "partially_furnished" and r["monthlyCost"] == 11654
+    assert r["description"] == "Ljus tvåa med balkong mot en påhittad park."   # a "$5c" flight reference, resolved
     assert r["photos"] == ["https://img.example/a.jpg", "https://img.example/b.jpg"]   # in upload order
-    assert r["description"].startswith('Ljus tvåa med "balkong"')
     missing = run("qasa/detail_extract.js", "qasa/detail_missing.html", "https://qasa.com/se/sv/home/1400002", mode)
     assert missing["listing"] is False and missing["status"] == "not_found"
 

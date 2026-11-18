@@ -68,7 +68,8 @@
     amenity_rows: rows,
     amenities: rows.length ? rows.filter((r) => r.on && !r.note).map((r) => r.name)
       : (about.amenityFeature || []).filter((a) => a && a.value !== false).map((a) => a.name),
-    utilities: rows.filter((r) => r.note && r.note !== 'saknas').map((r) => `${r.name} — ${r.note}`),
+    // included or available at a cost; "ej tillgängligt" and "saknas" are not there
+    utilities: rows.filter((r) => r.note && !/^(saknas|ej tillgängligt)$/i.test(r.note)).map((r) => `${r.name} — ${r.note}`),
     facts,
     pets: pet ? (pet.classList.contains('amenity--off') ? 'ask' : 'yes') : null,
     pets_evidence: pet ? clean(pet.textContent) : null,

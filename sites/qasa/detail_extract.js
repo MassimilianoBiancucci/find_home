@@ -56,8 +56,18 @@
   const num = (k) => { const m = block.match(new RegExp(`"${k}":(-?\\d+(?:\\.\\d+)?)`)); return m ? Number(m[1]) : null; };
   const bool = (k) => { const m = block.match(new RegExp(`"${k}":(true|false)`)); return m ? m[1] === 'true' : null; };
   const str = (k) => { const m = block.match(new RegExp(`"${k}":"((?:[^"\\\\]|\\\\.)*)"`)); try { return m ? JSON.parse(`"${m[1]}"`) : null; } catch { return null; } };
+  // long strings are flight references: "$5c" points at a chunk "5c:T<hex byte length>,<text>"
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const deref = (v) => {
+    const m = typeof v === 'string' && v.match(/^\$([0-9a-f]+)$/);
+    if (!m) return v;
+    const head = chunks.match(new RegExp(`(?:^|\\n)${m[1]}:T([0-9a-f]+),`));
+    if (!head) return null;
+    const bytes = enc.encode(chunks.slice(head.index + head[0].length));
+    return dec.decode(bytes.slice(0, parseInt(head[1], 16)));
+  };
   const h = home || {};
-  const pick = (k, f) => (h[k] !== undefined ? h[k] : f(k));
+  const pick = (k, f) => (h[k] !== undefined ? deref(h[k]) : f(k));
   const dur = h.duration || {};
   const loc = h.location || {};
   const uploads = (h.uploads || []).filter((u) => u && u.url);
