@@ -114,9 +114,10 @@ async def finish_agent_run(conn, run_id: str, status: str, exit_code: int | None
                            result: dict | None = None) -> None:
     result = result or {}
     await conn.execute(
-        """UPDATE agent_runs SET finished_at = clock_timestamp(), status = %s, exit_code = %s,
+        """UPDATE agent_runs SET finished_at = coalesce(finished_at, clock_timestamp()),
+                  status = CASE WHEN status = 'cancelled' THEN status ELSE %s END, exit_code = %s, liveness = 'gone',
                   cost_usd = coalesce(%s, cost_usd), num_turns = coalesce(%s, num_turns),
-                  result = coalesce(%s, result), session_id = coalesce(session_id, %s),
+                  result = coalesce(result, '{}'::jsonb) || coalesce(%s, '{}'::jsonb), session_id = coalesce(session_id, %s),
                   summary = coalesce(summary, %s)
            WHERE id = %s""",
         (status, exit_code, result.get("total_cost_usd"), result.get("num_turns"),
@@ -162,6 +163,49 @@ async def session_ended(conn, session_id: str, transcript_path: str | None, reas
                                       result = coalesce(result, '{}'::jsonb) || jsonb_build_object('end_reason', %s::text)
                                WHERE session_id = %s AND status IN ('waiting','running') RETURNING id""",
                       (transcript_path, reason, session_id))
+
+
+async def set_process(conn, run_id: str, pid: int, session_name: str | None) -> None:
+    await conn.execute("""UPDATE agent_runs SET pid = %s, process_started_at = clock_timestamp(), session_name = %s,
+                                 liveness = 'alive_busy', last_seen_at = clock_timestamp() WHERE id = %s""",
+                       (pid, session_name, run_id))
+
+
+async def set_liveness(conn, run_id: str, liveness: str) -> None:
+    await conn.execute("""UPDATE agent_runs SET liveness = %s,
+                                 last_seen_at = CASE WHEN %s LIKE 'alive%%' THEN clock_timestamp() ELSE last_seen_at END
+                          WHERE id = %s""", (liveness, liveness, run_id))
+
+
+async def mark_cancelled(conn, run_id: str, note: str) -> None:
+    """Cancel: the run is over for the app whatever its process still does; late writes are refused or parked."""
+    await conn.execute("""UPDATE agent_runs SET status = 'cancelled', finished_at = coalesce(finished_at, clock_timestamp()),
+                                 cancel_requested_at = clock_timestamp(), liveness = 'gone',
+                                 result = coalesce(result, '{}'::jsonb) || jsonb_build_object('cancel', %s::text)
+                          WHERE id = %s AND status IN ('waiting', 'running')""", (note, run_id))
+
+
+async def end_without_handover(conn, run_id: str, reason: str, result: dict | None = None) -> None:
+    """A running run whose session is gone and that never called `run close` (found by the watchdog)."""
+    await conn.execute("""UPDATE agent_runs SET status = 'ended_no_handover', finished_at = clock_timestamp(),
+                                 liveness = 'gone', cost_usd = coalesce(%s, cost_usd), num_turns = coalesce(%s, num_turns),
+                                 result = coalesce(result, '{}'::jsonb) || coalesce(%s, '{}'::jsonb)
+                                          || jsonb_build_object('end_reason', %s::text)
+                          WHERE id = %s AND status = 'running'""",
+                       ((result or {}).get("total_cost_usd"), (result or {}).get("num_turns"),
+                        Jsonb(result) if result else None, reason, run_id))
+
+
+async def open_agent_runs(conn) -> list[dict]:
+    return await _all(conn, "SELECT * FROM agent_runs WHERE status = 'running' ORDER BY started_at")
+
+
+async def run_refuses_writes(conn, run_id: str | None) -> str | None:
+    """Why writes for this agent run are refused (a cancelled run), or None."""
+    if not run_id:
+        return None
+    row = await _one(conn, "SELECT status FROM agent_runs WHERE id::text = %s", (str(run_id),))
+    return "run cancelled" if row and row["status"] == "cancelled" else None
 
 
 async def expire_waiting(conn, hours: float = 2) -> None:

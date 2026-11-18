@@ -19,12 +19,14 @@ import json
 import logging
 import os
 import shutil
+import time
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
+from findhome.agentrun import sessions
 from findhome.config.loader import ConfigBundle
 from findhome.core.db import pool
 from findhome.core.paths import repo_root
@@ -35,6 +37,8 @@ from findhome.digest.history import history_digest
 log = logging.getLogger(__name__)
 _running: dict[str, tuple[str, asyncio.Task]] = {}      # run id → (concurrency key, task)
 _needs_close: set[str] = set()                           # runs whose prompt asks the agent to `findhome run close`
+_cancelled: set[str] = set()                             # runs Cancel stopped: their follower finishes them as cancelled
+_cancelling: set[str] = set()                            # runs Cancel is stopping right now: the watchdog skips them
 VSCODE_OPEN = "vscode://anthropic.claude-code/open?prompt="
 INSTALL_HINT = ("install Claude Code (curl -fsSL https://claude.ai/install.sh | bash), log in with /login, "
                 "or set FINDHOME_CLAUDE_BIN to the claude binary")
@@ -189,7 +193,8 @@ async def start(bundle: ConfigBundle, profile_name: str, params: dict[str, Any] 
             status="running" if launcher == "cli" else "waiting")
         await conn.commit()
     (run_dir / ".run_id").write_text(run_id)
-    fill = {**values, "run_id": run_id, "session_id": session_id, "max_turns": max_turns(profile, values)}
+    fill = {**values, "run_id": run_id, "session_id": session_id, "max_turns": max_turns(profile, values),
+            "profile": profile_name, "run_short": run_id[:8]}
     prompt = prompt_text(profile, fill)
     out = {"id": run_id, "run_dir": rel, "profile": profile_name, "launcher": launcher, "params": values}
     if launcher == "vscode":
@@ -204,37 +209,91 @@ async def start(bundle: ConfigBundle, profile_name: str, params: dict[str, Any] 
 
 
 async def _supervise(run_id: str, profile, argv: list[str], run_dir: Path, env: dict[str, str]) -> None:
+    """Spawn the agent with its output going to runs/<id>/stream.jsonl through a file handle (no pipe: a backend
+    reload neither kills the agent through a broken pipe nor cuts its output), then follow that file."""
     env = {**env, "FINDHOME_RUN_DIR": str(run_dir), "FINDHOME_API": get_settings().api_base,
            "FINDHOME_AGENT_RUN_ID": run_id, "FINDHOME_ROOT": str(repo_root())}
     log_path = run_dir / "log.jsonl"
-    status, exit_code, result = "error", None, None
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *argv, cwd=str(repo_root()), env=env,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, limit=2 ** 24)
+        with (run_dir / "stream.jsonl").open("ab") as out:
+            proc = await asyncio.create_subprocess_exec(*argv, cwd=str(repo_root()), env=env, stdout=out,
+                                                        stderr=asyncio.subprocess.STDOUT)
     except FileNotFoundError:
         _append(log_path, "system", f"command not found: {argv[0]} ({INSTALL_HINT})")
         await _finish(run_id, "error", None, None)
         return
-    try:
-        async with asyncio.timeout(profile.timeout_min * 60):
-            assert proc.stdout is not None
-            async for line in proc.stdout:
-                text = line.decode(errors="replace").rstrip("\n")
-                _append(log_path, "out", text)
-                result = _result_event(text) or result
-            exit_code = await proc.wait()
-            status = "ok" if exit_code == 0 and not (result or {}).get("is_error") else "error"
-    except TimeoutError:
-        proc.kill()
-        status = "timeout"
-        _append(log_path, "system", f"timeout after {profile.timeout_min} min")
-    except asyncio.CancelledError:
-        proc.kill()
+    name = argv[argv.index("-n") + 1] if "-n" in argv[:-1] else None
+    async with pool().connection() as conn:
+        await runs_repo.set_process(conn, run_id, proc.pid, name)
+        await conn.commit()
+    await _follow(run_id, run_dir, profile.timeout_min, proc=proc, pid=proc.pid, started=time.monotonic())
+
+
+def _read_new(stream: Path, offset: int) -> tuple[list[str], int]:
+    """Complete lines appended to the stream since `offset` (a partial last line waits for the next read)."""
+    if not stream.exists():
+        return [], offset
+    with stream.open("rb") as fh:
+        fh.seek(offset)
+        data = fh.read()
+    end = data.rfind(b"\n")
+    if end < 0:
+        return [], offset
+    return data[:end].decode(errors="replace").split("\n"), offset + end + 1
+
+
+async def _follow(run_id: str, run_dir: Path, timeout_min: float, proc=None, pid: int | None = None,
+                  started: float | None = None) -> None:
+    """Copy the agent's stream into log.jsonl (the format the run drawer reads), keep its final `result` event, and
+    finish the run when the process ends or times out. `proc` is our own child; an adopted run (found again after a
+    backend reload) has only its `pid`. A backend shutdown stops this task, never the agent."""
+    stream, log_path, offset_file = run_dir / "stream.jsonl", run_dir / "log.jsonl", run_dir / ".stream_offset"
+    offset = int(offset_file.read_text()) if offset_file.exists() else 0
+    result: dict | None = None
+    deadline = (started or time.monotonic()) + timeout_min * 60
+    status, exit_code = "error", None
+    while True:
+        lines, offset = _read_new(stream, offset)
+        for line in lines:
+            _append(log_path, "out", line)
+            result = _result_event(line) or result
+        offset_file.write_text(str(offset))
+        if proc is not None:
+            try:
+                exit_code = await asyncio.wait_for(asyncio.shield(proc.wait()), 0.5)
+                break
+            except TimeoutError:
+                pass
+        elif not sessions.pid_alive(pid):
+            break
+        else:
+            await asyncio.sleep(0.5)
+        if run_id in _cancelled:
+            break
+        if time.monotonic() > deadline:
+            if pid and pid in await _our_pids(run_id, pid):
+                await sessions.stop_tree(pid)
+            _append(log_path, "system", f"timeout after {timeout_min} min")
+            status = "timeout"
+            break
+    lines, offset = _read_new(stream, offset)
+    for line in lines:
+        _append(log_path, "out", line)
+        result = _result_event(line) or result
+    offset_file.write_text(str(offset))
+    if status != "timeout":
+        clean = (exit_code == 0) if proc is not None else bool(result)
+        status = "ok" if clean and not (result or {}).get("is_error") else "error"
+    if run_id in _cancelled:
         status = "cancelled"
-        raise
-    finally:
-        await _finish(run_id, status, exit_code, result)
+        _cancelled.discard(run_id)
+    await _finish(run_id, status, exit_code, result)
+
+
+async def _our_pids(run_id: str, pid: int) -> list[int]:
+    async with pool().connection() as conn:
+        row = await runs_repo.get_agent_run(conn, run_id) or {}
+    return [pid] if await sessions.is_ours(pid, row.get("session_id")) else []
 
 
 def _result_event(line: str) -> dict | None:
@@ -265,20 +324,132 @@ async def _finish(run_id: str, status: str, exit_code: int | None, result: dict 
         await runs_repo.finish_agent_run(conn, run_id, status, exit_code, result)
 
 
-async def cancel(target: str) -> bool:
-    """Cancel by run id, or every running run of a profile (older callers)."""
-    hits = [rid for rid, (key, task) in _running.items()
-            if not task.done() and (rid == target or key.split(":", 1)[0] == target)]
-    for rid in hits:
-        _running[rid][1].cancel()
-    if not hits:
+async def cancel_run(run_id: str) -> dict[str, Any]:
+    """Stop exactly this run: its agent process and that process's children, after checking that the process's command
+    line carries the run's session id. Chrome, your own chats and other runs are never signalled. The run is marked
+    cancelled whatever its process does; late inbox files are parked and CLI writes refused."""
+    async with pool().connection() as conn:
+        row = await runs_repo.get_agent_run(conn, run_id)
+        if row is None:
+            raise AgentRunError("unknown run")
+        if row["status"] not in ("running", "waiting"):
+            return {"status": "already_finished", "killed": 0, "note": f"the run already ended ({row['status']})"}
+        _cancelling.add(run_id)            # the watchdog leaves this run alone until it is marked
         try:
-            uuid.UUID(target)
-        except ValueError:
-            return False
-        async with pool().connection() as conn:      # a waiting (VS Code) run: nothing to kill, mark it
-            row = await (await conn.execute(
-                "UPDATE agent_runs SET status = 'cancelled', finished_at = clock_timestamp() "
-                "WHERE id = %s AND status = 'waiting' RETURNING id", (target,))).fetchone()
-            return row is not None
-    return True
+            live = await sessions.live_sessions()
+            s = live.get(row.get("session_id"))
+            pid = (s.pid if s else None) or row.get("pid")
+            killed, note = 0, None
+            if pid and await sessions.is_ours(pid, row.get("session_id")):
+                _cancelled.add(run_id)
+                killed = await sessions.stop_tree(pid)
+                outcome = "stopped"
+            elif s is not None:            # a session we cannot match safely (a VS Code chat): leave it, say so
+                outcome, note = "not_running", "the agent runs in a VS Code chat: stop it there"
+            else:
+                outcome, note = "not_running", "no live agent process for this run"
+            await runs_repo.mark_cancelled(conn, run_id, note or f"stopped {killed} process(es)")
+            await conn.commit()
+        finally:
+            _cancelling.discard(run_id)
+    return {"status": outcome, "killed": killed, "note": note}
+
+
+async def cancel(target: str) -> dict[str, Any]:
+    """Cancel by run id, or every open run of a profile (older callers)."""
+    try:
+        uuid.UUID(target)
+    except ValueError:
+        async with pool().connection() as conn:
+            ids = [str(r["id"]) for r in await runs_repo.open_agent_runs(conn) if r["profile"] == target]
+        results = [await cancel_run(i) for i in ids]
+        return {"status": "stopped" if any(r["status"] == "stopped" for r in results) else "not_running",
+                "killed": sum(r["killed"] for r in results), "runs": len(results), "note": None}
+    return await cancel_run(target)
+
+
+def _timeout_min(profile_name: str) -> float:
+    from findhome.config.store import get_store
+
+    bundle = get_store().bundle
+    profile = bundle.agent.profiles.get(profile_name) if bundle else None
+    return float(profile.timeout_min) if profile else 60.0
+
+
+async def reconcile(conn, only: str | None = None) -> dict[str, int]:
+    """The watchdog (at startup, every 60 s, and on demand): match open runs with the live Claude sessions.
+
+    - The session is listed: record busy / idle; a CLI run nobody follows (after a backend reload) is adopted again.
+    - Not listed, but our process still runs: liveness `unknown`; kept, adopted, and stopped at its timeout.
+    - Not listed and no process of ours: `ended_no_handover` with the reason (and the stream's cost, if any).
+    - The list cannot be read and there is no pid (a VS Code chat): kept until its timeout plus 10 minutes."""
+    live = await sessions.live_sessions()
+    counts = {"alive": 0, "adopted": 0, "ended": 0, "kept": 0}
+    for row in await runs_repo.open_agent_runs(conn):
+        run_id = str(row["id"])
+        if (only and run_id != only) or run_id in _cancelling:
+            continue                                    # Cancel is stopping it and marks it itself
+        if run_id in _running and not _running[run_id][1].done():
+            counts["kept"] += 1                         # our follower is on it and finishes the run itself
+            s = live.get(row.get("session_id"))
+            if s is not None:
+                await runs_repo.set_liveness(conn, run_id, "alive_busy" if s.status == "busy" else "alive_idle")
+            continue
+        s = live.get(row.get("session_id"))
+        pid = (s.pid if s else None) or row.get("pid")
+        timeout = _timeout_min(row["profile"])
+        elapsed = (datetime.now(UTC) - row["started_at"]).total_seconds()
+        if s is not None:
+            await runs_repo.set_liveness(conn, run_id, "alive_busy" if s.status == "busy" else "alive_idle")
+            counts["alive"] += 1
+        elif pid and await sessions.is_ours(pid, row.get("session_id")):
+            await runs_repo.set_liveness(conn, run_id, "unknown")
+            counts["kept"] += 1
+        elif not live.ok and not pid and elapsed < (timeout + 10) * 60:
+            await runs_repo.set_liveness(conn, run_id, "unknown")
+            counts["kept"] += 1
+            continue
+        else:
+            reason = ("session ended without run close" if live.ok or pid
+                      else "no session list and past the timeout")
+            await runs_repo.end_without_handover(conn, run_id, reason, _stream_result(row))
+            counts["ended"] += 1
+            continue
+        if row.get("launcher") == "cli" and pid and row.get("run_dir"):
+            task = asyncio.create_task(_follow(run_id, repo_root() / row["run_dir"], timeout, pid=pid,
+                                               started=time.monotonic() - elapsed))
+            _running[run_id] = (f"{row['profile']}:{row.get('site_slug') or ''}", task)
+            counts["adopted"] += 1
+    from findhome.jobs.service import finalize_agent_runs
+
+    await finalize_agent_runs(conn)
+    return counts
+
+
+def _stream_result(row: dict) -> dict | None:
+    """The final `result` event in a run's stream file, if the agent got that far."""
+    if not row.get("run_dir"):
+        return None
+    stream = repo_root() / row["run_dir"] / "stream.jsonl"
+    if not stream.exists():
+        return None
+    result = None
+    with stream.open(encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            result = _result_event(line.rstrip("\n")) or result
+    return result
+
+
+async def watchdog(interval_s: float = 60) -> None:
+    """Reconcile at startup, then every `interval_s`; one failure never stops the loop. FINDHOME_RUN_WATCHDOG=off
+    turns it off (the Postgres-backed tests reconcile on demand instead)."""
+    if os.environ.get("FINDHOME_RUN_WATCHDOG") == "off":
+        return
+    while True:
+        try:
+            async with pool().connection() as conn:
+                await reconcile(conn)
+                await conn.commit()
+        except Exception as exc:  # noqa: BLE001 - the database may be down; try again next time
+            log.info("run watchdog: %s", exc)
+        await asyncio.sleep(interval_s)

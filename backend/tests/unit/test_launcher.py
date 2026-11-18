@@ -30,10 +30,12 @@ def test_browser_scan_params(bundle):
 
 def test_argv_substitution(bundle):
     prof = bundle.agent.profiles["browser_scan"]
-    values = {"site": "qasa", "pages": 2, "run_id": "r1", "session_id": "s1", "max_turns": max_turns(prof, {"pages": 2})}
+    values = {"site": "qasa", "pages": 2, "run_id": "r1", "session_id": "s1", "max_turns": max_turns(prof, {"pages": 2}),
+              "profile": "browser_scan", "run_short": "r1abcdef"}
     argv = build_argv(prof, "PROMPT", values)
     assert argv[:3] == ["claude", "-p", "PROMPT"]
     assert argv[argv.index("--session-id") + 1] == "s1"
+    assert argv[argv.index("-n") + 1] == "findhome-browser_scan-r1abcdef"     # the name claude agents --json shows
     assert argv[argv.index("--max-turns") + 1] == "64"                      # 40 + 12 per page
     tools = argv[argv.index("--allowedTools") + 1].split(",")
     assert "mcp__claude-in-chrome__javascript_tool" in tools and "Write(./inbox/**)" in tools

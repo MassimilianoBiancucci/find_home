@@ -76,8 +76,21 @@ async def start(body: AgentRunRequest):
 
 @router.post("/agent-runs/{target}/cancel")
 async def cancel(target: str):
-    """Cancel one run (its id) or every running run of a profile (its name)."""
-    return {"cancelled": await launcher.cancel(target)}
+    """Cancel one run (its id) or every open run of a profile (its name). Stops only that run's agent process and its
+    children: {status: stopped | not_running | already_finished, killed, note}."""
+    try:
+        res = await launcher.cancel(target)
+    except launcher.AgentRunError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"cancelled": res["status"] in ("stopped", "not_running"), **res}
+
+
+@router.post("/agent-runs/{run_id}/reconcile")
+async def reconcile(run_id: str, conn=Depends(get_conn)):
+    """Check one open run against the live Claude sessions now ("Mark as ended" when its session is gone)."""
+    counts = await launcher.reconcile(conn, only=run_id)
+    row = await runs_repo.get_agent_run(conn, run_id)
+    return {**counts, "status": row["status"] if row else None, "liveness": row.get("liveness") if row else None}
 
 
 @router.patch("/agent-runs/{run_id}")

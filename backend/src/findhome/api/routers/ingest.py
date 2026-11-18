@@ -1,7 +1,7 @@
 """The agent ↔ app write path (used by `findhome ingest` and the scanners)."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from findhome.core.db import get_conn
 from findhome.db import repo, runs_repo
@@ -12,6 +12,8 @@ router = APIRouter(prefix="/api/ingest", tags=["ingest"])
 
 @router.post("/listings", response_model=IngestResult)
 async def ingest_listings(body: IngestRequest, conn=Depends(get_conn)):
+    if body.run and (why := await runs_repo.run_refuses_writes(conn, body.run)):
+        raise HTTPException(409, why)                # a cancelled run's late writes are refused
     if body.scan_run_id or not body.run or not body.listings:
         return await repo.ingest(conn, body)
     # an agent's ingest with a run id: one scan run per site, shared by every call with the same run id

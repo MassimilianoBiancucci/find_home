@@ -99,7 +99,7 @@ def file_meta(data: Any, items: list[ListingIn]) -> dict[str, Any]:
 
 def _move(path: Path, folder: str, error: str | None = None) -> None:
     dest = path.parent / folder
-    dest.mkdir(exist_ok=True)
+    dest.mkdir(parents=True, exist_ok=True)
     target = dest / path.name
     if target.exists():
         target = dest / f"{path.stem}-{datetime.now(UTC):%H%M%S%f}{path.suffix}"
@@ -108,9 +108,29 @@ def _move(path: Path, folder: str, error: str | None = None) -> None:
         target.with_suffix(".error.txt").write_text(error, encoding="utf-8")
 
 
+async def _late_for(conn, run: str | None) -> str | None:
+    """The file belongs to a run that is over for the app: cancelled, or ended more than 15 minutes ago (a late write
+    from an agent that lived on). Such files are parked, never imported."""
+    if not run:
+        return None
+    row = await (await conn.execute(
+        """SELECT id, status, finished_at < clock_timestamp() - interval '15 minutes' AS long_ago
+           FROM agent_runs WHERE id::text = %s""", (str(run),))).fetchone()
+    if row and (row["status"] == "cancelled" or (row["status"] not in ("running", "waiting") and row["long_ago"])):
+        return str(row["id"])
+    return None
+
+
 async def import_file(conn, path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
+        late = await _late_for(conn, data.get("run") if isinstance(data, dict) else None)
+        if late:
+            await conn.execute("UPDATE agent_runs SET late_files = late_files + 1 WHERE id = %s", (late,))
+            await conn.commit()
+            _move(path, f"cancelled/{late}")
+            log.info("inbox: %s parked: its run %s is over", path.name, late)
+            return {"file": path.name, "parked": late}
         items = to_listings(data, seen_date(path.name))
         meta = file_meta(data, items)
         run_id = None

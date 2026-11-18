@@ -83,10 +83,15 @@ async def lifespan(app: FastAPI):
     await _sync_sites_safe()
     watcher = asyncio.create_task(store.watch())
     inbox_watcher = asyncio.create_task(inbox.watch(db.pool()))
+    # runs left open by a reload are matched with the live Claude sessions at startup, then every 60 s; the agents
+    # themselves are never stopped by a shutdown
+    from findhome.agentrun.launcher import watchdog
+
+    run_watchdog = asyncio.create_task(watchdog())
     try:
         yield
     finally:
-        for task in (watcher, inbox_watcher):
+        for task in (watcher, inbox_watcher, run_watchdog):
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task

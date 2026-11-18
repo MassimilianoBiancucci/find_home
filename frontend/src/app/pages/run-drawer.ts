@@ -7,6 +7,7 @@ import { StatusChip } from '../components/status-chip';
 import { ScanRunListing } from '../models';
 import { TimelineItem, fmtCost, isLive, resumeUrl, runVerdict } from '../run-format';
 import { ApiService, apiError } from '../services/api.service';
+import { ToastService } from '../services/toast.service';
 
 /** Detail of one run in the Runs drawer: header facts, handover, counts, cost, denials, the live log, its listings. */
 @Component({
@@ -20,7 +21,18 @@ import { ApiService, apiError } from '../services/api.service';
     @if (it.agent?.kind) { <span class="fh-chip fh-tone-muted">{{ it.agent!.kind }}</span> }
     @if (it.scan?.dry_run) { <span class="fh-chip fh-tone-off">dry run</span> }
     @if (it.site) { <fh-site-logo [slug]="it.site" [withName]="true" /> }
-    @if (live() && it.type === 'agent') { <button class="btn btn-sm btn-outline-danger ms-auto" (click)="cancel()">Cancel run</button> }
+    @if (it.agent?.liveness && live()) {
+      <span class="fh-chip" [class]="it.agent!.liveness === 'gone' ? 'fh-tone-off' : it.agent!.liveness === 'unknown' ? 'fh-tone-muted' : 'fh-tone-good'"
+        [title]="'Seen by the watchdog' + (it.agent!.last_seen_at ? ' at ' + (it.agent!.last_seen_at | date: 'HH:mm:ss') : '')">
+        {{ livenessLabel(it.agent!.liveness) }}</span>
+    }
+    @if (live() && it.type === 'agent') {
+      @if (it.agent?.liveness === 'gone') {
+        <button class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="busy()" (click)="markEnded()">Mark as ended</button>
+      }
+      <button class="btn btn-sm btn-outline-danger" [class.ms-auto]="it.agent?.liveness !== 'gone'" [disabled]="busy()" (click)="cancel()">
+        {{ busy() ? 'Cancelling…' : 'Cancel run' }}</button>
+    }
     @if (live() && it.type === 'job') { <button class="btn btn-sm btn-outline-danger ms-auto" (click)="cancelJob()">Cancel job</button> }
   </div>
   @if (it.status === 'waiting') {
@@ -29,6 +41,10 @@ import { ApiService, apiError } from '../services/api.service';
   }
   @if (it.status === 'ended_no_handover') {
     <div class="alert alert-secondary py-2 small">The session ended without writing its handover (<code>findhome run close</code>). What it did is in the log and its scan runs.</div>
+  }
+  @if (it.status === 'cancelled' && it.agent?.late_files) {
+    <div class="alert alert-secondary py-2 small">{{ it.agent!.late_files }} file(s) arrived after Cancel: parked in
+      <code>inbox/cancelled/{{ it.id }}/</code>, not imported.</div>
   }
   @if (it.status === 'expired') {
     <div class="alert alert-secondary py-2 small">Nobody started this VS Code run in time; it expired.</div>
@@ -121,6 +137,8 @@ import { ApiService, apiError } from '../services/api.service';
 })
 export class RunDrawer implements OnChanges, OnDestroy {
   private api = inject(ApiService);
+  private toast = inject(ToastService);
+  protected busy = signal(false);
   protected verdict = runVerdict;
   readonly item = input.required<TimelineItem>();
   /** Open another run in the drawer (a parent or a child). */
@@ -185,9 +203,30 @@ export class RunDrawer implements OnChanges, OnDestroy {
     this.es.onerror = () => { this.es?.close(); this.logDone.set(true); };
   }
 
+  /** Cancel stops only this run's agent and its child commands; the toast says what happened. */
   cancel(): void {
-    this.api.cancelAgent(this.item().id).subscribe({ next: () => this.changed.emit(), error: (e) => this.error.set(apiError(e)) });
+    this.busy.set(true);
+    this.api.cancelAgent(this.item().id).subscribe({
+      next: (r) => {
+        this.busy.set(false);
+        const text = r.status === 'stopped' ? `Run cancelled: stopped ${r.killed} process${r.killed === 1 ? '' : 'es'}`
+          : r.status === 'not_running' ? 'Run marked cancelled: no agent process was running'
+          : 'The run had already ended';
+        this.toast.show(text, r.status === 'already_finished' ? 'info' : 'good', 6000, r.note ?? undefined);
+        this.changed.emit();
+      },
+      error: (e) => { this.busy.set(false); this.error.set(apiError(e)); this.toast.show('Cancel failed', 'bad', 8000, apiError(e)); },
+    });
   }
+  /** A run whose session is gone: let the watchdog check it now and close it. */
+  markEnded(): void {
+    this.busy.set(true);
+    this.api.reconcileAgent(this.item().id).subscribe({
+      next: (r) => { this.busy.set(false); this.toast.show(`Run checked: ${r.status ?? 'unknown'}`, 'info'); this.changed.emit(); },
+      error: (e) => { this.busy.set(false); this.error.set(apiError(e)); },
+    });
+  }
+  protected livenessLabel = (l: string) => ({ alive_busy: 'agent busy', alive_idle: 'agent idle', gone: 'agent gone', unknown: 'agent unknown' }[l] ?? l);
   cancelJob(): void {
     this.api.cancelJobRun(this.item().id).subscribe({ next: () => this.changed.emit(), error: (e) => this.error.set(apiError(e)) });
   }

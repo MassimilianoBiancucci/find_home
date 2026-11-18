@@ -107,8 +107,17 @@ async def job_run_cancel(run_id: str, conn=Depends(get_conn)):
     return await service.cancel_run(conn, run_id)
 
 
+async def _refuse_cancelled(conn, job_run_id: str) -> None:
+    from findhome.db import runs_repo
+
+    run = await service.run_detail(conn, job_run_id)
+    if why := await runs_repo.run_refuses_writes(conn, run.get("agent_run_id")):
+        raise HTTPException(409, why)
+
+
 @router.post("/job-runs/{run_id}/next")
 async def job_next(run_id: str, conn=Depends(get_conn)):
+    await _refuse_cancelled(conn, run_id)
     try:
         return {"item": await service.next_item(conn, run_id)}
     except JobError as exc:
@@ -117,6 +126,7 @@ async def job_next(run_id: str, conn=Depends(get_conn)):
 
 @router.post("/job-runs/{run_id}/submit")
 async def job_submit(run_id: str, body: SubmitIn, conn=Depends(get_conn)):
+    await _refuse_cancelled(conn, run_id)
     try:
         return await service.submit(conn, run_id, body.short_id, body.pet, body.evidence, body.url)
     except JobError as exc:

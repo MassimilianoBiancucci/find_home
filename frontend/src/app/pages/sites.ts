@@ -18,6 +18,7 @@ export function liveBySite(t: RunsTimeline): Map<string, LiveRun> {
   const agent = (a: AgentRun) => ({ id: a.id, type: 'agent' as const, status: a.status,
     label: a.status === 'waiting' ? 'waiting in VS Code' : 'agent running' });
   for (const a of t.agent_runs) {
+    if (a.liveness === 'gone') continue;               // the watchdog found no live session: it does not block the site
     if (a.site_slug && live(a.status)) out.set(a.site_slug, agent(a));
     for (const s of a.scan_runs ?? []) if (live(s.status) && !out.has(s.site_slug)) out.set(s.site_slug, agent(a));
   }

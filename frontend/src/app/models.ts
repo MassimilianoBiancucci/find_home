@@ -129,7 +129,12 @@ export interface AgentRun {
   site_slug?: string | null; params?: Record<string, unknown> | null; session_id?: string | null; transcript_path?: string | null;
   cost_usd?: number | null; num_turns?: number | null; result?: AgentRunResult | null; duration_s?: number | null;
   scan_runs?: ScanRun[]; job_runs?: JobRun[];
+  /** The agent's process as the watchdog last saw it (claude agents --json): gone means no live session. */
+  liveness?: 'alive_busy' | 'alive_idle' | 'gone' | 'unknown' | null; pid?: number | null; session_name?: string | null;
+  last_seen_at?: string | null; late_files?: number | null;
 }
+/** What Cancel did: stopped the agent and its children, found nothing running, or the run had already ended. */
+export interface CancelResult { cancelled: boolean; status: 'stopped' | 'not_running' | 'already_finished'; killed: number; note?: string | null; }
 export interface ScanRun {
   id: string; site_slug: string; method: string; trigger: string; dry_run?: boolean; started_at: string; finished_at?: string | null;
   status: string; counts: ScanCounts; error?: string | null; agent_run_id?: string | null; batch_id?: string | null;

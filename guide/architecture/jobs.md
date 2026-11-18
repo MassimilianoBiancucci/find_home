@@ -61,7 +61,9 @@ sequenceDiagram
 answer) is recorded as `unchanged` with a note. Undo puts back the `before` value only when nobody changed the
 listing's pet status since the job; otherwise it is refused and the listing is changed on its own page.
 
-The execution ends when `jobs next` finds nothing left (`ok`), when you cancel it, or when its agent run ends
+The execution ends when `jobs next` finds nothing left (`ok`), when you cancel it (which also stops its agent run's
+process, exactly as the run drawer's Cancel does, and refuses that run's later `jobs next` and `jobs submit` with
+409), or when its agent run ends
 first (`partial` with listings left, `error` when the agent failed). The agent run appears on the Runs page with
 the job run nested under it.
 

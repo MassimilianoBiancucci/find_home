@@ -9,8 +9,7 @@ import {
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, HouseLocation, Listing, ListingDetail, TransitResult, ZoneStats,
   PoiCategory, ProbeResult, SavedProbe, Site, TransitLine, TransitMeta, ZoneCommute,
-  IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef,
-} from '../models';
+  IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef, CancelResult } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
 @Injectable({ providedIn: 'root' })
@@ -76,7 +75,8 @@ export class ApiService {
     return this.http.post<AgentStart>('/api/agent-runs', { profile, params, launcher });
   }
   /** Cancel one run (its id) or every running run of a profile (its name). */
-  cancelAgent(target: string) { return this.http.post<{ cancelled: boolean | number }>(`/api/agent-runs/${target}/cancel`, {}); }
+  cancelAgent(target: string) { return this.http.post<CancelResult>(`/api/agent-runs/${target}/cancel`, {}); }
+  reconcileAgent(id: string) { return this.http.post<{ status: string | null; liveness: string | null }>(`/api/agent-runs/${id}/reconcile`, {}); }
 
   jobs() { return this.http.get<{ items: Job[] }>('/api/jobs'); }
   job(key: string) { return this.http.get<Job>(`/api/jobs/${key}`); }

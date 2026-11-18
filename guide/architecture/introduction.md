@@ -51,7 +51,9 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 records for every scan and agent session; [`011_listing_origin.sql`](../../backend/migrations/011_listing_origin.sql)
 adds `listings.origin_site`; [`012_pets.sql`](../../backend/migrations/012_pets.sql) adds the `conflict` pet status,
 `pet_source` and `pet_checked_at`; [`013_jobs.sql`](../../backend/migrations/013_jobs.sql) adds `jobs`, `job_runs`
-and `job_items`.
+and `job_items`; [`014_agent_outcome.sql`](../../backend/migrations/014_agent_outcome.sql) the agent's own verdict;
+[`015_agent_run_process.sql`](../../backend/migrations/015_agent_run_process.sql) the run's process (pid, session
+name), its liveness and the late files parked after Cancel.
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in

@@ -62,6 +62,7 @@ def client(db_url, test_repo, monkeypatch):
     from findhome.core.settings import get_settings
 
     monkeypatch.setenv("FINDHOME_DATABASE_URL", db_url)
+    monkeypatch.setenv("FINDHOME_RUN_WATCHDOG", "off")     # tests reconcile on demand, never against your live sessions
     get_settings.cache_clear()
     db_mod._pool = None
     store_mod._store = store_mod.ConfigStore(test_repo / "config", test_repo / "sites")
