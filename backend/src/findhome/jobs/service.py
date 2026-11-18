@@ -242,7 +242,19 @@ async def submit(conn, run_id: str, short_id: str, pet: str, evidence: str | Non
                        (Jsonb(res["before"]), Jsonb(after) if after else None, evidence, page_url, outcome, note,
                         item["id"]))
     await conn.execute("UPDATE job_runs SET counts = %s WHERE id = %s", (Jsonb(await _counts(conn, run_id)), run_id))
+    await mark_item_usage(conn, run_id, item["id"])
     return {"short_id": short_id.upper(), "outcome": outcome, "after": after, "note": note}
+
+
+async def mark_item_usage(conn, run_id: str, item_id) -> None:
+    """The tokens the agent used on this item: its run's usage since the previous submit (#12 usage marks)."""
+    from findhome.api.state import bundle
+    from findhome.db import runs_repo
+
+    run = await _one(conn, "SELECT agent_run_id FROM job_runs WHERE id = %s", (run_id,))
+    mark = await runs_repo.usage_mark(conn, run and run["agent_run_id"], dict(bundle().agent.prices))
+    if mark:
+        await conn.execute("UPDATE job_items SET usage = %s WHERE id = %s", (Jsonb(mark), item_id))
 
 
 async def undo(conn, item_id: int) -> dict:

@@ -219,7 +219,9 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
                                "pages": stats.pages, "seen": stats.items, "parsed": stats.parsed,
                                "filtered": sum(filt.get("filtered", {}).values()),
                                "parse_errors": stats.parse_errors, "errors": stats.errors, "filters": filt,
-                               **details}
+                               **details,
+                               # a scripted scan spends no tokens: its cost is its requests (list pages + page reads)
+                               "requests": stats.pages + details["details_read"] + details["details_failed"]}
     if dry_run:
         summary["preview"] = [i.model_dump(mode="json", exclude_defaults=True) for i in items[:3]]
     else:

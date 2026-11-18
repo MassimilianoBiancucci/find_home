@@ -312,6 +312,9 @@ pre.fh-pre {
 .fh-swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid rgba(0, 0, 0, 0.5); flex: none; }
 .fh-kv { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 0.85rem;
   dt { color: var(--bs-secondary-color); font-weight: 500; } dd { margin: 0; } }
+.fh-usage { font-size: 0.78rem; border-collapse: collapse;
+  th, td { padding: 0 8px 0 0; text-align: right; } th:first-child, td:first-child { text-align: left; }
+  th { font-weight: 500; color: var(--bs-secondary-color); } }
 
 // ── Explanations: ⓘ button, popover, "How is this calculated?" (components/info.ts, explain.ts) ──────────
 .fh-info { display: inline-flex; vertical-align: middle; }

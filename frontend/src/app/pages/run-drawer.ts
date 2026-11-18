@@ -73,7 +73,19 @@ import { ToastService } from '../services/toast.service';
     }
     <dt>Started</dt><dd>{{ it.started_at | date: 'medium' }}</dd>
     @if (finished()) { <dt>Finished</dt><dd>{{ finished() | date: 'medium' }}{{ it.duration ? ' · ' + it.duration : '' }}</dd> }
-    @if (it.cost || it.turns) { <dt>Cost</dt><dd>{{ it.cost || '–' }}{{ it.turns ? ' · ' + it.turns + ' turns' : '' }}</dd> }
+    @if (it.cost || it.turns) { <dt>Cost</dt><dd>{{ it.cost || '–' }}{{ it.turns ? ' · ' + it.turns + ' turns' : '' }}
+      @if (it.agent?.cost_estimated) { <small class="text-body-secondary">(estimated: the run sent no final result)</small> }</dd> }
+    @if (usageRows().length) {
+      <dt>Usage</dt>
+      <dd><table class="fh-usage">
+        <tr><th></th><th>in</th><th>out</th><th>cache read</th><th>cache write</th></tr>
+        @for (r of usageRows(); track r.model) {
+          <tr><td class="fh-mono">{{ r.model }}</td><td>{{ tok(r.input) }}</td><td>{{ tok(r.output) }}</td>
+            <td>{{ tok(r.cache_read) }}</td><td>{{ tok(r.cache_write) }}</td></tr>
+        }
+      </table>
+      @if (perUnit(); as pu) { <div class="small text-body-secondary">{{ pu }}</div> }</dd>
+    }
   </dl>
 
   @if (counts().length) {
@@ -173,6 +185,17 @@ export class RunDrawer implements OnChanges, OnDestroy {
   protected json = (v: unknown) => JSON.stringify(v);
   protected hasKeys = (o: object) => Object.keys(o).length > 0;
   protected fmtCost = fmtCost;
+  /** Tokens by model, from the run's usage (live while it runs, the exact figures at the end). */
+  protected usageRows = computed(() => Object.entries(this.item().agent?.usage ?? {}).map(([model, t]) => ({
+    model, input: t['input'] ?? 0, output: t['output'] ?? 0, cache_read: t['cache_read'] ?? 0,
+    cache_write: (t['cache_write_5m'] ?? 0) + (t['cache_write_1h'] ?? 0) })));
+  /** Cost per result page of its scan runs, when they were imported page by page. */
+  protected perUnit = computed(() => {
+    const a = this.item().agent;
+    const pages = (a?.scan_runs ?? []).reduce((n, s) => n + Object.keys((s.counts as Record<string, unknown>)?.['pages'] ?? {}).length, 0);
+    return a?.cost_usd && pages ? `${pages} result page${pages === 1 ? '' : 's'} · ${fmtCost(a.cost_usd / pages)} per page` : '';
+  });
+  protected tok = (n: number) => (n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n));
   protected countTone = (k: string) => (k === 'new' || k === 'changed' ? 'good' : k.includes('error') ? 'bad' : k === 'conflict' ? 'mid' : 'muted');
 
   ngOnChanges(): void {

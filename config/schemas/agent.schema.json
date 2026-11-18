@@ -164,6 +164,36 @@
           }
         ]
       }
+    },
+    "prices": {
+      "type": "object",
+      "description": "Estimated $ per million tokens by model id, used only for runs that end without a result event (the result's own cost wins). Keys: input, output, cache_read, cache_write_5m, cache_write_1h.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "number",
+            "minimum": 0
+          },
+          "output": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_read": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_write_5m": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_write_1h": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
     }
   },
   "additionalProperties": false,

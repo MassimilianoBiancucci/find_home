@@ -121,6 +121,30 @@ async def _late_for(conn, run: str | None) -> str | None:
     return None
 
 
+async def _page_usage(conn, scan_run_id: str, meta: dict[str, Any], cards: int, res) -> None:
+    """One line per imported result page: its cards, new listings and the tokens the agent used since the previous
+    page, kept in scan_runs.counts.pages and written to the agent run's log."""
+    from findhome.agentrun import usage as u
+    from findhome.config.store import get_store
+
+    bundle = get_store().bundle
+    mark = await runs_repo.usage_mark(conn, meta.get("run"), dict(bundle.agent.prices) if bundle else {})
+    page = str(meta.get("page") or "?")
+    entry = {"cards": cards, "new": res.created, "updated": res.updated, **({"usage": mark} if mark else {})}
+    await conn.execute("""UPDATE scan_runs SET counts = jsonb_set(coalesce(counts, '{}'::jsonb), '{pages}',
+                                 coalesce(counts->'pages', '{}'::jsonb) || jsonb_build_object(%s::text, %s::jsonb))
+                          WHERE id = %s""", (page, json.dumps(entry), scan_run_id))
+    run = await (await conn.execute("SELECT log_path FROM agent_runs WHERE id::text = %s",
+                                    (str(meta.get("run") or ""),))).fetchone()
+    if run and run["log_path"]:
+        from findhome.core.paths import repo_root
+
+        line = f"page {page}: {cards} cards, {res.created} new" + (
+            f" · {u.short(mark['tokens'], mark['cost_estimate'])}" if mark else "")
+        with (repo_root() / run["log_path"]).open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t": datetime.now(UTC).isoformat(), "s": "system", "m": line}, ensure_ascii=False) + "\n")
+
+
 async def import_file(conn, path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -139,6 +163,7 @@ async def import_file(conn, path: Path) -> dict[str, Any]:
         res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
         if run_id:
             await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
+            await _page_usage(conn, run_id, meta, len(items), res)
         await conn.commit()
     except Exception as exc:  # noqa: BLE001 - a bad file must not stop the others
         await conn.rollback()

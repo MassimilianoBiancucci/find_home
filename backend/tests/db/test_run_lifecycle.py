@@ -103,3 +103,31 @@ def test_a_lone_write_rule_is_a_config_error(test_repo):
     with pytest.raises(ConfigError, match=r"Write\(\./notes/\*\*\) needs Edit"):    # refused before it is written
         apply_ops("agent", [{"op": "add", "path": "/profiles/browser_scan/allowed_tools/-", "value": "Write(./notes/**)"}],
                   test_repo / "config", test_repo / "sites")
+
+
+def test_usage_marks_give_each_unit_its_share(client, db_url):
+    import asyncio
+
+    from psycopg.types.json import Jsonb
+
+    from findhome.db import runs_repo
+
+    rid = _run_row(db_url)
+    first = {"claude-sonnet-5-5": {"input": 10, "output": 100, "cache_read": 1000, "cache_write_5m": 0, "cache_write_1h": 0}}
+    second = {"claude-sonnet-5-5": {"input": 15, "output": 160, "cache_read": 3000, "cache_write_5m": 0, "cache_write_1h": 0}}
+    prices = {"claude-sonnet-5-5": {"input": 2, "output": 10, "cache_read": 0.1}}
+
+    async def go():
+        async with await psycopg.AsyncConnection.connect(db_url, row_factory=dict_row, autocommit=True) as conn:
+            await runs_repo.set_usage(conn, rid, first, 0.01, estimated=True)
+            m1 = await runs_repo.usage_mark(conn, rid, prices)
+            await conn.execute("UPDATE agent_runs SET usage = %s WHERE id = %s", (Jsonb(second), rid))
+            m2 = await runs_repo.usage_mark(conn, rid, prices)
+            await runs_repo.set_usage(conn, rid, second, 0.5, estimated=False)       # the exact cost at the end
+            await runs_repo.set_usage(conn, rid, second, 0.2, estimated=True)        # a late estimate never wins
+            return m1, m2
+    m1, m2 = asyncio.run(go())
+    assert m1["tokens"] == first and m2["tokens"]["claude-sonnet-5-5"]["output"] == 60
+    assert round(m2["cost_estimate"], 6) == round((5 * 2 + 60 * 10 + 2000 * 0.1) / 1e6, 6)
+    row = _row(db_url, rid)
+    assert float(row["cost_usd"]) == 0.5 and row["cost_estimated"] is False

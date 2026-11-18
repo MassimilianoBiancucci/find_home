@@ -148,7 +148,8 @@ export function agentItem(a: AgentRun, l: Lookups = {}): TimelineItem {
   return {
     type: 'agent', id: a.id, icon, title: site ? `${label} · ${site}` : label, sub, site: a.site_slug ?? null, status: a.status,
     launcher: a.launcher ?? null, started_at: a.started_at, duration: fmtDuration(a.duration_s),
-    counts: countsText(sumCounts(a.scan_runs)), cost: fmtCost(a.cost_usd ?? a.result?.total_cost_usd),
+    counts: countsText(sumCounts(a.scan_runs)),
+    cost: (a.cost_estimated && a.cost_usd != null ? '≈' : '') + fmtCost(a.cost_usd ?? a.result?.total_cost_usd),
     turns: a.num_turns ?? a.result?.num_turns ?? null, children, agent: a,
   };
 }

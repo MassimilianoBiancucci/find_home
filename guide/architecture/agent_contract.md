@@ -148,6 +148,17 @@ stream's cost when there is one). When the list cannot be read, a run is kept un
 run drawer shows the liveness, and "Mark as ended" runs the watchdog for one run (`POST /api/agent-runs/{id}/reconcile`);
 a run whose liveness is `gone` does not block its site.
 
+**Token usage** ([`agentrun/usage.py`](../../backend/src/findhome/agentrun/usage.py)). The follower counts each
+run's tokens per model from the stream while it runs: input and cache reads and writes are exact (one count per
+message id), and output is a lower-bound estimate from the visible text and tool input, because the stream's
+assistant events carry only a placeholder output count. The live totals are saved every 5 s in `agent_runs.usage`.
+The final `result` event's `modelUsage` and cost replace them; a run that never sends one keeps its live totals and a
+cost estimated from the `prices` table in `config/agent.yaml` (`cost_estimated`, shown with "≈"). Each imported
+result page and each submitted job item takes a **usage mark**: the run's usage since the previous mark
+([`usage_mark()`](../../backend/src/findhome/db/runs_repo.py)), kept in `scan_runs.counts.pages` and
+`job_items.usage` and written to the run's log as "page 3: 12 cards, 2 new · … · ≈$0.05". The run drawer shows the
+tokens by model and the cost per page. A scripted scan spends no tokens; its summary counts its `requests`.
+
 **Cancel** ([`cancel_run()`](../../backend/src/findhome/agentrun/launcher.py#L327), `POST /api/agent-runs/{id}/cancel`)
 stops exactly the run's agent: the pid from the session list (or the stored one), after checking that its command
 line carries the run's session id, and that pid's child commands found by parent pid (Claude runs each Bash command

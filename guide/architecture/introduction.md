@@ -53,7 +53,8 @@ adds `listings.origin_site`; [`012_pets.sql`](../../backend/migrations/012_pets.
 `pet_source` and `pet_checked_at`; [`013_jobs.sql`](../../backend/migrations/013_jobs.sql) adds `jobs`, `job_runs`
 and `job_items`; [`014_agent_outcome.sql`](../../backend/migrations/014_agent_outcome.sql) the agent's own verdict;
 [`015_agent_run_process.sql`](../../backend/migrations/015_agent_run_process.sql) the run's process (pid, session
-name), its liveness and the late files parked after Cancel.
+name), its liveness and the late files parked after Cancel;
+[`016_agent_usage.sql`](../../backend/migrations/016_agent_usage.sql) the token usage of runs and job items.
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in

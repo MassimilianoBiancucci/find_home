@@ -8,6 +8,13 @@
 #  The agent CLI must be installed and logged in on this machine.
 #  Verify the exact flags of your CLI version before first use.
 # ─────────────────────────────────────────────────────────────
+# Estimated $ per million tokens, used only for a run that ends without a result event (cancelled, timed out,
+# orphaned); the result event's own cost always wins. List prices of the Claude API (2026-11), cache writes at
+# 1.25× (5 min) and 2× (1 h) input. Haiku 5.5: prompts up to 100K tokens; its cache read is 0.1× input (not listed).
+prices:
+  claude-opus-5-5:   {input: 4.0, output: 20.0, cache_read: 0.20, cache_write_5m: 5.0, cache_write_1h: 8.0}
+  claude-sonnet-5-5: {input: 2.0, output: 10.0, cache_read: 0.10, cache_write_5m: 2.5, cache_write_1h: 4.0}
+  claude-haiku-5-5:  {input: 0.10, output: 0.50, cache_read: 0.01, cache_write_5m: 0.125, cache_write_1h: 0.20}
 profiles:
   pet_agent_check:
     label: Browser agent - check pet policies (job)

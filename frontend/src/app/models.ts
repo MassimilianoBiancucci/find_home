@@ -132,6 +132,10 @@ export interface AgentRun {
   /** The agent's process as the watchdog last saw it (claude agents --json): gone means no live session. */
   liveness?: 'alive_busy' | 'alive_idle' | 'gone' | 'unknown' | null; pid?: number | null; session_name?: string | null;
   last_seen_at?: string | null; late_files?: number | null;
+  /** Tokens per model (input, output, cache_read, cache_write_5m, cache_write_1h); live while running, exact at the end. */
+  usage?: Record<string, Record<string, number>> | null;
+  /** The cost is estimated from the price table (the run ended without a result event). */
+  cost_estimated?: boolean | null;
 }
 /** What Cancel did: stopped the agent and its children, found nothing running, or the run had already ended. */
 export interface CancelResult { cancelled: boolean; status: 'stopped' | 'not_running' | 'already_finished'; killed: number; note?: string | null; }

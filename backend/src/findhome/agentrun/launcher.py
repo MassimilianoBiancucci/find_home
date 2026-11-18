@@ -27,6 +27,7 @@ from typing import Any
 from urllib.parse import quote
 
 from findhome.agentrun import sessions
+from findhome.agentrun import usage as usage_mod
 from findhome.config.loader import ConfigBundle
 from findhome.core.db import pool
 from findhome.core.paths import repo_root
@@ -249,6 +250,7 @@ async def _follow(run_id: str, run_dir: Path, timeout_min: float, proc=None, pid
     backend reload) has only its `pid`. A backend shutdown stops this task, never the agent."""
     stream, log_path, offset_file = run_dir / "stream.jsonl", run_dir / "log.jsonl", run_dir / ".stream_offset"
     offset = int(offset_file.read_text()) if offset_file.exists() else 0
+    usage = usage_mod.Usage.from_stream(stream, until=offset) if offset else usage_mod.Usage()   # adopted: recount
     result: dict | None = None
     deadline = (started or time.monotonic()) + timeout_min * 60
     status, exit_code = "error", None
@@ -257,7 +259,10 @@ async def _follow(run_id: str, run_dir: Path, timeout_min: float, proc=None, pid
         for line in lines:
             _append(log_path, "out", line)
             result = _result_event(line) or result
+            usage.add_line(line)
         offset_file.write_text(str(offset))
+        if usage.by_model and usage.due(5):         # live totals, every 5 s at most
+            await _save_usage(run_id, usage.totals(), None)
         if proc is not None:
             try:
                 exit_code = await asyncio.wait_for(asyncio.shield(proc.wait()), 0.5)
@@ -280,7 +285,9 @@ async def _follow(run_id: str, run_dir: Path, timeout_min: float, proc=None, pid
     for line in lines:
         _append(log_path, "out", line)
         result = _result_event(line) or result
+        usage.add_line(line)
     offset_file.write_text(str(offset))
+    await _save_usage(run_id, usage.totals(), result)
     if status != "timeout":
         clean = (exit_code == 0) if proc is not None else bool(result)
         status = "ok" if clean and not (result or {}).get("is_error") else "error"
@@ -288,6 +295,27 @@ async def _follow(run_id: str, run_dir: Path, timeout_min: float, proc=None, pid
         status = "cancelled"
         _cancelled.discard(run_id)
     await _finish(run_id, status, exit_code, result)
+
+
+def _prices() -> dict:
+    from findhome.config.store import get_store
+
+    bundle = get_store().bundle
+    return dict(bundle.agent.prices) if bundle else {}
+
+
+async def _save_usage(run_id: str, live: dict, result: dict | None) -> None:
+    """The result event's exact per-model usage and cost when there is one, else the live totals and an estimate."""
+    if result and result.get("modelUsage"):
+        totals, cost = usage_mod.from_model_usage(result["modelUsage"])
+        exact = True
+    else:
+        totals, cost, exact = live, usage_mod.estimate_cost(live, _prices()), False
+    if not totals:
+        return
+    async with pool().connection() as conn:
+        await runs_repo.set_usage(conn, run_id, totals, cost, estimated=not exact)
+        await conn.commit()
 
 
 async def _our_pids(run_id: str, pid: int) -> list[int]:
@@ -307,7 +335,7 @@ def _result_event(line: str) -> dict | None:
     if ev.get("type") != "result":
         return None
     keep = ("subtype", "is_error", "num_turns", "total_cost_usd", "duration_ms", "session_id", "result",
-            "permission_denials", "stop_reason", "errors")
+            "permission_denials", "stop_reason", "errors", "modelUsage")
     return {k: ev[k] for k in keep if k in ev}
 
 
@@ -412,7 +440,15 @@ async def reconcile(conn, only: str | None = None) -> dict[str, int]:
         else:
             reason = ("session ended without run close" if live.ok or pid
                       else "no session list and past the timeout")
-            await runs_repo.end_without_handover(conn, run_id, reason, _stream_result(row))
+            res = _stream_result(row)
+            await runs_repo.end_without_handover(conn, run_id, reason, res)
+            if res and res.get("modelUsage"):          # what it used: exact when the stream has a result event
+                totals, cost = usage_mod.from_model_usage(res["modelUsage"])
+                await runs_repo.set_usage(conn, run_id, totals, cost, False)
+            elif row.get("run_dir"):                   # else the live totals and an estimated cost
+                live = usage_mod.Usage.from_stream(repo_root() / row["run_dir"] / "stream.jsonl").totals()
+                if live:
+                    await runs_repo.set_usage(conn, run_id, live, usage_mod.estimate_cost(live, _prices()), True)
             counts["ended"] += 1
             continue
         if row.get("launcher") == "cli" and pid and row.get("run_dir"):

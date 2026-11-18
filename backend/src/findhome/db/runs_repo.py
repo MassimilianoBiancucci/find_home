@@ -200,6 +200,30 @@ async def open_agent_runs(conn) -> list[dict]:
     return await _all(conn, "SELECT * FROM agent_runs WHERE status = 'running' ORDER BY started_at")
 
 
+async def set_usage(conn, run_id: str, usage: dict, cost: float | None, estimated: bool) -> None:
+    """Live or final token usage; an estimated cost never overwrites an exact one."""
+    keep = "%s AND NOT cost_estimated AND cost_usd IS NOT NULL"          # an exact cost is already there
+    await conn.execute(f"""UPDATE agent_runs SET usage = %s,
+                                  cost_usd = CASE WHEN {keep} THEN cost_usd ELSE coalesce(%s, cost_usd) END,
+                                  cost_estimated = CASE WHEN {keep} THEN false ELSE %s END
+                           WHERE id = %s""", (Jsonb(usage), estimated, cost, estimated, estimated, run_id))
+
+
+async def usage_mark(conn, run_id: str | None, prices: dict | None = None) -> dict | None:
+    """The run's usage since its previous mark (a result page imported, a job item submitted), then a new mark.
+    None when the run is unknown or has no usage yet."""
+    from findhome.agentrun import usage as u
+
+    if not run_id:
+        return None
+    row = await _one(conn, "SELECT id, usage, usage_last_mark FROM agent_runs WHERE id::text = %s", (str(run_id),))
+    if not row or not row["usage"]:
+        return None
+    d = u.delta(row["usage"], row["usage_last_mark"])
+    await conn.execute("UPDATE agent_runs SET usage_last_mark = usage WHERE id = %s", (row["id"],))
+    return {"tokens": d, "cost_estimate": u.estimate_cost(d, prices or {})}
+
+
 async def run_refuses_writes(conn, run_id: str | None) -> str | None:
     """Why writes for this agent run are refused (a cancelled run), or None."""
     if not run_id:
