@@ -195,7 +195,7 @@ async def start(bundle: ConfigBundle, profile_name: str, params: dict[str, Any] 
         await conn.commit()
     (run_dir / ".run_id").write_text(run_id)
     fill = {**values, "run_id": run_id, "session_id": session_id, "max_turns": max_turns(profile, values),
-            "profile": profile_name, "run_short": run_id[:8]}
+            "profile": profile_name, "run_short": run_id[:8], "api": get_settings().api_base}
     prompt = prompt_text(profile, fill)
     out = {"id": run_id, "run_dir": rel, "profile": profile_name, "launcher": launcher, "params": values}
     if launcher == "vscode":
@@ -350,6 +350,14 @@ async def _finish(run_id: str, status: str, exit_code: int | None, result: dict 
         status = runs_repo.status_for(status, row.get("outcome"), run_id in _needs_close, bool(row.get("summary")))
         _needs_close.discard(run_id)
         await runs_repo.finish_agent_run(conn, run_id, status, exit_code, result)
+        await conn.commit()
+        if status in ("ok", "partial"):              # a browser scan hands over to the details job (one agent at a time)
+            from findhome.jobs.details import chain_after_run
+
+            try:
+                await chain_after_run(conn, run_id)
+            except Exception as exc:  # noqa: BLE001 - the scan is done whatever the chain does
+                log.warning("details job not chained after %s: %s", run_id, exc)
 
 
 async def cancel_run(run_id: str) -> dict[str, Any]:

@@ -82,3 +82,23 @@ def test_scan_reads_passing_pages_once_and_stores_them(client, mocked_scan):
     assert _listing(client, "700001")["available_from"] == "2027-02-01"                   # a feed-only scan keeps it
     forced = client.post("/api/scans", json={"site": "bostadsformedlingen", "refresh_details": True}).json()["results"][0]
     assert forced["details_read"] == 2                                                   # after a parser fix
+
+
+def test_the_script_details_job_reads_pages_again_in_the_background(client, mocked_scan):
+    import time
+
+    mod, calls = mocked_scan
+    client.post("/api/scans", json={"site": "bostadsformedlingen"})
+    reads = sum(1 for _m, p in calls if p.startswith("/bostad/"))
+    sid = client.get("/api/listings/exists", params={"site": "bostadsformedlingen", "ref": "700001"}).json()["short_id"]
+    res = client.post("/api/jobs/listing_details_script/run", json={"settings": {
+        "subset": {"short_ids": [sid]}, "n": 5}}).json()
+    run_id = res["run"]["id"]
+    for _ in range(50):                                   # the pages are read in the background
+        run = client.get(f"/api/job-runs/{run_id}").json()
+        if run["status"] != "running":
+            break
+        time.sleep(0.1)
+    assert run["status"] == "ok" and run["items"][0]["state"] == "done"
+    assert run["items"][0]["outcome"] == "unchanged", (run["items"][0]["before"], run["items"][0]["after"])
+    assert sum(1 for _m, p in calls if p.startswith("/bostad/")) == reads + 1

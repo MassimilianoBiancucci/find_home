@@ -50,7 +50,7 @@ const OUTCOMES = ['changed', 'conflict', 'unchanged', 'skipped', 'error'];
               @if (detail()?.summary) { <div class="small mb-2" style="white-space:pre-wrap">{{ detail()!.summary }}</div> }
               <div class="table-responsive">
                 <table class="table table-sm fh-items align-middle mb-0">
-                  <thead><tr><th>Listing</th><th>Pets</th><th>Evidence</th><th>Outcome</th><th></th></tr></thead>
+                  <thead><tr><th>Listing</th><th>{{ details() ? 'Changed' : 'Pets' }}</th><th>Evidence</th><th>Outcome</th><th></th></tr></thead>
                   <tbody>
                   @for (x of detail()?.items ?? []; track x.id) {
                     <tr>
@@ -59,12 +59,20 @@ const OUTCOMES = ['changed', 'conflict', 'unchanged', 'skipped', 'error'];
                         <a class="fh-mono ms-1" [routerLink]="['/candidates', x.short_id]">{{ x.short_id }}</a>
                         <div class="small text-body-secondary text-truncate" style="max-width:180px" [title]="x.title ?? ''">{{ x.area }}</div>
                       </td>
+                      @if (details()) {
+                        <td class="small">
+                          @for (c of changes(x); track c.k) {
+                            <div class="fh-change" [title]="c.k + ': ' + c.b + ' → ' + c.a"><span class="fh-mono">{{ c.k }}</span> {{ c.b }} <span class="fh-arrow">→</span> {{ c.a }}</div>
+                          } @empty { <span class="text-body-secondary">{{ x.state === 'queued' || x.state === 'leased' ? x.state : 'nothing new' }}</span> }
+                        </td>
+                      } @else {
                       <td class="text-nowrap">
                         <fh-pet-badge [status]="x.before?.pet_status ?? 'unknown'" [source]="x.before?.pet_source" [evidence]="x.before?.pet_evidence" />
                         <span class="fh-arrow">→</span>
                         @if (x.after) { <fh-pet-badge [status]="x.after.pet_status" [source]="x.after.pet_source" [evidence]="x.after.pet_evidence" /> }
                         @else { <span class="text-body-secondary small">{{ x.state === 'queued' || x.state === 'leased' ? x.state : 'same' }}</span> }
                       </td>
+                      }
                       <td>
                         @if (x.evidence) { <div class="fh-quote" [title]="x.evidence">“{{ x.evidence }}”</div> }
                         @if (x.page_url) { <a class="small" [href]="x.page_url" target="_blank" rel="noopener">page ↗</a> }
@@ -106,6 +114,13 @@ export class JobPage implements OnChanges {
   private toast = inject(ToastService);
   protected outcomes = OUTCOMES;
   protected job = signal<Job | null>(null);
+  /** A details job: items list the fields they changed instead of a pet answer. */
+  protected details = computed(() => (this.job()?.type ?? '').startsWith('listing_details'));
+  protected changes(x: JobItem): { k: string; b: string; a: string }[] {
+    const short = (v: unknown) => { const s = v == null ? '–' : Array.isArray(v) ? `${v.length} item${v.length === 1 ? '' : 's'}`
+      : typeof v === 'object' ? JSON.stringify(v) : String(v); return s.length > 40 ? s.slice(0, 39) + '…' : s; };
+    return Object.entries(x.after ?? {}).map(([k, a]) => ({ k: k.replace(/^attributes\./, ''), b: short((x.before as Record<string, unknown> | null | undefined)?.[k]), a: short(a) }));
+  }
   protected runs = signal<JobRun[]>([]);
   protected detail = signal<JobRunDetail | null>(null);
   protected selectedId = signal<string | null>(null);

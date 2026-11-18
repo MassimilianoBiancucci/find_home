@@ -48,6 +48,42 @@ profiles:
     launchers: [cli, vscode]
     timeout_min: 40
     env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
+  listing_details:
+    label: Browser agent - read listing pages (details job)
+    kind: job
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/listing_details.md exactly,
+      with job_run={job_run} n={n} run={run_id} api={api}.
+    params:
+      job_run: {type: job_run, required: true}
+      n: {type: int, min: 1, max: 60, default: 30}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: sonnet, label: Model}
+    allowed_tools:
+      - Read
+      - Write(./runs/details/**)
+      - Edit(./runs/details/**)
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__get_page_text
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Bash(scripts/findhome jobs next:*)
+      - Bash(scripts/findhome jobs submit:*)
+      - Bash(scripts/findhome jobs post-detail:*)
+    max_turns: 12
+    turns_per: {param: n, turns: 6}
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 60
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   claude_scan:
     label: Claude Code - scan for new listings
     kind: scan

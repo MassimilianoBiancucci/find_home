@@ -1,6 +1,8 @@
 """Jobs: definitions, executions, items; the agent protocol (next / submit) and undo."""
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -10,6 +12,7 @@ from findhome.core.db import get_conn
 from findhome.jobs import service
 from findhome.jobs.service import JobError
 
+_background: set = set()                 # in-app runs working in the background (kept alive here)
 router = APIRouter(prefix="/api", tags=["jobs"])
 
 
@@ -23,10 +26,15 @@ class RunIn(BaseModel):
 
 
 class SubmitIn(BaseModel):
+    """A pet check answer (`pet` + `evidence`), or a details job's free-text findings (`fields` + `field_evidence`,
+    one quote per field), or `gone` (the ad no longer exists)."""
     short_id: str
-    pet: str
+    pet: str | None = None
     evidence: str | None = None
     url: str | None = None
+    fields: dict | None = None
+    field_evidence: dict | None = None
+    gone: bool = False
 
 
 def _err(exc: JobError) -> HTTPException:
@@ -71,6 +79,15 @@ async def job_run(key: str, body: RunIn, conn=Depends(get_conn)):
         run = await service.create_run(conn, key, bundle().config_hash, settings)
     except (JobError, ValueError) as exc:
         raise _err(exc) if isinstance(exc, JobError) else HTTPException(422, str(exc)) from exc
+    if run["kind"] == "inapp" and run["job_key"] == "listing_details_script":
+        await conn.commit()                              # the background reader uses its own connections
+        from findhome.core.db import pool
+        from findhome.jobs.details import run_details_script
+
+        task = asyncio.create_task(run_details_script(pool(), str(run["id"])))
+        _background.add(task)
+        task.add_done_callback(_background.discard)
+        return {"run": run, "note": "reading the pages in the background, 3 s apart"}
     if run["kind"] == "inapp":
         return {"run": await service.run_keywords(conn, run["id"])}
     if not run["counts"].get("queued"):
@@ -128,6 +145,13 @@ async def job_next(run_id: str, conn=Depends(get_conn)):
 async def job_submit(run_id: str, body: SubmitIn, conn=Depends(get_conn)):
     await _refuse_cancelled(conn, run_id)
     try:
+        if body.fields is not None or body.gone:
+            from findhome.jobs.details import submit_details
+
+            return await submit_details(conn, run_id, body.short_id, body.fields or {}, body.field_evidence or {},
+                                        body.url, gone=body.gone)
+        if body.pet is None:
+            raise JobError("send pet (+ evidence), or fields (+ field_evidence), or gone")
         return await service.submit(conn, run_id, body.short_id, body.pet, body.evidence, body.url)
     except JobError as exc:
         raise HTTPException(422, str(exc)) from exc
@@ -136,6 +160,13 @@ async def job_submit(run_id: str, body: SubmitIn, conn=Depends(get_conn)):
 @router.post("/job-items/{item_id}/undo")
 async def job_undo(item_id: int, conn=Depends(get_conn)):
     try:
+        row = await (await conn.execute(
+            "SELECT j.type FROM job_items i JOIN job_runs r ON r.id = i.job_run_id JOIN jobs j ON j.key = r.job_key "
+            "WHERE i.id = %s", (item_id,))).fetchone()
+        if row and row["type"] in ("listing_details", "listing_details_script"):
+            from findhome.jobs.details import undo_details
+
+            return await undo_details(conn, item_id)
         return await service.undo(conn, item_id)
     except JobError as exc:
         raise HTTPException(409, str(exc)) from exc

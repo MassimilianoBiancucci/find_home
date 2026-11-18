@@ -14,15 +14,17 @@ from psycopg import OperationalError
 from psycopg_pool import PoolTimeout
 
 from findhome import __version__, inbox
+from findhome.api.raw_cors import RawInboxCors
 from findhome.api.routers import config as config_router
-from findhome.api.routers import digest, ingest, jobs, listings, map as map_router, runs, scoring, sites
-from findhome.api.routers import geocode as geocode_router
-from findhome.api.routers import geo as geo_router
-from findhome.api.routers import probe as probe_router
 from findhome.api.routers import connectivity as connectivity_router
-from findhome.api.routers import zone as zone_router
+from findhome.api.routers import digest, ingest, jobs, listings, runs, scoring, sites
 from findhome.api.routers import files as files_router
+from findhome.api.routers import geo as geo_router
+from findhome.api.routers import geocode as geocode_router
 from findhome.api.routers import house as house_router
+from findhome.api.routers import map as map_router
+from findhome.api.routers import probe as probe_router
+from findhome.api.routers import zone as zone_router
 from findhome.config.loader import ConfigError
 from findhome.config.store import get_store
 from findhome.core import db
@@ -102,6 +104,7 @@ app = FastAPI(title="find_home API", version=__version__, lifespan=lifespan,
               description="Local API of the find_home app. The agent writes through the findhome CLI, which calls this API.")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4400", "http://127.0.0.1:4400"],
                    allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(RawInboxCors)          # listing sites' pages may post extracted data to /api/inbox/raw only
 
 
 @app.exception_handler(ConfigError)

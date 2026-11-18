@@ -96,6 +96,12 @@ def address_parts(street_line: str | None, locality: str | None = None, postcode
             if v}
 
 
+def id_from_url(url: str | None) -> str | None:
+    """The object id in an object page's URL (/object/<id>/...)."""
+    m = OBJECT_ID.search(url or "")
+    return m.group(1) if m else None
+
+
 def to_listing(raw: dict) -> ListingIn:
     """Entry point for `findhome ingest listings --parser samtrygg` (raw docs from extract.js)."""
     ext = listing_id(raw)

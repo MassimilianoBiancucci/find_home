@@ -9,5 +9,5 @@ const dom = new JSDOM(fs.readFileSync(page, 'utf8'), {
   beforeParse(window) { window.__next_f = []; },          // the Next.js bootstrap defines it before the pushes
 });
 if (mode === 'hydrated') dom.window.__next_f.length = 0;
-const result = dom.window.eval(fs.readFileSync(script, 'utf8'));
-process.stdout.write(JSON.stringify(result));
+Promise.resolve(dom.window.eval(fs.readFileSync(script, 'utf8')))
+  .then((result) => process.stdout.write(JSON.stringify(result)));

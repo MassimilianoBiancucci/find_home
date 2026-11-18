@@ -178,8 +178,11 @@ export interface JobRun {
 export interface PetState { pet_status: PetStatus; pet_source?: PetSource | null; pet_evidence?: string | null; }
 export interface JobItem {
   id: number; short_id: string; title?: string | null; area?: string | null; origin_site?: string | null; state: string;
-  before?: PetState | null; after?: PetState | null; evidence?: string | null; page_url?: string | null;
-  outcome?: 'changed' | 'unchanged' | 'conflict' | 'skipped' | 'error' | null; note?: string | null;
+  /** Pet jobs: the pet state; details jobs: the fields the item changed (column or attributes.<key>). */
+  before?: (PetState & Record<string, unknown>) | null; after?: (PetState & Record<string, unknown>) | null;
+  evidence?: string | null; page_url?: string | null;
+  outcome?: 'changed' | 'unchanged' | 'conflict' | 'skipped' | 'error' | 'gone' | 'unread' | 'translated' | null;
+  note?: string | null;
   current_pet?: PetStatus | null; current_source?: PetSource | null;
 }
 export interface JobRunDetail extends JobRun { items: JobItem[]; }

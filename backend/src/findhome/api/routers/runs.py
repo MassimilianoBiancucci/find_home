@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from findhome.agentrun import launcher
 from findhome.api.state import bundle
@@ -24,6 +26,42 @@ async def inbox_import():
     from findhome.core.db import pool
 
     return {"results": await inbox.import_all(pool())}
+
+
+class RawIn(BaseModel):
+    """What a browser script posts from a listing site's page (the only request a script may send)."""
+    kind: Literal["detail", "page"]
+    site: str
+    run: str = Field(description="The open agent run the script works for")
+    url: str | None = None
+    job_run: str | None = None
+    doc: dict | None = None
+
+
+@router.post("/inbox/raw")
+async def inbox_raw(body: RawIn, conn=Depends(get_conn)):
+    """A page's extracted data, posted by the site's script (detail_extract.js), so it never passes through the
+    agent's context. Accepted only for an open agent run, from the site's own origin (api/raw_cors.py)."""
+    import uuid as _uuid
+
+    from findhome.jobs.details import raw_detail
+    from findhome.jobs.service import JobError
+
+    try:
+        _uuid.UUID(body.run)
+    except ValueError as exc:
+        raise HTTPException(422, "run must be an agent run id") from exc
+    run = await runs_repo.get_agent_run(conn, body.run)
+    if not run or run["status"] != "running":
+        raise HTTPException(409, "no open agent run with this id")
+    if body.kind == "page":
+        raise HTTPException(422, "page posts are not enabled yet")
+    if not body.url or body.doc is None:
+        raise HTTPException(422, "a detail post needs url and doc")
+    try:
+        return await raw_detail(conn, body.site, body.url, body.doc, body.job_run)
+    except JobError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.post("/runs/backfill-inbox")

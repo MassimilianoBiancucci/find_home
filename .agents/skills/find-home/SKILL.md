@@ -54,6 +54,7 @@ are read with the Read tool.
 | Browser scan of one site started by the app (`site=… pages=… run=…`), writing to `inbox/` | [prompts/browser_scan_site.md](prompts/browser_scan_site.md) |
 | Qasa scan in the Claude desktop app (Cowork), writing to `inbox/` | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
 | Check pet policies for a job run started by the app (`job_run=… n=… run=…`) | [prompts/pet_agent_check.md](prompts/pet_agent_check.md) |
+| Read listing pages for a details job started by the app (`job_run=… n=… run=… api=…`) | [prompts/listing_details.md](prompts/listing_details.md) |
 | Ask a landlord about the two cats | [prompts/pet_inquiry.md](prompts/pet_inquiry.md) |
 | Turn feedback into search changes | [prompts/research_guidance.md](prompts/research_guidance.md) |
 

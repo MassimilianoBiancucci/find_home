@@ -199,6 +199,12 @@ class QasaScanner(HttpListScanner):
         return item.model_copy(update=update)
 
 
+def id_from_url(url: str | None) -> str | None:
+    """The home id in a listing page's URL (/home/<id>)."""
+    m = re.search(r"/home/(\d+)", url or "")
+    return m.group(1) if m else None
+
+
 def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
     """The listing page (detail_extract.js output) as the fields it has, for the details job: only what the page
     showed, so a missing value never overwrites a stored one. Rent is stored as the monthly cost (rent + tenant fee),

@@ -24,6 +24,16 @@ TYPES: dict[str, JobType] = {
         "The agent opens each chosen listing in your Chrome, finds the exact pet sentence and records yes / no / ask "
         "with the quote (unknown when the page says nothing). Results apply at once; undo per listing.",
         profile="pet_agent_check", max_n=50),
+    "listing_details": JobType(
+        "listing_details", "agent", "Listing details by the agent",
+        "The agent opens each chosen listing's page in your Chrome and runs the site's detail_extract.js, which hands "
+        "the page's data (move-in, photos, floor, terms, description …) straight to the app. It then reads the page's "
+        "free text only for what is still missing, and records each value with its quote. Results apply at once; "
+        "undo per listing.", profile="listing_details", max_n=60),
+    "listing_details_script": JobType(
+        "listing_details_script", "inapp", "Listing details by script",
+        "For sites the app may read by script (Bostadsförmedlingen): reads each chosen listing's page again, as a scan "
+        "does, without tokens. Use it to refresh old listings without a full scan.", max_n=200),
 }
 
 

@@ -16,7 +16,8 @@
 // endOptimal, endUfn, startAsap, possibilityOfExtension}, traits: [{type, detail}], landlord_professional,
 // location: {latitude, longitude, route, streetNumber, locality, postalCode}, description, photos, plan_photos,
 // homeTemplates}.
-(() => {
+(async () => {
+  const doc = (() => {
   const root = document.documentElement;
   if (root.classList.contains('translated-ltr') || root.classList.contains('translated-rtl') || !/^sv/i.test(root.lang || 'sv')) {
     return { translated: true, lang: root.lang || null };
@@ -99,4 +100,17 @@
     plan_photos: uploads.filter((u) => u.type === 'home_layout_picture').map((u) => u.url),
     homeTemplates: (h.homeTemplates || []).length ? h.homeTemplates : undefined,
   };
+})();
+  // With window.FH_POST = {api, site, run, job_run} set (the details job), the result goes straight to the app
+  // (POST <api>/api/inbox/raw) and only the app's short answer comes back; without it, the result itself.
+  const P = window.FH_POST;
+  if (!P) return doc;
+  try {
+    const res = await fetch(`${P.api}/api/inbox/raw`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'detail', site: P.site, run: P.run, job_run: P.job_run, url: location.href, doc }) });
+    const answer = await res.json().catch(() => ({}));
+    return { posted: res.ok, http: res.status, ...answer };
+  } catch (e) {
+    return { posted: false, error: String(e), doc };          // blocked (CSP, app down): post it with the CLI instead
+  }
 })()
