@@ -105,12 +105,20 @@
   // (POST <api>/api/inbox/raw) and only the app's short answer comes back; without it, the result itself.
   const P = window.FH_POST;
   if (!P) return doc;
+  // Chrome may hold the request while it asks the user for local network access: give up after 10 s.
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 10000);
   try {
     const res = await fetch(`${P.api}/api/inbox/raw`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      signal: stop.signal,
       body: JSON.stringify({ kind: 'detail', site: P.site, run: P.run, job_run: P.job_run, url: location.href, doc }) });
     const answer = await res.json().catch(() => ({}));
     return { posted: res.ok, http: res.status, ...answer };
   } catch (e) {
-    return { posted: false, error: String(e), doc };          // blocked (CSP, app down): post it with the CLI instead
+    const error = e && e.name === 'AbortError'
+      ? 'no answer from the app in 10 s (Chrome may be asking to allow local network access)' : String(e);
+    return { posted: false, error, doc };                     // blocked (CSP, permission, app down): use the CLI
+  } finally {
+    clearTimeout(timer);
   }
 })()

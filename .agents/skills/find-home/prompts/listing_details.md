@@ -19,15 +19,16 @@ tools (write only under `runs/details/`). Never try to get around a refusal, a C
    a. Run `scripts/findhome jobs next <job_run>`. If it says `done`, go to step 5. Note the `short_id`, the `open:`
       URL, the `site:` and what is `missing:`.
    b. Navigate the tab to the `open:` URL and wait until the page has rendered.
-   c. Run the site's script with the JavaScript tool: first the line
+   c. Run the site's script with the JavaScript tool, as one piece of code: first the line
       `window.FH_POST = {api: "<api>", site: "<site>", run: "<run>", job_run: "<job_run>"};`
-      then the whole text of `sites/<site>/detail_extract.js`, unchanged (without the Read tool's line numbers).
+      then the word `await ` immediately followed by the whole text of `sites/<site>/detail_extract.js`, unchanged
+      (without the Read tool's line numbers). The script returns a promise; without `await` the tool answers `{}`.
       The answer is short: `{posted: true, short_id, outcome, changed, missing}`.
       - `outcome: "translated"` (or `{translated: true}`): Chrome has translated the page. Stop the whole run at
         step 6 with `--outcome failed` and the summary "page translated: turn off Chrome translation for Swedish".
       - `outcome: "gone"` or `"unread"`: nothing to add; go to the next listing.
-      - `posted: false`: the page could not send its data. Save the answer's `doc` with the Write tool as
-        `runs/details/<short_id>.json` and run
+      - `posted: false`: the page could not send its data (the `error` says why). Save the answer's `doc` with the
+        Write tool as `runs/details/<short_id>.json` and run
         `scripts/findhome jobs post-detail <job_run> --site <site> --url "<url>" --doc-file runs/details/<short_id>.json`.
    d. If `missing` lists `available_from` or the page shows contract terms the script cannot read: read the page
       text (`get_page_text`; `find` for "tillträde", "inflytt", "uppsägning", "deposition", "hyresgäster" when the
