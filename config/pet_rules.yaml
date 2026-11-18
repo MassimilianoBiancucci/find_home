@@ -24,6 +24,7 @@ languages:
       - '\b(husdjur|djur)\s+kan\s+(diskuteras|ga\s+bra|vara\s+ok)\b'
       - '\b(husdjur|djur)\s+efter\s+(samrad|godkannande)\b'
       - '\bfraga\s+om\s+husdjur\b'
+      - '\bhusdjur\s+tillatet\s*[—–-]\s*saknas\b'          # Samtrygg's unticked amenity row: the site says to ask
     'yes':
       - '\b(husdjur|djur|katt(er)?|hund(ar)?)\s+(ar\s+)?(tillatna|tillatet|tillaten|valkomna|valkommen|ok)\b'
       - '\b(husdjur|djur)\s+tillats\b'

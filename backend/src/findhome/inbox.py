@@ -52,7 +52,21 @@ def site_parser(slug: str):
     return mod.to_listing
 
 
-def to_listings(data: Any) -> list[ListingIn]:
+FILE_STAMP = re.compile(r"(\d{8})T\d{4,6}")
+
+
+def seen_date(name: str) -> str:
+    """The day an inbox file's page was read: the UTC stamp in its name (site-20261105T204500-p1.json), else today."""
+    m = FILE_STAMP.search(name)
+    if m:
+        d = m.group(1)
+        return f"{d[:4]}-{d[4:6]}-{d[6:]}"
+    return datetime.now(UTC).date().isoformat()
+
+
+def to_listings(data: Any, seen: str | None = None) -> list[ListingIn]:
+    """Listings of an inbox file. Raw site docs ('docs' + 'parser') get `_seen`, the day the page was read, so a
+    parser can date a card that gives a day without a year."""
     if isinstance(data, dict) and "docs" in data:
         if not data.get("parser"):
             raise ValueError("'docs' needs a 'parser' (site slug)")
@@ -60,7 +74,7 @@ def to_listings(data: Any) -> list[ListingIn]:
         items = []
         for d in data["docs"]:
             try:
-                items.append(convert(d))
+                items.append(convert({**d, "_seen": seen} if seen and isinstance(d, dict) else d))
             except ValueError as exc:      # e.g. an id the browser tool masked and no URL to recover it from
                 log.warning("inbox: %s doc skipped: %s", data["parser"], exc)
         if data["docs"] and not items:
@@ -97,7 +111,7 @@ def _move(path: Path, folder: str, error: str | None = None) -> None:
 async def import_file(conn, path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        items = to_listings(data)
+        items = to_listings(data, seen_date(path.name))
         meta = file_meta(data, items)
         run_id = None
         if meta["site"]:
@@ -175,7 +189,7 @@ async def write_state(conn, bundle=None) -> None:
     bundle = bundle or get_store().bundle
     rows = await (await conn.execute(
         """SELECT s.site_slug, count(*) AS n, max(s.last_seen_at) AS last_seen,
-                  max(l.attributes->>'publishedAt') AS last_published
+                  max(COALESCE(l.attributes->>'publishedOrBumpedAt', l.attributes->>'publishedAt')) AS last_published
            FROM listing_sources s JOIN listings l ON l.id = s.listing_id GROUP BY s.site_slug""")).fetchall()
     by_site = {r["site_slug"]: r for r in rows}
     slugs = set(by_site) | set(bundle.sites if bundle else [])

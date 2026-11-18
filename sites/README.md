@@ -8,6 +8,12 @@ One folder per website: `sites/<slug>/`
 | `NAVIGATION.md` | How to use the site well: search flow, filters, listing anatomy, pet wording, traps. Written and kept current by the agent. |
 | `scanner.py` | Optional. `make_scanner(site)` for sites the generic scanner cannot handle (Playwright, embedded JSON, a whole-region feed); `to_listing(doc)` converts browser-extracted items from `inbox/`. |
 | `extract.js` | Browser-only sites: run by the browser agent on a result page already loaded in your Chrome (reads the page, sends no requests). |
+| `detail_extract.js` | Browser-only sites: run on one listing page for the details job; reads the page's structured data first (JSON-LD, page state), visible text only for what that lacks. `scanner.py` `detail_to_listing(doc)` maps its output to the fields the page had. |
+
+Every browser script starts with the same check: a page Chrome has translated (`html.translated-ltr`, or a `lang`
+that is not Swedish) returns `{translated: true}` and is not read, since labels, dates and even street names change.
+Scripts read with `textContent`, never `innerText`. Inbox files of raw site docs give each doc `_seen`, the day the
+page was read (from the file name), so a parser can date a card that shows a day without a year.
 | `logo.svg` / `logo.png` | Optional. The site's logo for the app (`brand.logo`); without it the app falls back to `brand.favicon` or the site's favicon. |
 | `probe/*.md` | Reports from `findhome site probe` (committed; raw dumps under `probe/raw/` are not). |
 

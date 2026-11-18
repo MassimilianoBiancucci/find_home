@@ -6,11 +6,18 @@
 // only listings published or bumped after it. Results are newest first, so `older_reached: true` means the
 // following pages hold nothing new: stop paging.
 //
+// Each doc is the whole search node (every field Qasa sends, without __typename and nulls), so the app decides what
+// to keep; uploads are capped per type. A page Chrome has translated returns {translated: true}: stop the site.
+//
 // Output: {page, totalCount, pagesCount, on_page, new_count, older_reached, docs}. Save it as
 // inbox/qasa-<UTC yyyymmddThhmmss>-p<page>.json with "site":"qasa","parser":"qasa","source":"agent_browser" and
 // "run":"<run id>" added (prompts/browser_scan_site.md), or ingest it:
 // scripts/findhome ingest listings -f <file> --parser qasa --source agent_browser --run <run id>.
 (() => {
+  const root = document.documentElement;
+  if (root.classList.contains('translated-ltr') || root.classList.contains('translated-rtl') || !/^sv/i.test(root.lang || 'sv')) {
+    return { translated: true, lang: root.lang || null };
+  }
   const MAX_UPLOADS = 40;   // per type (photos, floor plans)
   const since = window.FH_SINCE ? Date.parse(window.FH_SINCE) : null;
   const all = []; let meta = {};
@@ -27,15 +34,18 @@
   }
   const stamp = (n) => Date.parse(n.publishedOrBumpedAt || n.publishedAt || 0);
   const fresh = since ? all.filter((n) => stamp(n) > since) : all;
+  // drop __typename and empty values, recursively, so the inbox file stays small
+  const strip = (v) => {
+    if (Array.isArray(v)) return v.map(strip);
+    if (v && typeof v === 'object') {
+      const o = {};
+      for (const [k, x] of Object.entries(v)) if (k !== '__typename' && x !== null && x !== undefined) o[k] = strip(x);
+      return o;
+    }
+    return v;
+  };
   const docs = fresh.map((n) => ({
-    id: n.id, title: n.title, homeType: n.homeType, monthlyCost: n.monthlyCost, rent: n.rent,
-    tenantBaseFee: n.tenantBaseFee, roomCount: n.roomCount, bedroomCount: n.bedroomCount,
-    squareMeters: n.squareMeters, petsAllowed: n.petsAllowed, firstHand: n.firstHand, shared: n.shared,
-    furnished: n.furnished, startDate: n.startDate, endDate: n.endDate, platform: n.platform,
-    publishedAt: n.publishedOrBumpedAt || n.publishedAt, householdSize: n.householdSize, smokingAllowed: n.smokingAllowed,
-    description: (n.description || '').slice(0, 400),
-    location: n.location && { locality: n.location.locality, route: n.location.route,
-      streetNumber: n.location.streetNumber, point: n.location.point && { lat: n.location.point.lat, lon: n.location.point.lon } },
+    ...strip({ ...n, uploads: undefined }),
     // Every photo and floor plan, in upload order (search results carry the full gallery). Split by type before the
     // cap so a floor plan ordered late is kept; 40 per type keeps the inbox file small.
     uploads: ['home_picture', 'home_layout_picture'].flatMap((type) => (n.uploads || [])

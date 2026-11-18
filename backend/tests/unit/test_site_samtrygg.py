@@ -51,3 +51,59 @@ def test_masked_values_are_recovered_or_dropped():
     import pytest
     with pytest.raises(ValueError):
         to_listing()(doc(id="[BLOCKED: a]", url="[BLOCKED: b]"))
+
+
+def module():
+    spec = importlib.util.spec_from_file_location("samtrygg_m", REPO / "sites" / "samtrygg" / "scanner.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_a_start_without_a_year_takes_the_next_occurrence_after_the_day_seen():
+    convert = to_listing()
+    dec = convert(doc(period="1 dec – Tillsvidare", _seen="2026-11-05"))
+    assert str(dec.available_from) == "2026-12-01" and dec.attributes["move_in_raw"] == "1 dec"
+    jan = convert(doc(period="15 jan – Tillsvidare", _seen="2026-12-20"))
+    assert str(jan.available_from) == "2027-01-15"                       # a January start seen in December: next year
+    same_day = convert(doc(period="5 nov – Tillsvidare", _seen="2026-11-05"))
+    assert str(same_day.available_from) == "2026-11-05"
+    now = convert(doc(period="Nu – 31 jan 2027", _seen="2026-11-05"))
+    assert now.available_from is None and now.attributes["move_in_raw"] == "Nu"
+    assert str(now.contract_end) == "2027-01-31"
+
+
+def test_address_parts_never_invent_a_number():
+    m = module()
+    assert m.address_parts("Exempelvägen 12B", "Exempelby") == {"street": "Exempelvägen", "number": "12B",
+                                                                 "locality": "Exempelby"}
+    assert m.address_parts("Exempelvägen", "Exempelby") == {"street": "Exempelvägen", "locality": "Exempelby"}
+    assert to_listing()(doc()).attributes["address_parts"] == {"street": "Påhittade gatan", "number": "1",
+                                                               "locality": "Testholmen"}
+
+
+def test_object_page_maps_structured_data_and_the_pet_row():
+    m = module()
+    page = {"listing": True, "start": "2026-08-01", "end": None, "price": 12500, "price_note": "inkl. el",
+            "rooms": 2, "size": 55, "geo": {"latitude": 59.27, "longitude": 18.08},
+            "address": {"streetAddress": "Exempelvägen 12B", "postalCode": "123 45", "addressLocality": "Exempelby"},
+            "photos": ["https://img.invalid/a.jpg", "https://img.invalid/b.jpg"], "description": "Påhittad text.",
+            "amenities": ["Balkong"], "facts": {"VÅNING": "3", "MÖBLERING": "Delvis möblerad", "BOENDEFORM": "Hyresrätt",
+                                                 "FRÅN": "18 nov. 2026"},
+            "pets": "ask", "pets_evidence": "Husdjur tillåtet — saknas"}
+    out = m.detail_to_listing(page)
+    assert out["available_from"] == "2026-08-01" and "contract_end" not in out    # JSON-LD, not today's FRÅN
+    assert (out["floor"], out["rent_sek"], out["lat"]) == (3, 12500, 59.27) and "furnished" not in out
+    a = out["attributes"]
+    assert a["open_ended"] and a["furnishing_raw"] == "Delvis möblerad" and a["housing_type"] == "Hyresrätt"
+    assert a["address_parts"] == {"street": "Exempelvägen", "number": "12B", "locality": "Exempelby", "postcode": "123 45"}
+    assert a["pets_flag"] == {"value": "ask", "evidence": "Husdjur tillåtet — saknas"} and a["photo_count"] == 2
+    yes = m.detail_to_listing({**page, "pets": "yes", "pets_evidence": "Husdjur tillåtet"})
+    assert yes["attributes"]["pets_flag"]["value"] is True
+
+
+def test_inbox_files_give_parsers_the_day_they_were_read():
+    from findhome.inbox import seen_date
+
+    assert seen_date("samtrygg-20261105T204500-p1.json") == "2026-11-05"
+    assert len(seen_date("no-stamp.json")) == 10

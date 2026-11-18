@@ -27,6 +27,8 @@ def ingest_candidate(item) -> tuple[str, str | None, str]:
 
     - The site's structured flag (attributes.pets_flag = {"value": true|false, "evidence": "..."}) is the site's
       answer; the text is checked against it, and a yes/no contradiction is a `conflict` (source site).
+      `"value": "ask"` is a site that leaves pets to the landlord (Samtrygg's unticked "Husdjur tillåtet — saknas"):
+      `ask`, unless the text says an explicit yes or no, which then decides.
     - Without a flag, an explicit pet_status sent with the listing is the sender's (agent for browser/manual
       ingests, site for scripted scanners).
     - Otherwise the wording rules decide (source keywords), `unknown` when no explicit phrase is found.
@@ -36,6 +38,11 @@ def ingest_candidate(item) -> tuple[str, str | None, str]:
     text = " \n".join(str(x) for x in (item.title, item.description_excerpt, attrs.get("pets_text")) if x)
     found = detect(text)
     value = flag.get("value")
+    if value == "ask":
+        site_ev = flag.get("evidence") or "site flag: ask the landlord"
+        if found.status in ("yes", "no"):
+            return found.status, f"{found.evidence} / site: {site_ev}", "keywords"
+        return "ask", site_ev, "site"
     if value in (True, False):
         site_status = "yes" if value else "no"
         site_ev = flag.get("evidence") or f"site flag: pets {'allowed' if value else 'not allowed'}"

@@ -126,3 +126,19 @@ def test_ingest_candidate():
     assert ingest_candidate(_listing(description_excerpt="Katter är välkomna."))[::2] == ("yes", "keywords")
     assert ingest_candidate(_listing(pet_status="no", pet_evidence="'no cats'", method="agent_browser"))[2] == "agent"
     assert ingest_candidate(_listing(description_excerpt="Fin utsikt."))[0] == "unknown"
+
+
+def test_site_flag_ask_and_the_samtrygg_saknas_row():
+    from findhome.domain.models import ListingIn
+    from findhome.pets import detect, ingest_candidate
+
+    def item(flag=None, text=None):
+        attrs = {"pets_flag": flag} if flag else {}
+        return ListingIn(source={"site_slug": "samtrygg", "external_id": "1"}, description_excerpt=text, attributes=attrs)
+
+    row = {"value": "ask", "evidence": "Husdjur tillåtet — saknas"}
+    assert ingest_candidate(item(row)) == ("ask", "Husdjur tillåtet — saknas", "site")
+    status, evidence, source = ingest_candidate(item(row, "Tyvärr inga husdjur."))
+    assert (status, source) == ("no", "keywords") and "saknas" in evidence      # an explicit text decides
+    assert detect("Husdjur tillåtet — saknas").status == "ask"                   # never read as yes
+    assert detect("Husdjur tillåtet").status == "yes"

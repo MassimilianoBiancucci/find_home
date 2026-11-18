@@ -114,3 +114,40 @@ def test_summary_line_shows_fetch_errors():
     s = {"site": "qasa", "seen": 0, "parse_errors": 0, "method": "http", "seconds": 0.2,
          "errors": ["page 1: HTTPStatusError 429 (the site refuses scripted requests: use fetch.method agent_browser)"]}
     assert "429" in summary_line(s) and "agent_browser" in summary_line(s)
+
+
+def test_node_kept_whole_price_split_and_bump_date_apart():
+    from findhome.domain.models import DESCRIPTION_MAX
+
+    mod = qasa_module()
+    node = {"id": 1400001, "monthlyCost": 11654, "rent": 11000, "tenantBaseFee": 654, "startDate": "2027-01-01",
+            "publishedAt": "2026-07-01T07:32:52Z", "publishedOrBumpedAt": "2026-10-26T19:50:40Z",
+            "displayStreetNumber": False, "rentalLengthSeconds": 0, "sortingScore": 0.5, "description": "x" * 5000,
+            "location": {"route": "Exempelgatan", "locality": "Exempelby", "point": {"lat": 59.4, "lon": 17.9}},
+            "uploads": [{"type": "home_layout_picture", "url": "https://img.invalid/plan.jpg", "order": 1}],
+            "_seen": "2026-11-16"}
+    item = mod.to_listing(node)
+    a = item.attributes
+    assert item.rent_sek == 11654 and a["price"] == {"rent": 11000, "tenant_base_fee": 654, "monthly_cost": 11654}
+    assert a["publishedAt"] == "2026-07-01T07:32:52Z" and a["publishedOrBumpedAt"] == "2026-10-26T19:50:40Z"
+    assert a["qasa"] == {"displayStreetNumber": False, "rentalLengthSeconds": 0, "sortingScore": 0.5}
+    assert len(item.description_excerpt) == 5000 < DESCRIPTION_MAX
+    assert a["address_parts"] == {"street": "Exempelgatan", "locality": "Exempelby"}
+    assert a["floorplans"] == [{"url": "https://img.invalid/plan.jpg", "kind": "image"}]
+
+
+def test_listing_page_detail_mapping():
+    mod = qasa_module()
+    out = mod.detail_to_listing({
+        "listing": True, "status": "normal", "floor": 2, "buildingFloors": 5, "buildYear": 1962, "furnished": False,
+        "rent": 11000, "tenantBaseFee": 654,
+        "duration": {"startOptimal": "2027-01-01T00:00:00Z", "endOptimal": None, "endUfn": True,
+                     "possibilityOfExtension": False},
+        "traits": ["balcony", "pets"], "landlord_professional": True,
+        "location": {"latitude": 59.4, "longitude": 17.9, "route": "Exempelgatan", "locality": "Exempelby"},
+        "photos": ["https://img.invalid/a.jpg"], "plan_photos": ["https://img.invalid/p.jpg"]})
+    assert (out["floor"], out["build_year"], out["rent_sek"], out["available_from"]) == (2, 1962, 11654, "2027-01-01")
+    assert out["has_balcony"] and out["has_elevator"] is False and "contract_end" not in out
+    a = out["attributes"]
+    assert a["open_ended"] and a["qasa_status"] == "normal" and a["pets_flag"]["value"] is True
+    assert a["floorplans"] == [{"url": "https://img.invalid/p.jpg", "kind": "image"}]

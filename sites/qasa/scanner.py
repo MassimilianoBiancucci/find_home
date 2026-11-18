@@ -34,6 +34,10 @@ from findhome.scanning.generic import HttpListScanner
 BASE = "https://qasa.com"
 APOLLO_RE = re.compile(r'<script>(\(window\[Symbol\.for\("ApolloSSRDataTransport"\)\][\s\S]*?)</script>')
 MAX_UPLOADS = 40                   # per type; search results carry the whole gallery (extract.js keeps the same cap)
+# node fields mapped to columns or fixed keys; every other scalar goes to attributes.qasa for the field report
+MAPPED = {"id", "title", "homeType", "monthlyCost", "rent", "tenantBaseFee", "roomCount", "squareMeters", "petsAllowed",
+          "firstHand", "shared", "furnished", "startDate", "endDate", "description", "location", "uploads",
+          "publishedAt", "publishedOrBumpedAt", "lastBumpedAt", "_seen"}
 HOME_TYPES = {"apartment": "Lägenhet", "terrace_house": "Radhus", "house": "Villa", "villa": "Villa",
               "cottage": "Stuga", "duplex": "Parhus", "corridor": "Korridorsrum", "loft": "Loft"}
 
@@ -90,7 +94,22 @@ def document_to_listing(doc: dict, site_slug: str = "qasa") -> ListingIn:
     title = doc.get("title") or f"{HOME_TYPES.get(home_type, home_type or 'Bostad')} - {address or ''}".strip(" -")
     attrs = {k: doc.get(k) for k in ("rent", "tenantBaseFee", "bedroomCount", "homeType", "platform", "householdSize",
                                     "smokingAllowed", "wheelchairAccessible", "studentHome", "seniorHome",
-                                    "corporateHome", "instantSign", "publishedAt") if doc.get(k) is not None}
+                                    "corporateHome", "instantSign", "publishedAt", "publishedOrBumpedAt",
+                                    "lastBumpedAt") if doc.get(k) is not None}
+    # the search price and filter are monthlyCost (rent + tenant fee); kept apart so a later change is readable
+    price = {k: doc.get(f) for k, f in (("rent", "rent"), ("tenant_base_fee", "tenantBaseFee"),
+                                        ("monthly_cost", "monthlyCost")) if isinstance(doc.get(f), (int, float))}
+    if price:
+        attrs["price"] = {k: int(v) for k, v in price.items()}
+    extra = {k: v for k, v in doc.items() if k not in MAPPED and k not in attrs and isinstance(v, (str, int, float, bool))}
+    if extra:
+        attrs["qasa"] = extra
+    parts = {k: v for k, v in {"street": loc.get("route"), "number": loc.get("streetNumber"),
+                               "locality": loc.get("locality"), "postcode": loc.get("postalCode")}.items() if v}
+    if parts:
+        attrs["address_parts"] = {k: str(v) for k, v in parts.items()}
+    if plans:                          # layout pictures are images: no request needed to classify them
+        attrs["floorplans"] = [{"url": u, "kind": "image"} for u in plans]
     attrs["qasa_pets_allowed"] = pets
     # Qasa sets petsAllowed from the landlord's house rules. False is not proof of "no pets" (it is also the
     # default), so only true is a site flag; the description is checked against it at ingest (findhome.pets).
@@ -178,6 +197,69 @@ class QasaScanner(HttpListScanner):
         if "pets" in traits and not (item.attributes.get("pets_flag") or {}).get("value"):
             update["attributes"]["pets_flag"] = {"value": True, "evidence": "Qasa listing traits include 'pets'"}
         return item.model_copy(update=update)
+
+
+def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
+    """The listing page (detail_extract.js output) as the fields it has, for the details job: only what the page
+    showed, so a missing value never overwrites a stored one. Rent is stored as the monthly cost (rent + tenant fee),
+    the value the search shows and filters on."""
+    out: dict[str, Any] = {}
+    attrs: dict[str, Any] = {}
+    for col, key in (("floor", "floor"), ("build_year", "buildYear"), ("rooms_rok", "roomCount"), ("size_m2", "squareMeters")):
+        if doc.get(key) is not None:
+            out[col] = doc[key]
+    if isinstance(doc.get("furnished"), bool):
+        out["furnished"] = doc["furnished"]
+    dur = doc.get("duration") or {}
+    if dur.get("startOptimal"):
+        out["available_from"] = out["contract_start"] = _date(dur["startOptimal"])
+    if dur.get("endOptimal"):
+        out["contract_end"] = _date(dur["endOptimal"])
+    if dur.get("endUfn"):
+        attrs["open_ended"] = True
+    if dur.get("possibilityOfExtension") is not None:
+        attrs["contract_terms"] = {"extension_raw": "possibilityOfExtension: "
+                                   + ("true" if dur["possibilityOfExtension"] else "false")}
+    rent, fee = doc.get("rent"), doc.get("tenantBaseFee")
+    if isinstance(rent, (int, float)):
+        out["rent_sek"] = int(rent + (fee or 0))
+        attrs["price"] = {k: int(v) for k, v in (("rent", rent), ("tenant_base_fee", fee),
+                                                 ("monthly_cost", rent + (fee or 0))) if isinstance(v, (int, float))}
+    if doc.get("buildingFloors") is not None:
+        attrs["building_floors"] = doc["buildingFloors"]
+    if doc.get("bedroomCount") is not None:
+        attrs["bedroomCount"] = doc["bedroomCount"]
+    if doc.get("landlord_professional") is not None:
+        attrs["landlord_professional"] = doc["landlord_professional"]
+    if doc.get("status"):
+        attrs["qasa_status"] = doc["status"]
+    traits = set(doc.get("traits") or [])
+    if traits:
+        attrs["qasa_traits"] = sorted(traits)
+        out["has_balcony"] = bool(traits & {"balcony", "french_balcony", "patio"})
+        out["has_elevator"] = "elevator" in traits
+        if "pets" in traits:
+            attrs["pets_flag"] = {"value": True, "evidence": "Qasa listing traits include 'pets'"}
+    loc = doc.get("location") or {}
+    if loc.get("latitude") is not None and loc.get("longitude") is not None:
+        out["lat"], out["lon"] = float(loc["latitude"]), float(loc["longitude"])
+    parts = {k: str(v) for k, v in {"street": loc.get("route"), "number": loc.get("streetNumber"),
+                                    "locality": loc.get("locality"), "postcode": loc.get("postalCode")}.items() if v}
+    if parts:
+        attrs["address_parts"] = parts
+    if doc.get("description"):
+        out["description_excerpt"] = str(doc["description"])[:DESCRIPTION_MAX]
+    photos = [u for u in doc.get("photos") or [] if isinstance(u, str) and u.startswith("http")][:MAX_UPLOADS]
+    if photos:
+        out["photo_urls"] = photos
+        attrs["photo_count"] = len(photos)
+    plans = [u for u in doc.get("plan_photos") or [] if isinstance(u, str) and u.startswith("http")][:MAX_UPLOADS]
+    if plans:
+        out["floorplan_urls"] = plans
+        attrs["floorplans"] = [{"url": u, "kind": "image"} for u in plans]
+    if attrs:
+        out["attributes"] = attrs
+    return out
 
 
 def to_listing(raw: dict) -> ListingIn:

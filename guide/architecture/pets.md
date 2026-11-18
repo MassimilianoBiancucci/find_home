@@ -12,7 +12,7 @@ only, with the quoted evidence kept, and by a fixed precedence of who may decide
 |---|---|---|
 | `user` (4) | `POST /api/listings/{id}/pet`, the `no_pets` feedback tag | "landlord confirmed by phone" |
 | `agent` (3) | evaluations with `pet_status` + `pet_evidence`, `findhome jobs submit` | "'Husdjur efter överenskommelse.'" |
-| `site` (2) | the site's structured flag, `attributes.pets_flag` (Qasa `petsAllowed=true`, a "Husdjur ok" badge) | "Qasa house rules: pets allowed" |
+| `site` (2) | the site's structured flag, `attributes.pets_flag`: `true` (Qasa `petsAllowed=true`, a "Husdjur ok" badge), or `"ask"` for a site that leaves pets to the landlord (Samtrygg's unticked row "Husdjur tillåtet — saknas"; an explicit yes or no in the text then decides) | "Qasa house rules: pets allowed" |
 | `keywords` (1) | the wording rules on title, description and `attributes.pets_text` | "Inga husdjur." |
 
 [`apply_pet()`](../../backend/src/findhome/pets/apply.py#L13) is the single rule: a candidate replaces the current
