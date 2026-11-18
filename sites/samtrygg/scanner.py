@@ -111,6 +111,8 @@ def to_listing(raw: dict) -> ListingIn:
     parts = address_parts(address, area)
     if parts:
         attrs["address_parts"] = parts
+    if raw.get("furnishing") and raw.get("furnished") is None:
+        attrs["furnishing_raw"] = raw["furnishing"]       # "Delvis möblerad", "Flexibelt": neither yes nor no
     pets = raw.get("pets")
     if pets and PETS_OK.search(pets):
         # The card's "Husdjur ok" tag is the site's own answer; its absence is not a "no", so only this is a flag.
@@ -191,6 +193,10 @@ def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
         out["description_excerpt"] = str(doc["description"])[:DESCRIPTION_MAX]
     if doc.get("amenities"):
         attrs["amenities"] = [str(a) for a in doc["amenities"]]
+    if doc.get("utilities"):
+        attrs["utilities"] = [str(u) for u in doc["utilities"]]      # "El — ingår", "Värme — tillgängligt mot kostnad"
+    if doc.get("area"):
+        attrs["district_label"] = doc["area"]            # the landlord's label in the heading; not always the true district
     if doc.get("price_note"):
         attrs["price_note"] = doc["price_note"]
     if doc.get("pets") in ("yes", "ask"):

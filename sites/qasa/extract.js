@@ -53,6 +53,6 @@
       .map((u) => ({ order: u.order, type: u.type, url: u.url }))),
   }));
   const page = Number(new URL(location.href).searchParams.get('page') || 1);
-  return { page, ...meta, on_page: all.length, new_count: docs.length,
+  return { page, ...meta, on_page: all.length, new_count: docs.length, last_page: meta.pagesCount ? page >= meta.pagesCount : null,
            older_reached: since ? fresh.length < all.length : false, docs };
 })()

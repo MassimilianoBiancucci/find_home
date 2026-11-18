@@ -98,6 +98,10 @@ def test_object_page_maps_structured_data_and_the_pet_row():
     assert a["open_ended"] and a["furnishing_raw"] == "Delvis möblerad" and a["housing_type"] == "Hyresrätt"
     assert a["address_parts"] == {"street": "Exempelvägen", "number": "12B", "locality": "Exempelby", "postcode": "123 45"}
     assert a["pets_flag"] == {"value": "ask", "evidence": "Husdjur tillåtet — saknas"} and a["photo_count"] == 2
+    both = m.detail_to_listing({**page, "utilities": ["El — ingår"], "area": "Exempelby"})["attributes"]
+    assert both["utilities"] == ["El — ingår"] and both["district_label"] == "Exempelby"
+    card = to_listing()(doc(furnished=None, furnishing="Delvis möblerad"))
+    assert card.furnished is None and card.attributes["furnishing_raw"] == "Delvis möblerad"
     yes = m.detail_to_listing({**page, "pets": "yes", "pets_evidence": "Husdjur tillåtet"})
     assert yes["attributes"]["pets_flag"]["value"] is True
 

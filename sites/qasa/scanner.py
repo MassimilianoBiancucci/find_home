@@ -208,7 +208,12 @@ def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
     for col, key in (("floor", "floor"), ("build_year", "buildYear"), ("rooms_rok", "roomCount"), ("size_m2", "squareMeters")):
         if doc.get(key) is not None:
             out[col] = doc[key]
-    if isinstance(doc.get("furnished"), bool):
+    furnishing = doc.get("furnishing")                 # from the `furniture` trait: furnished / partially_furnished / unfurnished
+    if furnishing in ("furnished", "unfurnished"):
+        out["furnished"] = furnishing == "furnished"
+    elif furnishing:
+        attrs["furnishing_raw"] = furnishing
+    elif isinstance(doc.get("furnished"), bool):
         out["furnished"] = doc["furnished"]
     dur = doc.get("duration") or {}
     if dur.get("startOptimal"):
@@ -222,9 +227,10 @@ def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
                                    + ("true" if dur["possibilityOfExtension"] else "false")}
     rent, fee = doc.get("rent"), doc.get("tenantBaseFee")
     if isinstance(rent, (int, float)):
-        out["rent_sek"] = int(rent + (fee or 0))
+        monthly = doc.get("monthlyCost") if isinstance(doc.get("monthlyCost"), (int, float)) else rent + (fee or 0)
+        out["rent_sek"] = int(monthly)
         attrs["price"] = {k: int(v) for k, v in (("rent", rent), ("tenant_base_fee", fee),
-                                                 ("monthly_cost", rent + (fee or 0))) if isinstance(v, (int, float))}
+                                                 ("monthly_cost", monthly)) if isinstance(v, (int, float))}
     if doc.get("buildingFloors") is not None:
         attrs["building_floors"] = doc["buildingFloors"]
     if doc.get("bedroomCount") is not None:
@@ -233,13 +239,15 @@ def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
         attrs["landlord_professional"] = doc["landlord_professional"]
     if doc.get("status"):
         attrs["qasa_status"] = doc["status"]
-    traits = set(doc.get("traits") or [])
+    raw_traits = [t if isinstance(t, dict) else {"type": t, "detail": None} for t in doc.get("traits") or []]
+    traits = {t["type"] for t in raw_traits if t.get("type")}
     if traits:
         attrs["qasa_traits"] = sorted(traits)
         out["has_balcony"] = bool(traits & {"balcony", "french_balcony", "patio"})
         out["has_elevator"] = "elevator" in traits
-        if "pets" in traits:
-            attrs["pets_flag"] = {"value": True, "evidence": "Qasa listing traits include 'pets'"}
+        pets = next((t for t in raw_traits if t.get("type") == "pets"), None)
+        if pets and (pets.get("detail") in (None, "pets_allowed")):
+            attrs["pets_flag"] = {"value": True, "evidence": f"Qasa listing trait pets ({pets.get('detail') or 'allowed'})"}
     loc = doc.get("location") or {}
     if loc.get("latitude") is not None and loc.get("longitude") is not None:
         out["lat"], out["lon"] = float(loc["latitude"]), float(loc["longitude"])

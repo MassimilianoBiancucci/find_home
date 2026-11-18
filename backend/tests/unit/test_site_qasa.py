@@ -143,7 +143,9 @@ def test_listing_page_detail_mapping():
         "rent": 11000, "tenantBaseFee": 654,
         "duration": {"startOptimal": "2027-01-01T00:00:00Z", "endOptimal": None, "endUfn": True,
                      "possibilityOfExtension": False},
-        "traits": ["balcony", "pets"], "landlord_professional": True,
+        "traits": [{"type": "balcony", "detail": None}, {"type": "pets", "detail": "pets_allowed"},
+                   {"type": "furniture", "detail": "partially_furnished"}], "furnishing": "partially_furnished",
+        "landlord_professional": True,
         "location": {"latitude": 59.4, "longitude": 17.9, "route": "Exempelgatan", "locality": "Exempelby"},
         "photos": ["https://img.invalid/a.jpg"], "plan_photos": ["https://img.invalid/p.jpg"]})
     assert (out["floor"], out["build_year"], out["rent_sek"], out["available_from"]) == (2, 1962, 11654, "2027-01-01")
@@ -151,3 +153,6 @@ def test_listing_page_detail_mapping():
     a = out["attributes"]
     assert a["open_ended"] and a["qasa_status"] == "normal" and a["pets_flag"]["value"] is True
     assert a["floorplans"] == [{"url": "https://img.invalid/p.jpg", "kind": "image"}]
+    assert "furnished" not in out and a["furnishing_raw"] == "partially_furnished"
+    unfurnished = mod.detail_to_listing({"listing": True, "furnishing": "unfurnished", "traits": []})
+    assert unfurnished["furnished"] is False

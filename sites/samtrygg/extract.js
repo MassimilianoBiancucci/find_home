@@ -37,12 +37,15 @@
       size_m2: num(size),
       rooms: num(rooms),
       furnished: specs.some((s) => /^möblerad/i.test(s)) ? true : (specs.some((s) => /^omöblerad/i.test(s)) ? false : null),
+      furnishing: specs.find((s) => /möbl|flexibel/i.test(s)) || null,     // the card's word: "Delvis möblerad", "Flexibelt" …
       period: txt(c, '.listing-card__period'),
       tags, badges,
       pets: tags.find((t) => /husdjur/i.test(t)) || null,   // raw badge wording; absent badge is not a "no"
-      image: c.querySelector('.listing-card__thumb img')?.getAttribute('src') || null,
+      // photos only: lazy cards keep the URL in data-src; the site's "no image" placeholder is not a photo
       images: [...new Set([...c.querySelectorAll('.listing-card__thumb img')]
-        .map((i) => i.getAttribute('src') || i.getAttribute('data-src')).filter(Boolean))],
+        .map((i) => i.getAttribute('src') || i.getAttribute('data-src'))
+        .filter((u) => u && /^https?:/.test(u) && !/missing_img/i.test(u)))],
+      image: null,
     };
   }).filter((d, i, all) => d.id && all.findIndex((x) => x.id === d.id) === i);   // nested card markup: one doc per listing
   const counter = (document.querySelector('.result-count')?.textContent || '').replace(/\s+/g, ' ');

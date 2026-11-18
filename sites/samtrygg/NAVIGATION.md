@@ -28,6 +28,10 @@ Object page `/object/<id>/<city>/<area>/<street>/<rooms>` (investigation 2026-11
   `availabilityStarts`. The rent may carry a note of what it includes ("inkl. serviceavgift, el & bredband").
 - The visible gallery has 5 `img`; "Visa alla (N)" and `image[]` give the full count. No floor plans, deposit or
   notice period.
+- The visible amenity rows are richer than the JSON-LD list: "Diskmaskin" (ticked), "Diskmaskin — saknas" (off),
+  "Värme — ingår", "El — tillgängligt mot kostnad". Ticked rows without a note are `amenities`; rows with a note are
+  `utilities`. The heading starts with the landlord's district label ("Norrmalm - 3rok - …"), kept as
+  `district_label` (not always the true district); JSON-LD's locality is only the city.
 - `detail_extract.js` reads all of this; `detail_to_listing` maps it. Below the ad, "Liknande (lediga) bostäder"
   cards carry their own dates and pet tags: never read them as the ad.
 

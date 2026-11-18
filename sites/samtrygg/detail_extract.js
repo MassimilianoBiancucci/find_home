@@ -40,10 +40,16 @@
     if (value) facts[label] = value;
   }
 
+  // the visible amenity rows: "Diskmaskin", "Diskmaskin — saknas" (off), "El — ingår", "El — tillgängligt mot kostnad"
   const amenRows = [...main.querySelectorAll('li.amenity')].filter(outsideCards);
   const pet = amenRows.find((li) => /Husdjur tillåtet/i.test(li.textContent));
+  const rows = amenRows.filter((li) => li !== pet).map((li) => {
+    const [name, note] = clean(li.textContent).split(/\s+[—–-]\s+/);
+    return { name, on: !li.classList.contains('amenity--off'), note: note || null };
+  });
   const text = [...main.querySelectorAll('p, span, small, div')].filter((e) => outsideCards(e) && !e.children.length)
     .map((e) => clean(e.textContent)).find((t) => /^inkl\./i.test(t) || /\binkl\.\s/i.test(t) && t.length < 120);
+  const h1 = clean(document.querySelector('h1')?.textContent);
   const offers = ld.offers || {};
   const about = ld.about || {};
   const photos = (Array.isArray(ld.image) ? ld.image : ld.image ? [ld.image] : []).map((i) => (typeof i === 'string' ? i : i?.url)).filter(Boolean);
@@ -51,13 +57,18 @@
     listing: true, url: location.href,
     availability: offers.availability || null,
     start: offers.availabilityStarts || null, end: offers.availabilityEnds || null,
-    price: offers.price != null ? Number(offers.price) : null, price_note: text || null,
+    price: offers.price != null ? Number(offers.price) : null,
+    price_note: text ? text.replace(/^.*?(?=inkl\.)/i, '') : null,
+    area: h1 && h1.includes(' - ') ? h1.split(' - ')[0] : null,     // "Norrmalm - 3rok - …": the landlord's district label
     rooms: about.numberOfRooms != null ? Number(about.numberOfRooms) : null,
     size: about.floorSize?.value != null ? Number(about.floorSize.value) : null,
     address: about.address || null, geo: about.geo || null,
     photos, photo_count: photos.length,
     description: ld.description || null,
-    amenities: (about.amenityFeature || []).filter((a) => a && a.value !== false).map((a) => a.name),
+    amenity_rows: rows,
+    amenities: rows.length ? rows.filter((r) => r.on && !r.note).map((r) => r.name)
+      : (about.amenityFeature || []).filter((a) => a && a.value !== false).map((a) => a.name),
+    utilities: rows.filter((r) => r.note && r.note !== 'saknas').map((r) => `${r.name} — ${r.note}`),
     facts,
     pets: pet ? (pet.classList.contains('amenity--off') ? 'ask' : 'yes') : null,
     pets_evidence: pet ? clean(pet.textContent) : null,

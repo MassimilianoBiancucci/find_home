@@ -67,12 +67,16 @@ bucket (`qasa-static-prod`), which the app's gallery loads directly in the brows
 `floor`, `buildingFloors`, `buildYear`, renovation years, additional costs and `traits` (balcony, french_balcony,
 elevator, pets, washing_machine, dish_washer, bike_room, storage, parking ...). The scanner's `enrich` reads them
 for new listings only (`fetch.details.max_per_run`). The page also shows the landlord's first name: not stored.
-In the browser, `detail_extract.js` joins the `self.__next_f` chunks, cuts out the `Home` object and reads `status`
+In the browser, `detail_extract.js` reads the flight-data chunks (from the original `<script>self.__next_f.push(…)`
+tags: Next.js empties `self.__next_f` once the page has hydrated), cuts out the `Home` object and reads `status`
 (`normal`, `archived`), `floor`, `buildingFloors`, `buildYear`, `bedroomCount`, `furnished`, `rent` +
 `tenantBaseFee`, `duration` (`startOptimal`, `endOptimal`, `endUfn`, `possibilityOfExtension`), `traits`,
 `landlord.professional`, `location` (a point: the map draws no area; the street number may be hidden),
 `description` and `uploads` (a floor plan can also be an ordinary `home_picture` labelled "Planritning"). A page
-without a `Home` object is a missing ad: the server still answers 200.
+without a `Home` object is a missing ad only with positive evidence (`"home":null`, or the title "Bostaden kunde inte
+hittas"; the server still answers 200); a page whose state cannot be read is `unknown`. On the listing page,
+furnishing is the trait `furniture` (`detail` `partially_furnished` …; no trait = unfurnished) and pets the trait
+`pets` (`pets_allowed`); the search node has `furnished` and `petsAllowed` booleans instead.
 The search node is kept whole: `extract.js` sends every field without `__typename` and nulls, `publishedAt` and
 `publishedOrBumpedAt` stay apart (the bump date drives `FH_SINCE`), and fields the app does not map go to
 `attributes.qasa`.
