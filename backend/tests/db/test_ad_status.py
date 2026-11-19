@@ -139,3 +139,22 @@ def test_status_subset_keys(client, db_url):
     assert ids({"sites": ["samtrygg"], "not_seen_since_last_scan": True}) == {s1, s2}
     _sql(db_url, "UPDATE listing_sources SET last_seen_at = now() + interval '2 minutes' WHERE external_id = 'fict-s1'")
     assert ids({"sites": ["samtrygg"], "not_seen_since_last_scan": True}) == {s2}
+
+
+def test_status_due_takes_unlisted_or_stale_sources_and_rows_say_stale(client, db_url):
+    from findhome.jobs.subset import subset_sql
+
+    fresh, old, never = _ingest(client, [_card("qasa", f"fict-q{n}", n) for n in (1, 2, 3)])
+    _sql(db_url, "UPDATE listing_sources SET ad_status = 'open', status_checked_at = now() WHERE external_id = 'fict-q1'")
+    _sql(db_url, """UPDATE listing_sources SET ad_status = 'open', status_checked_at = now() - interval '9 days'
+                    WHERE external_id = 'fict-q2'""")
+
+    def ids(subset):
+        sql, params = subset_sql(subset, "x", 100, stale=7)
+        return {r["short_id"] for r in _sql(db_url, sql, params)}
+    assert ids({"sites": ["qasa"], "status_due": True}) == {old, never}
+    _sql(db_url, """INSERT INTO scan_runs (site_slug, method, status, started_at)
+                    VALUES ('qasa', 'agent_browser', 'ok', now() + interval '1 minute')""")
+    assert ids({"sites": ["qasa"], "status_due": True}) == {fresh, old, never}   # the last scan listed none of them
+    rows = {r["short_id"]: r for r in client.get("/api/listings").json()["items"]}
+    assert rows[fresh]["ad_stale"] is False and rows[old]["ad_stale"] is True and rows[never]["ad_stale"] is True

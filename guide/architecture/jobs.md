@@ -30,7 +30,9 @@ One filter for every job type ([`subset_sql()`](../../backend/src/findhome/jobs/
 the agent or you checked recently is skipped), `missing_fields` (no move-in, no photos, no description, no street
 number, or a page never read), `exclude_details_checked_within_days` (`attributes.details_checked_at`), `agent_run`
 (the listings a browser scan run saw), `ad_status_in` (a source, on the chosen `sites`, in one of these ad statuses),
-`not_seen_since_last_scan` (a source the site's last completed scan did not list) and `order` (`score_desc`, `newest`, `oldest`). The first `n`
+`not_seen_since_last_scan` (a source the site's last completed scan did not list), `status_due` (a source on the
+chosen sites not listed by the last scan, or whose status was last confirmed more than `agent.yaml`
+`ad_status.stale_after_days` ago) and `order` (`score_desc`, `newest`, `oldest`). The first `n`
 matches are frozen into `job_items` when the execution starts ([`create_run()`](../../backend/src/findhome/jobs/service.py#L88));
 `POST /api/jobs/{key}/preview` counts the matches before you start.
 
@@ -113,7 +115,8 @@ status changes ([`_bulk_ad_status()`](../../backend/src/findhome/db/repo.py#L224
 **open** while any of its sources is open or unknown, computed per request
 ([`AD_OPEN_SQL`](../../backend/src/findhome/db/repo.py#L220)), so a flat let on one site but open on another stays.
 `GET /api/listings` hides closed listings by default (`closed=exclude | include | only`); Candidates has a "Hide
-closed" toggle and a status pill on closed rows, the listing page a pill per source (evidence and check time on
+closed" toggle, a status pill on closed rows and a clock at the end of a row whose status is stale (`ad_stale`:
+still open, but no open source confirmed in `stale_after_days`), the listing page a pill per source (evidence and check time on
 hover) and the status history. Your own workflow status (`listing_status_events`: shortlisted, rejected …) is a
 different thing.
 
@@ -138,7 +141,9 @@ How each status is set, cheapest first:
   feed (`feed_missing_status`, `applications_closed`); a feed with errors or fewer ads than the minimum closes
   nothing. Browser scans: every source on an imported result page is `open` ([`inbox.py`](../../backend/src/findhome/inbox.py)).
 - **`listing_status` (agent)**: the default subset is the passing listings on Samtrygg and Qasa that are open or
-  unknown and that the site's last scan did not list. The agent runs `sites/<site>/status_check.js` with `FH_POST`;
+  unknown and whose status is due (`status_due`: not listed by the last scan, or not confirmed in
+  `stale_after_days`, 7; [`019_status_due.sql`](../../backend/migrations/019_status_due.sql)). Gate E showed why both:
+  with a two-week-old scan, "not listed by the last scan" alone found nothing while 9 of 10 Qasa ads had closed. The agent runs `sites/<site>/status_check.js` with `FH_POST`;
   the script posts `{status, evidence, price?}` to `POST /api/inbox/raw` (kind `status`) and
   [`apply_status()`](../../backend/src/findhome/jobs/status.py#L40) sets the status (an `unknown` result never
   overwrites a known one, outcome `unread`), re-reads the rent of an open ad (re-scored when it changed) and records

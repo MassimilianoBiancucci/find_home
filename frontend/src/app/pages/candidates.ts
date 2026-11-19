@@ -106,6 +106,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <table class="table table-sm table-hover align-middle">
       <thead><tr><th>Id</th>
         @for (c of columns; track c.key) { <ng-container *ngTemplateOutlet="th; context: { $implicit: c.key, label: c.label, tip: c.tip, cls: c.cls }" /> }
+        <th class="fh-stale-col" title="A clock: the ad's status was not confirmed recently, it may have closed"></th>
       </tr></thead>
       <tbody>
         @for (r of pageRows(); track r.short_id; let j = $index) {
@@ -132,6 +133,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
             <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td>
             <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
+            <td class="fh-stale-col">@if (r.ad_stale) { <span class="fh-stale" [title]="staleTip(r)" aria-label="Ad status not confirmed recently">⏱</span> }</td>
           </tr>
         }
       </tbody>
@@ -250,6 +252,12 @@ export class CandidatesPage implements OnInit, OnDestroy {
   protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
   protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
   protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
+  /** "Ad status last confirmed 9 days ago": why the row has a clock. */
+  protected staleTip(r: Listing): string {
+    if (!r.ad_checked_at) return 'Ad status never checked: it may have closed. The status job checks it.';
+    const days = Math.floor((Date.now() - new Date(r.ad_checked_at).getTime()) / 86_400_000);
+    return `Ad status last confirmed ${days} day${days === 1 ? '' : 's'} ago: it may have closed. The status job checks it.`;
+  }
 
   ngOnInit(): void {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });

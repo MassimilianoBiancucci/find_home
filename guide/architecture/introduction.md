@@ -57,7 +57,8 @@ name), its liveness and the late files parked after Cancel;
 [`016_agent_usage.sql`](../../backend/migrations/016_agent_usage.sql) the token usage of runs and job items;
 [`017_listing_details_job.sql`](../../backend/migrations/017_listing_details_job.sql) the details jobs and their item
 outcomes; [`018_ad_status.sql`](../../backend/migrations/018_ad_status.sql) the ad status per source
-(`listing_sources.ad_status`, `source_status_events`) and the status jobs ([jobs.md](jobs.md#ad-status)).
+(`listing_sources.ad_status`, `source_status_events`) and the status jobs ([jobs.md](jobs.md#ad-status));
+[`019_status_due.sql`](../../backend/migrations/019_status_due.sql) the status job's default subset.
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in

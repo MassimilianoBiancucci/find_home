@@ -175,6 +175,7 @@ class AgentProfile(_Base):
 class AgentConfig(_Base):
     profiles: dict[str, AgentProfile]
     prices: dict[str, dict[str, float]] = Field(default_factory=dict)   # $ per million tokens, for estimates only
+    ad_status: dict[str, Any] = Field(default_factory=lambda: {"stale_after_days": 7})   # when a status is stale
 
 
 # ── geo, search area ─────────────────────────────────────────

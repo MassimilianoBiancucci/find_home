@@ -38,6 +38,10 @@ export interface Listing {
   ad_open?: boolean;
   /** The ad status on each site it was found on. */
   ad_sources?: { site: string; status: AdStatus; checked_at?: string | null }[] | null;
+  /** The latest confirmation (scan or status check) of an open or unchecked source. */
+  ad_checked_at?: string | null;
+  /** Still open, but not confirmed for agent.yaml ad_status.stale_after_days days: the ad may have closed. */
+  ad_stale?: boolean;
   available_from?: string | null;
   description_excerpt?: string | null;
   photo_urls: string[];

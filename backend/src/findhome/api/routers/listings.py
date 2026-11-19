@@ -31,8 +31,10 @@ async def list_listings(status: str | None = None, kind: str | None = None, q: s
                         closed: Literal["exclude", "include", "only"] = "exclude", conn=Depends(get_conn)):
     """`closed`: listings none of whose sources is open (applications closed, let, removed, not found) are hidden by
     default; `include` shows them too, `only` shows just them."""
+    from findhome.jobs.subset import stale_days
+
     rows = await repo.list_listings(conn, bundle().config_hash, status, kind, q, include_rejected, limit, since,
-                                    origin, site, scan_run, closed)
+                                    origin, site, scan_run, closed, stale_days())
     return {"config_hash": bundle().config_hash, "items": _with_zone(rows)}
 
 

@@ -1,6 +1,7 @@
 """Data access for the API. Async psycopg, dict rows, explicit SQL."""
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from psycopg import errors
@@ -280,8 +281,10 @@ async def source_exists(conn, site: str, ref: str) -> dict | None:
 async def list_listings(conn, config_hash: str, status: str | None = None, kind: str | None = None,
                         q: str | None = None, include_rejected: bool = True, limit: int = 200,
                         since: str | None = None, origin: str | None = None, site: str | None = None,
-                        scan_run: str | None = None, closed: str = "include") -> list[dict]:
-    """`closed`: include | exclude | only the listings none of whose sources is open (ad status, sub-plan #11)."""
+                        scan_run: str | None = None, closed: str = "include", stale_days: int = 7) -> list[dict]:
+    """`closed`: include | exclude | only the listings none of whose sources is open (ad status, sub-plan #11).
+    Each row gets `ad_checked_at` (the latest confirmation of an open or unchecked source) and `ad_stale` (still open,
+    but not confirmed in `stale_days` days: the ad may have closed)."""
     where, params = ["true"], [config_hash]
     if closed == "exclude":
         where.append(AD_OPEN_SQL)
@@ -314,13 +317,15 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
     if not include_rejected:
         where.append("(s.total IS NOT NULL OR s.listing_id IS NULL)")
     params.append(limit)
-    return await _fetchall(
+    rows = await _fetchall(
         conn, f"""SELECT l.*, s.total AS score, s.rejected_by, s.breakdown, s.config_hash AS score_hash,
                     (SELECT array_agg(DISTINCT ls.site_slug) FROM listing_sources ls WHERE ls.listing_id = l.id) AS found_on,
                     (s.listing_id IS NULL) AS score_stale, {AD_OPEN_SQL} AS ad_open,
                     (SELECT jsonb_agg(jsonb_build_object('site', ls.site_slug, 'status', ls.ad_status,
                                                          'checked_at', ls.status_checked_at) ORDER BY ls.first_seen_at)
                        FROM listing_sources ls WHERE ls.listing_id = l.id) AS ad_sources,
+                    (SELECT max(ls.status_checked_at) FROM listing_sources ls WHERE ls.listing_id = l.id
+                       AND ls.ad_status IN ('open', 'unknown')) AS ad_checked_at,
                     coalesce(ll.payload->'scores'->>'transport', ll.payload->>'transport')::float AS house_transport,
                     (ll.payload->>'services')::float AS house_services,
                     coalesce((ll.payload->'scores'->>'estimated')::boolean, false) AS house_estimated
@@ -328,6 +333,10 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
                  LEFT JOIN listing_location ll ON ll.listing_id = l.id
                  WHERE {' AND '.join(where)}
                  ORDER BY s.total DESC NULLS LAST, l.last_changed_at DESC LIMIT %s""", tuple(params))
+    limit_at = datetime.now(UTC) - timedelta(days=stale_days)
+    for r in rows:
+        r["ad_stale"] = bool(r["ad_open"]) and (r["ad_checked_at"] is None or r["ad_checked_at"] < limit_at)
+    return rows
 
 
 async def commute_for(conn, listing_id, config_hash: str) -> list[dict]:

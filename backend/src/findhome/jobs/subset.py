@@ -5,7 +5,18 @@ from typing import Any
 
 KEYS = ("sites", "origin_sites", "pet_status", "pet_source", "new_since", "passes_hard_filters", "order",
         "short_ids", "exclude_checked_within_days", "status", "missing_fields", "exclude_details_checked_within_days",
-        "agent_run", "ad_status_in", "not_seen_since_last_scan")
+        "agent_run", "ad_status_in", "not_seen_since_last_scan", "status_due")
+# a source the site's last completed scan did not list
+NOT_SEEN_SQL = ("ls.last_seen_at < (SELECT max(sr.started_at) FROM scan_runs sr WHERE sr.site_slug = ls.site_slug "
+                "AND sr.status IN ('ok', 'partial') AND NOT sr.dry_run)")
+
+
+def stale_days() -> int:
+    """agent.yaml ad_status.stale_after_days: how long a confirmed ad status is trusted (default 7)."""
+    from findhome.config.store import get_store
+
+    bundle = get_store().bundle
+    return int(((bundle.agent.ad_status if bundle else None) or {}).get("stale_after_days") or 7)
 # what the details job fills: no move-in, no photos, no description, no street number, or a page never read
 MISSING_FIELDS_SQL = ("(l.available_from IS NULL OR coalesce(jsonb_array_length(l.photo_urls), 0) = 0 "
                       "OR l.description_excerpt IS NULL OR NOT (l.attributes ? 'details_checked_at') "
@@ -14,7 +25,7 @@ ORDERS = {"score_desc": "s.total DESC NULLS LAST, l.last_changed_at DESC",
           "newest": "l.first_seen_at DESC", "oldest": "l.first_seen_at ASC"}
 
 
-def subset_sql(subset: dict[str, Any], config_hash: str, limit: int) -> tuple[str, list]:
+def subset_sql(subset: dict[str, Any], config_hash: str, limit: int, stale: int | None = None) -> tuple[str, list]:
     """SELECT of listing ids (with short_id) matching the subset, in the subset's order, capped by limit."""
     unknown = set(subset) - set(KEYS)
     if unknown:
@@ -63,9 +74,15 @@ def subset_sql(subset: dict[str, Any], config_hash: str, limit: int) -> tuple[st
         if site_cond:
             params.append(list(subset["sites"]))
     if subset.get("not_seen_since_last_scan"):        # a source the site's last completed scan did not list
-        where.append("EXISTS (SELECT 1 FROM listing_sources ls WHERE ls.listing_id = l.id AND ls.last_seen_at < "
-                     "(SELECT max(sr.started_at) FROM scan_runs sr WHERE sr.site_slug = ls.site_slug "
-                     "AND sr.status IN ('ok', 'partial') AND NOT sr.dry_run))")
+        where.append(f"EXISTS (SELECT 1 FROM listing_sources ls WHERE ls.listing_id = l.id AND {NOT_SEEN_SQL})")
+    if subset.get("status_due"):                      # a source (on the chosen sites) whose status needs a check:
+        site_cond = " AND ls.site_slug = ANY(%s)" if subset.get("sites") else ""   # not listed by the last scan,
+        where.append(f"EXISTS (SELECT 1 FROM listing_sources ls WHERE ls.listing_id = l.id{site_cond} AND "  # or stale
+                     f"({NOT_SEEN_SQL} OR ls.status_checked_at IS NULL "
+                     f"OR ls.status_checked_at < now() - make_interval(days => %s)))")
+        if site_cond:
+            params.append(list(subset["sites"]))
+        params.append(int(stale if stale is not None else stale_days()))
     if subset.get("exclude_checked_within_days"):
         where.append("(l.pet_checked_at IS NULL OR l.pet_checked_at < now() - make_interval(days => %s))")
         params.append(int(subset["exclude_checked_within_days"]))

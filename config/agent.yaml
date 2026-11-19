@@ -15,6 +15,11 @@ prices:
   claude-opus-5-5:   {input: 4.0, output: 20.0, cache_read: 0.20, cache_write_5m: 5.0, cache_write_1h: 8.0}
   claude-sonnet-5-5: {input: 2.0, output: 10.0, cache_read: 0.10, cache_write_5m: 2.5, cache_write_1h: 4.0}
   claude-haiku-5-5:  {input: 0.10, output: 0.50, cache_read: 0.01, cache_write_5m: 0.125, cache_write_1h: 0.20}
+# How long an ad's status (open, let, removed …) stays trusted: a source whose status a scan or a status check last
+# confirmed more than this many days ago is stale. The status job's default subset takes stale sources, and the
+# Candidates list marks their rows with a clock icon.
+ad_status:
+  stale_after_days: 7
 profiles:
   pet_agent_check:
     label: Browser agent - check pet policies (job)
