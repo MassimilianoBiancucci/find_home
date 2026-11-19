@@ -37,6 +37,9 @@ def test_pages_post_import_and_report_coverage(client, db_url, tmp_path, monkeyp
     assert len(list((tmp_path / "processed").glob("samtrygg-*-p*.json"))) == 2          # the record a file would leave
     status = _sql(db_url, "SELECT ad_status FROM listing_sources WHERE external_id = 'fict0004'")[0]["ad_status"]
     assert status == "open"
+    scored = _sql(db_url, """SELECT count(*) AS n FROM scores s JOIN listing_sources ls ON ls.listing_id = s.listing_id
+                             WHERE ls.external_id LIKE 'fict000%%'""")[0]["n"]
+    assert scored == 4                                   # scored at import, so the details chain sees real passes
     report = client.get(f"/api/agent-runs/{run}").json()["scan_report"]["sites"][0]
     assert [p["page"] for p in report["pages"]] == [1, 2] and report["cards"] == 5 and report["total"] == 5
     assert report["coverage"] == 1.0 and report["warning"] is None and report["line"] == "5 of 5 cards (100%)"

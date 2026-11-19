@@ -165,6 +165,16 @@ async def import_data(conn, data: Any, name: str) -> dict[str, Any]:
     if run_id:
         await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
         await _page_usage(conn, run_id, meta, len(items), res, data if isinstance(data, dict) else {})
+    touched = [i.short_id for i in res.items if i.outcome in ("created", "updated")]
+    if touched:          # scored now, as a scripted scan does: "passes the hard filters" must be true for the chain
+        from findhome.rescore import score_listings
+
+        ids = [r["id"] for r in await (await conn.execute(
+            "SELECT id FROM listings WHERE short_id = ANY(%s)", (touched,))).fetchall()]
+        try:
+            await score_listings(conn, ids)
+        except Exception as exc:  # noqa: BLE001 - the page's data is stored; scores can be recomputed
+            log.warning("inbox: scoring %s failed: %s", name, exc)
     await conn.commit()
     return {"file": name, "created": res.created, "updated": res.updated, "unchanged": res.unchanged,
             "duplicate": res.duplicate, "scan_run_id": run_id, "cards": len(items), "page": meta.get("page")}
