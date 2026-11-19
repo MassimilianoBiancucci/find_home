@@ -27,3 +27,7 @@ def test_the_status_box_redirect_and_deadline():
     late = page_status(box("Något nytt"), URL, RULES, apply_by="2026-11-01", today=date(2026, 11, 19))
     assert late == ("applications_closed", {"rule": "deadline passed", "value": "2026-11-01"})
     assert page_status(box("Något nytt"), URL, RULES)[0] == "unknown"
+    # the open prompt after the deadline: the anonymous view, not an open ad
+    prompt = box("För att anmäla intresse behöver du vara registrerad som bostadssökande och vara inloggad.")
+    assert page_status(prompt, URL, RULES, apply_by="2026-11-18", today=date(2026, 11, 20))[0] == "applications_closed"
+    assert page_status(prompt, URL, RULES, apply_by="2026-11-29", today=date(2026, 11, 20))[0] == "open"

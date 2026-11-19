@@ -112,6 +112,13 @@ async def undo_status(conn, item_id: int) -> dict:
 
 
 # ── scripted sites: the site.yaml rules on the listing page ──
+def _past(apply_by: str | None, today: date | None) -> bool:
+    try:
+        return bool(apply_by) and date.fromisoformat(str(apply_by)[:10]) < (today or date.today())
+    except ValueError:
+        return False
+
+
 def page_status(html: str, final_url: str, rules: dict[str, Any], apply_by: str | None = None,
                 today: date | None = None) -> tuple[str, dict[str, Any]]:
     """The ad status a scripted site's listing page shows, by its site.yaml `ad_status` rules, first match wins:
@@ -124,6 +131,10 @@ def page_status(html: str, final_url: str, rules: dict[str, Any], apply_by: str 
         box = " ".join((node.text() if node else "").split())
         for prefix, status in (rules.get("box") or {}).items():
             if box.lower().startswith(prefix.lower()):
+                if status == "open" and _past(apply_by, today):
+                    # gate D: an anonymous reader sees the "register interest" prompt even after the deadline
+                    return "applications_closed", {"rule": "deadline passed (the box shows the login prompt)",
+                                                   "value": str(apply_by)[:10]}
                 return status, {"rule": "status box", "value": box[:200]}
     if apply_by:
         try:
