@@ -53,7 +53,20 @@ flexible. A card without the "Husdjur ok" tag is not evidence: the object page d
 `page=N` in the URL, 24 cards per page, at most 20 pages per scan (`max_pages`), 3 s between pages.
 
 ## 8. Known traps
-**To verify.** Duplicates, sponsored items, stale ads, scam patterns, listings that redirect elsewhere.
+- Listing pages show "Liknande lediga bostäder" cards with their own prices, dates, pets tags and "Boka visning"
+  buttons: never read them as the ad (the scripts read JSON-LD and the facts block outside `.listing-card`).
+- The facts block's FRÅN shows today's date once the start has passed: the real start is JSON-LD
+  `availabilityStarts`.
+- The gallery mixes S3 photos with `www.samtrygg.se/Content/GetImage.ashx?…` ones; the browser tool masks the latter
+  as `[BLOCKED: …]` when they pass through the agent, so pages are posted to the app directly.
+- "Husdjur tillåtet — saknas" (an unticked amenity) means the landlord did not say: pets **ask**, not yes.
+- Early starts let fast: 4 of 5 early-start ads were let within 11 days.
+
+### Ad status ([`status_check.js`](status_check.js), iteration 2 and gate E: 10 pages)
+A let ad answers **HTTP 410** with the gone page (badge `.gone-summary__badge` "Uthyrd", h1 "Den här bostaden är
+uthyrd", no listing JSON-LD) → let; 410 without "Uthyrd" → removed (not seen yet); 404 → not found; JSON-LD
+`offers.availability` InStock → open. A plain HTTP check would keep let ads alive: read the code from
+`performance.getEntriesByType('navigation')[0].responseStatus`.
 
 ## 9. Probe history
 **To verify.** Links to `probe/*.md` reports.

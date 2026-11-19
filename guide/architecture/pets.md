@@ -20,6 +20,11 @@ value only when its source ranks at least as high; `unknown` never replaces a kn
 changes nothing ([`set_pet()`](../../backend/src/findhome/db/repo.py)). So keywords never override a site flag, a
 site never overrides the agent, and nothing overrides you.
 
+**Pets are never a search filter on a site.** A site-side pet filter (Qasa's `rules=pets`) shows only ads whose
+house rules already say yes, so every `ask` and `unknown` ad would never be ingested. Scans read everything and the
+precedence above decides; [`resolve()`](../../backend/src/findhome/scanning/filters.py) never puts `pets_allowed`
+in a URL, whatever a `filter_map` says.
+
 **Why pets are not a listing issue.** A missing pet answer is not shown among the listing issues
 ([introduction.md](introduction.md)): the status has its own precedence and sources, the pet badge already shows
 `unknown` (and `conflict`), and the pet jobs exist to resolve it. Listing it twice would only add noise.

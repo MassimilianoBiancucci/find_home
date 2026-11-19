@@ -54,7 +54,7 @@ an OSM-based vector map style.
 | [`backend/tests/`](../backend/tests/conftest.py) | unit, config and Postgres-backed API tests |
 | [`frontend/src/app/`](../frontend/src/app/app.routes.ts) | Angular pages, services and the YAML editor |
 | [`config/`](../config/README.md) | YAML configuration and [`schemas/`](../config/schemas/locations.schema.json); personal files are gitignored, each with a committed `*.example.*` |
-| [`sites/`](../sites/README.md) | one folder per listing website: `site.yaml`, `NAVIGATION.md`, probes |
+| [`sites/`](../sites/README.md) | one folder per listing website: `site.yaml`, `NAVIGATION.md`, probes, field reports (`reports/`), the browser scripts (`extract.js`, `detail_extract.js`, `status_check.js`) |
 | [`.agents/skills/`](../.agents/skills/find-home/SKILL.md) | skills (`find-home`, `guide`); linked into `.claude/skills/` |
 | [`scripts/`](../scripts/install.sh) | install, infrastructure restart, smoke check, free ports, skill sync, `findhome` wrapper |
 | [`.vscode/`](../.vscode/launch.json) | debug configurations and tasks (`FH:` prefix) |
@@ -62,7 +62,8 @@ an OSM-based vector map style.
 | [`guide/documentation/`](documentation/api_keys.md) | how-to and reference pages for the user: provider keys, what each provider does, Google costs, ports, agent permissions |
 | `data/` | runtime data, gitignored: `postgres/`, raw scan pages (`raw/`), floor plan previews (`floorplans/`), geodata |
 | [`tasks/`](../tasks/README.md) | planning history and backlog (not current state) |
-| [`runs/`](../runs/README.md) | agent run folders (gitignored) |
+| [`runs/`](../runs/README.md) | agent run folders (gitignored); `runs/state/<site>.json` (scan URLs, page size) and the jobs' CLI fallback files |
+| `inbox/` | browser scan results (gitignored): files to import, `processed/` (also the record of each posted page), `failed/`, `cancelled/<run>/` (late files of a cancelled run) |
 
 ## Guide index
 

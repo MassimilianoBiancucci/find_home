@@ -102,6 +102,15 @@ floor, build year and traits such as balcony, elevator, pets). robots.txt disall
 - `monthlyCost` includes the tenant service fee; `rent` alone is lower. The app uses `monthlyCost`.
 - Short contracts are common (`endDate` a few months out): the contract score penalises them.
 - Rooms in shared homes are excluded by `sharedHome=privateHome`; remove it to see them.
+- Long descriptions are flight references (`"description":"$5b"` → chunk `5b:T<hex length>,<text>`): resolve them.
+- The `garage` trait does not mean a garage is included: check "Övriga kostnader" ("Garage Ingår ej").
+
+### Ad status ([`status_check.js`](status_check.js), gates C and E: 10 pages)
+The server answers 200 for every state, so the page state decides: no `Home` object with `"home":null` or `og:title`
+"Bostaden kunde inte hittas" → not found; `Home.status` `normal` → open, `archived` → removed (overlay "Denna bostad
+är borttagen"), `rented_out` → let (not seen live yet). The robots meta is no signal (`noindex, nofollow` on an open
+ad). After hydration `self.__next_f` is empty: read the `<script>self.__next_f.push(…)</script>` tags. Ads close
+fast: 9 of the 10 best-scored passing ads had closed within 18 days of the scan that found them.
 
 ## 9. Probe history
 - [probe/20261031T195307Z.md](probe/20261031T195307Z.md): `findhome site probe` from the Mac → HTTP 429.

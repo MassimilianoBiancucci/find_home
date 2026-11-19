@@ -2,6 +2,11 @@
 
 For listings with `pet_status` ask or unknown. **Drafts only: never send.**
 
+Where to ask depends on the site. Samtrygg's unticked row "Husdjur tillåtet — saknas" (`pet_status` ask, source
+site) means the landlord did not say: Samtrygg asks you to raise it in the viewing request ("Boka visning") chat, so
+draft the message for that chat. Qasa: the landlord's house rules (`petsAllowed`) or the conversation after an
+application. Bostadsförmedlingen: the landlord named on the listing page, usually after the offer.
+
 1. `scripts/findhome digest listing <id> --fields full` for the facts (address, contract, dates).
 2. Draft a short, polite message in Swedish, with an English copy below it:
    - who: the user (first name only, ask if unknown), working in Stockholm, looking from <available_from>;

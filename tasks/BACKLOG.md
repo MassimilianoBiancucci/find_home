@@ -15,3 +15,9 @@ Follow-up tasks after `init-project`. Order is a suggestion; each becomes `tasks
 | `notifications` | How the scheduled agent reports new top matches (run summary, email, push) | |
 | `guide-skill-merge` | The guide skill exists in two diverged copies in telia_env (`SKILLs/guide` newer SKILL.md, `.github/skills/guide` has bootstrap.md + check_links.py). find_home carries the merged copy | Housekeeping outside this repo |
 | `price-trends` | Rent trends per zone over time from posting dates (`attributes.publishedAt`, Explore filters); revisit a per-scan price table once months of data exist | From `improve-house-view` (no history table for now) |
+| `scheduled-status` | Run `listing_status` on a schedule (and the scans) once the job has proved itself by hand | From `improve-site-extraction` #11; the risk notes allow only hand-started browser scans: ask first |
+| `qasa-multi-unit` | Map a multi-unit Qasa ad (`homeTemplates`) when one appears: none in 177 seen | From `improve-site-extraction` #4 |
+| `qasa-rented-out` | Confirm Qasa's `rented_out` status (and the "uthyrd" overlay) on a live ad; `status_check.js` maps it untested | From gate E |
+| `field-schema` | A cross-site schema extension from the field reports' Proposals (video, included costs, wheelchair access, flat number) | From `improve-site-extraction` #10 |
+| `gap-audit-closed` | Let `gap_audit.py` skip closed listings (74 Bostadsförmedlingen "not read" gaps are closed ads) | From gate D |
+

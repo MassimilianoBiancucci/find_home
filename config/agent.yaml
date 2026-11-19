@@ -178,6 +178,38 @@ profiles:
     launchers: [cli, vscode]
     timeout_min: 30
     env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
+  site_field_report:
+    label: Browser agent - field report of a site (every field, coverage, ad status)
+    kind: onboarding
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/site_field_report.md exactly for site={site}
+      (run={run_id}), picking 3-5 listing pages of different types from the site's search page. Start with
+      `scripts/findhome run attach {run_id}`; end with `scripts/findhome run close --run {run_id} --outcome
+      ok|partial|failed --summary "<3-6 lines>"`.
+    params:
+      site: {type: site, required: true, site_needs: not_origin}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: opus, label: Model}
+    allowed_tools:
+      - Read
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Write(./sites/*/reports/**)
+      - Edit(./sites/*/reports/**)
+    max_turns: 60
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 45
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   site_onboarding:
     label: Browser agent - onboard or repair a site (Claude in Chrome)
     kind: onboarding
