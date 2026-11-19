@@ -312,7 +312,7 @@ async def scan_report(conn, agent_run_id: str) -> dict | None:
     sites = []
     for r in rows:
         pages = (r["counts"] or {}).get("pages") or {}
-        if not pages:
+        if not isinstance(pages, dict) or not pages:      # a scripted scan stores a page count here
             continue
         items = sorted(({"page": int(k) if str(k).isdigit() else k, **v} for k, v in pages.items()),
                        key=lambda p: (not isinstance(p["page"], int), p["page"] if isinstance(p["page"], int) else 0))

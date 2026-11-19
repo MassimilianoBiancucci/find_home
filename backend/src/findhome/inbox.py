@@ -238,7 +238,8 @@ async def write_state(conn, bundle=None) -> None:
     totals = {r["site_slug"]: r["total"] for r in await (await conn.execute(
         """SELECT DISTINCT ON (site_slug) site_slug,
                   (SELECT max((p.value->>'total')::int) FROM jsonb_each(counts->'pages') p) AS total
-           FROM scan_runs WHERE counts ? 'pages' ORDER BY site_slug, started_at DESC""")).fetchall()}
+           FROM scan_runs WHERE jsonb_typeof(counts->'pages') = 'object'     -- a scripted scan stores a page count
+           ORDER BY site_slug, started_at DESC""")).fetchall()}
     rows = await (await conn.execute(
         """SELECT s.site_slug, count(*) AS n, max(s.last_seen_at) AS last_seen,
                   max(COALESCE(l.attributes->>'publishedOrBumpedAt', l.attributes->>'publishedAt')) AS last_published

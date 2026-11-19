@@ -56,3 +56,21 @@ def test_a_short_scan_warns_under_95_percent(client, db_url):
          (run,))
     report = client.get(f"/api/agent-runs/{run}").json()["scan_report"]["sites"][0]
     assert report["coverage"] == 0.59 and "under 95%" in report["warning"]
+
+
+def test_a_scripted_scans_page_count_does_not_break_the_state_file(client, db_url, tmp_path, monkeypatch):
+    import asyncio
+
+    from findhome import inbox
+    from findhome.config.store import get_store
+
+    monkeypatch.setattr(inbox, "state_dir", lambda: tmp_path)          # never the real runs/state
+
+    _sql(db_url, """INSERT INTO scan_runs (site_slug, method, status, counts)
+                    VALUES ('bostadsformedlingen', 'api', 'ok', '{"pages": 1}')""")
+
+    async def go():
+        async with await psycopg.AsyncConnection.connect(db_url, row_factory=dict_row) as conn:
+            await inbox.write_state(conn, get_store().bundle)
+    asyncio.run(go())
+    assert (tmp_path / "samtrygg.json").exists()
