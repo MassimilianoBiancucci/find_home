@@ -156,3 +156,7 @@ def test_listing_page_detail_mapping():
     assert "furnished" not in out and a["furnishing_raw"] == "partially_furnished"
     unfurnished = mod.detail_to_listing({"listing": True, "furnishing": "unfurnished", "traits": []})
     assert unfurnished["furnished"] is False
+    assert a["move_in_raw"] == "2027-01-01 → Tillsvidare"
+    asap = mod.detail_to_listing({"listing": True, "traits": [],
+                                  "duration": {"startAsap": True, "startOptimal": None, "endUfn": True}})
+    assert asap["attributes"]["move_in_raw"] == "Nu → Tillsvidare" and "available_from" not in asap

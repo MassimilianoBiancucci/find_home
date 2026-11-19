@@ -89,8 +89,10 @@ def test_gone_translated_and_quoted_free_text(client, db_url):
     assert client.post(f"/api/job-items/{item['id']}/undo").status_code == 200
     L = client.get(f"/api/listings/{sid}").json()["listing"]
     assert L["available_from"] is None and "contract_terms" not in L["attributes"]
+    _sql(db_url, "UPDATE listings SET attributes = attributes - 'details_checked_at' WHERE short_id = %s", (sid,))
     gone = client.post(f"/api/job-runs/{jr}/submit", json={"short_id": sid, "gone": True}).json()
     assert gone["outcome"] == "gone"
+    assert client.get(f"/api/listings/{sid}").json()["listing"]["attributes"]["details_checked_at"]   # read: not again
 
 
 def test_subset_keys_and_the_chain_after_a_browser_scan(client, db_url, monkeypatch):

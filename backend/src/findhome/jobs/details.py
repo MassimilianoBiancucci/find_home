@@ -176,7 +176,9 @@ async def raw_detail(conn, site: str, url: str, doc: dict, job_run: str | None) 
     if doc.get("translated"):
         await _record(conn, job_run, item, {}, {}, "translated", "page translated by Chrome: nothing read", url)
         return {"short_id": L["short_id"], "outcome": "translated", "stop": "page translated: turn off Chrome translation"}
-    if doc.get("listing") is False:
+    if doc.get("listing") is False:            # read: not picked again within exclude_details_checked_within_days
+        await apply_fields(conn, L["id"], {}, {"details_checked_at": datetime.now(UTC).isoformat(timespec="seconds")},
+                           None)
         await _record(conn, job_run, item, {}, {}, "gone", "the ad is gone (the status job records how)", url)
         return {"short_id": L["short_id"], "outcome": "gone"}
     if doc.get("listing") is None:
@@ -226,6 +228,8 @@ async def submit_details(conn, run_id: str, short_id: str, fields: dict[str, Any
     if not item:
         raise JobError(f"{short_id} is not part of this job run")
     if gone:
+        await apply_fields(conn, item["listing_id"], {}, {"details_checked_at": datetime.now(UTC).isoformat(
+            timespec="seconds")}, None)
         await _record(conn, run_id, item, {}, {}, "gone", "the ad is gone (reported by the agent)", page_url)
         return {"short_id": short_id.upper(), "outcome": "gone"}
     unknown = set(fields) - set(AGENT_FIELDS)

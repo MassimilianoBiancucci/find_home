@@ -228,6 +228,10 @@ def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
         out["contract_end"] = _date(dur["endOptimal"])
     if dur.get("endUfn"):
         attrs["open_ended"] = True
+    first = "Nu" if dur.get("startAsap") else str(dur.get("startOptimal") or "")[:10]
+    last = "Tillsvidare" if dur.get("endUfn") else str(dur.get("endOptimal") or "")[:10]
+    if first:                                          # the page's "Hyresperiod" wording: "Nu → Tillsvidare"
+        attrs["move_in_raw"] = first + (f" → {last}" if last else "")
     if dur.get("possibilityOfExtension") is not None:
         attrs["contract_terms"] = {"extension_raw": "possibilityOfExtension: "
                                    + ("true" if dur["possibilityOfExtension"] else "false")}
