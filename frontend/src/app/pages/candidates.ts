@@ -5,6 +5,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { PetBadge } from '../components/pet-badge';
 import { AdStatusBadge } from '../components/ad-status-badge';
+import { IssueTip } from '../components/issue-tip';
+import { issuesOf } from '../issues';
 import { ScoreTip } from '../components/score-tip';
 import { SiteLogo } from '../components/site-logo';
 import { ZoneMinimap } from '../components/zone-minimap';
@@ -26,7 +28,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -127,6 +129,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2'); @let mv = values.moveIn(r);
             <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
               {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td>
+            <td class="text-center">@if (r.issue_codes?.length) { <fh-issue-tip [issues]="issuesOf(r)" /> }</td>
             <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
             <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td>
             <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
@@ -214,6 +217,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
     { key: 'services', label: 'Services', cls: 'text-center', tip: 'The home\'s services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near. Click to sort.' },
     { key: 'status', label: 'Status' }, { key: 'area', label: 'Area / address' },
     { key: 'move_in', label: 'Move in', tip: 'The move-in date the ad gives, against your window in config/profile.yaml (move_in_from → move_in_to): green inside, amber before, red after (rejected). Click to sort.' },
+    { key: 'issues', label: 'Issues', cls: 'text-center', tip: 'What the listing is missing (move-in, photos, floor plan, street number …): hover the badge for each issue and whether the ad lacks it or the extraction should be checked. Click to sort.' },
     { key: 'rooms', label: 'Rooms' }, { key: 'size', label: 'm²' }, { key: 'rent', label: 'Rent' }, { key: 'per_m2', label: 'kr/m²' },
     { key: 'pets', label: 'Pets' }, { key: 'contract', label: 'Contract' },
   ];
@@ -251,6 +255,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   }
   protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
   protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
+  protected issuesOf = issuesOf;
   protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
   /** "Ad status last confirmed 9 days ago": why the row has a clock. */
   protected staleTip(r: Listing): string {

@@ -60,7 +60,12 @@ async def detail(short_id: str, conn=Depends(get_conn)):
     score = await (await conn.execute("SELECT total, rejected_by, breakdown, computed_at FROM scores "
                                       "WHERE listing_id = %s AND config_hash = %s", (L["id"], b.config_hash))).fetchone()
     _with_zone([L])
+    from findhome.domain.issues import listing_issues
+
+    tr = await (await conn.execute(f"SELECT {repo.LAST_READ_TRANSLATED_SQL} AS t FROM listings l WHERE l.id = %s",
+                                   (L["id"],))).fetchone()
     return {
+        "issues": [i.as_dict() for i in listing_issues({**L, "last_read_translated": tr["t"]})],
         "listing": L, "score": score, "score_stale": score is None,
         "commute": await repo.commute_for(conn, L["id"], b.config_hash),
         "feedback": await repo.feedback_for(conn, L["id"]),

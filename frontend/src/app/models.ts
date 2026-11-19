@@ -38,6 +38,8 @@ export interface Listing {
   ad_open?: boolean;
   /** The ad status on each site it was found on. */
   ad_sources?: { site: string; status: AdStatus; checked_at?: string | null }[] | null;
+  /** Codes of what the listing is missing (backend domain/issues.py; computed per request). */
+  issue_codes?: string[];
   /** The latest confirmation (scan or status check) of an open or unchecked source. */
   ad_checked_at?: string | null;
   /** Still open, but not confirmed for agent.yaml ad_status.stale_after_days days: the ad may have closed. */
@@ -103,6 +105,8 @@ export interface ListingDetail {
   sources: Source[];
   events: StatusEvent[];
   ad_status_events?: AdStatusEvent[];
+  /** What the listing is missing, with the class and a hint (backend domain/issues.py). */
+  issues?: { code: string; label: string; cls: 'not_in_source' | 'check_extraction'; hint: string }[];
 }
 
 export type SiteStatus = 'unverified' | 'active' | 'broken' | 'disabled';

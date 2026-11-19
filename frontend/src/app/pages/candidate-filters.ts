@@ -3,6 +3,7 @@ import { SiteLogo } from '../components/site-logo';
 import { SitesStore } from '../services/sites.store';
 import { fmtKr } from '../format';
 import { Listing } from '../models';
+import { ISSUE_LABEL } from '../issues';
 import { ValueScaleStore, valueOf } from '../value-scale';
 
 // ── Fields, filters and sorting of the candidates list (pure) ───────────────────────────────────────────────
@@ -48,7 +49,7 @@ export function applyFilters(rows: Listing[], filters: Filters, skip?: FilterKey
   return keys.length ? rows.filter((l) => keys.every((k) => passes(l, k, filters[k]))) : rows;
 }
 
-export type CatKey = 'site' | 'pets' | 'contract';
+export type CatKey = 'site' | 'pets' | 'contract' | 'issues';
 /** Chosen values per category; an empty or missing list is no filter. */
 export type Cats = Partial<Record<CatKey, string[]>>;
 export interface CatField { key: CatKey; label: string; values: (l: Listing) => string[]; }
@@ -56,6 +57,7 @@ export const CAT_FIELDS: CatField[] = [
   { key: 'site', label: 'Website', values: (l) => [...new Set([l.origin_site, ...(l.found_on ?? [])].filter((x): x is string => !!x))] },
   { key: 'pets', label: 'Pets', values: (l) => [l.pet_status] },
   { key: 'contract', label: 'Contract', values: (l) => [l.contract_type || 'unknown'] },
+  { key: 'issues', label: 'Issues', values: (l) => (l.issue_codes?.length ? l.issue_codes : ['none']) },
 ];
 const CAT = new Map(CAT_FIELDS.map((c) => [c.key, c]));
 const PET_ORDER = ['yes', 'ask', 'conflict', 'unknown', 'no'];
@@ -104,7 +106,7 @@ export function histogram(values: number[], [min, max]: [number, number], step: 
   return bins;
 }
 
-export type SortKey = 'score' | 'transport' | 'services' | 'status' | 'area' | 'move_in' | 'rooms' | 'size' | 'rent' | 'per_m2' | 'pets' | 'contract';
+export type SortKey = 'score' | 'transport' | 'services' | 'status' | 'area' | 'move_in' | 'issues' | 'rooms' | 'size' | 'rent' | 'per_m2' | 'pets' | 'contract';
 export interface Sort { key: SortKey; dir: 1 | -1; }
 const PET_RANK: Record<string, number> = { yes: 4, ask: 3, conflict: 2, unknown: 1, no: 0 };
 /** Each column's value and the direction of its first click (the better end first). */
@@ -115,6 +117,7 @@ export const SORTS: Record<SortKey, { get: (l: Listing) => number | string | nul
   status: { get: (l) => l.status, first: 1 },
   area: { get: (l) => (l.area ?? l.address_raw ?? '').toLowerCase() || null, first: 1 },
   move_in: { get: (l) => l.available_from ?? null, first: 1 },
+  issues: { get: (l) => l.issue_codes?.length ?? 0, first: 1 },
   rooms: { get: (l) => l.rooms_rok ?? null, first: -1 },
   size: { get: (l) => l.size_m2 ?? null, first: -1 },
   rent: { get: (l) => l.rent_sek ?? null, first: 1 },
@@ -359,6 +362,7 @@ export class CandidateFilters {
   });
   protected chipLabel(key: CatKey, v: string): string {
     if (key === 'site') return this.sites.name(v);
+    if (key === 'issues') return ISSUE_LABEL[v] ?? v;
     return v.replace(/_/g, '-');
   }
   protected chipTone(key: CatKey, v: string): string { return key === 'pets' ? `t-${v}` : key === 'contract' ? 't-contract' : ''; }

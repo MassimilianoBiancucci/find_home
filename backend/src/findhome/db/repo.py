@@ -10,6 +10,7 @@ from rapidfuzz import fuzz
 
 from findhome.db import runs_repo
 from findhome.db.runs_repo import create_scan_run, finish_scan_run  # noqa: F401 - scan runner API
+from findhome.domain.issues import issue_codes
 from findhome.domain.models import EvaluationIn, FeedbackIn, IngestItemResult, IngestRequest, IngestResult, ListingIn
 from findhome.domain.normalize import content_hash, dedupe_key, new_short_id, normalize_address
 from findhome.pets import apply_pet, ingest_candidate
@@ -214,6 +215,11 @@ async def listing_sources(conn, listing_id) -> list[dict]:
                                  "FROM listing_sources WHERE listing_id = %s ORDER BY first_seen_at", (listing_id,))
 
 
+# the latest page read of a listing (details or status job) stopped because Chrome had translated the page
+LAST_READ_TRANSLATED_SQL = """coalesce((SELECT i.outcome = 'translated' FROM job_items i WHERE i.listing_id = l.id AND i.outcome IS NOT NULL
+                       ORDER BY i.at DESC NULLS LAST LIMIT 1), false)"""
+
+
 # ── ad status per source (sub-plan #11) ─────────────────────
 AD_STATUSES = ("open", "applications_closed", "rented", "removed", "not_found", "unknown")
 CLOSED_STATUSES = ("applications_closed", "rented", "removed", "not_found")
@@ -326,6 +332,7 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
                        FROM listing_sources ls WHERE ls.listing_id = l.id) AS ad_sources,
                     (SELECT max(ls.status_checked_at) FROM listing_sources ls WHERE ls.listing_id = l.id
                        AND ls.ad_status IN ('open', 'unknown')) AS ad_checked_at,
+                    {LAST_READ_TRANSLATED_SQL} AS last_read_translated,
                     coalesce(ll.payload->'scores'->>'transport', ll.payload->>'transport')::float AS house_transport,
                     (ll.payload->>'services')::float AS house_services,
                     coalesce((ll.payload->'scores'->>'estimated')::boolean, false) AS house_estimated
@@ -336,6 +343,7 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
     limit_at = datetime.now(UTC) - timedelta(days=stale_days)
     for r in rows:
         r["ad_stale"] = bool(r["ad_open"]) and (r["ad_checked_at"] is None or r["ad_checked_at"] < limit_at)
+        r["issue_codes"] = issue_codes(r)               # computed, never stored (domain/issues.py)
     return rows
 
 

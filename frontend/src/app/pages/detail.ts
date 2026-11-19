@@ -7,6 +7,8 @@ import { FloorPlanMeta, GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
 import { PetBadge } from '../components/pet-badge';
 import { AD_STATUS_LABEL, AdStatusBadge } from '../components/ad-status-badge';
+import { IssueTip } from '../components/issue-tip';
+import { ISSUE_CLASS_LABEL } from '../issues';
 import { SiteLogo } from '../components/site-logo';
 import { ScoreTip } from '../components/score-tip';
 import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
@@ -22,7 +24,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge, IssueTip],
   template: `
   <nav class="fh-detail-nav" aria-label="Candidates">
     @let n = nav();
@@ -40,6 +42,7 @@ import { TagsStore } from '../services/tags.store';
     <a routerLink="/candidates" class="fh-btn-nav"><span class="fh-nav-arrow" aria-hidden="true">←</span>Candidates</a>
     <h1 class="fh-mono">{{ shortId() }}</h1>
     @if (d(); as x) {
+      @if (x.issues?.length) { <fh-issue-tip mode="icon" [issues]="x.issues!" /> }
       <fh-pet-badge prefix="pets " [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
       @if (x.listing.origin_site) { <fh-site-logo [slug]="x.listing.origin_site" [withName]="true" [title]="'First published on ' + sites.name(x.listing.origin_site)" /> }
       <select class="form-select form-select-sm fh-status-select" title="Status" aria-label="Status" [ngModel]="x.listing.status" (ngModelChange)="setStatus($event)">
@@ -86,6 +89,41 @@ import { TagsStore } from '../services/tags.store';
           </div>
           @if (L.description_excerpt) { <p class="fh-desc-text">{{ L.description_excerpt }}</p> }
         </section>
+
+        @if (x.issues?.length) {
+          <section class="fh-hcard fh-issues-card">
+            <header><h2>Issues</h2><span class="fh-hsub">{{ x.issues!.length }} missing value{{ x.issues!.length === 1 ? '' : 's' }}</span>
+              <button type="button" class="fh-btn-glow ms-auto" [disabled]="detailsBusy()" (click)="completeDetails(x)"
+                      title="Read this listing's page again (the details job, for this listing only)">Complete details</button></header>
+            @for (i of x.issues!; track i.code) {
+              <div class="fh-issue-row"><span class="fh-issue-trigger" aria-hidden="true">⚠</span>
+                <div><b>{{ i.label }}</b> <span class="fh-issue-cls" [class.check]="i.cls === 'check_extraction'">{{ issueCls[i.cls] }}</span>
+                  <div class="text-body-secondary small">{{ i.hint }}</div></div></div>
+            }
+          </section>
+        }
+
+        @if (terms(L); as t) {
+          <section class="fh-hcard">
+            <header><h2>Contract and conditions</h2><span class="fh-hsub">as the ad states them · not scored</span></header>
+            @if (t.contract.length) {
+              <div class="fh-hlabel">Contract</div>
+              <div class="fh-chips">@for (c of t.contract; track c.label) { <span class="fh-chipf t-contract sel" [title]="c.raw ?? ''">{{ c.label }}</span> }</div>
+            }
+            @if (t.requirements.length) {
+              <div class="fh-hlabel">Requirements</div>
+              <div class="fh-chips">@for (c of t.requirements; track c) { <span class="fh-chipf sel">{{ c }}</span> }</div>
+            }
+            @if (t.utilities.length) {
+              <div class="fh-hlabel">Included and metered</div>
+              <div class="fh-chips">@for (c of t.utilities; track c) { <span class="fh-chipf">{{ c }}</span> }</div>
+            }
+            @if (t.amenities.length) {
+              <div class="fh-hlabel">Amenities</div>
+              <div class="fh-chips">@for (c of t.amenities; track c) { <span class="fh-chipf">{{ c }}</span> }</div>
+            }
+          </section>
+        }
 
         @if (L.lat != null && L.lon != null) {
           <fh-house-map [lat]="L.lat" [lon]="L.lon" [shortId]="L.short_id" [loc]="loc()" [outside]="outside()" />
@@ -285,6 +323,42 @@ import { TagsStore } from '../services/tags.store';
 })
 export class DetailPage {
   readonly shortId = input.required<string>();
+  protected issueCls = ISSUE_CLASS_LABEL;
+  protected detailsBusy = signal(false);
+  /** Read this listing's page again: the agent details job for browser sites, the in-app one for scripted sites. */
+  protected completeDetails(x: ListingDetail): void {
+    const browser = x.sources.some((s) => s.source_method === 'agent_browser');
+    const key = browser ? 'listing_details' : 'listing_details_script';
+    this.detailsBusy.set(true);
+    this.api.runJob(key, { n: 1, subset: { short_ids: [x.listing.short_id] } }).subscribe({
+      next: () => { this.detailsBusy.set(false); this.info.set(browser
+        ? 'The details job is reading this listing in your Chrome: follow it on the Jobs page.'
+        : 'Reading this listing\'s page again in the background: reload in a few seconds.'); },
+      error: (e) => { this.detailsBusy.set(false); this.error.set(apiError(e)); },
+    });
+  }
+  /** The display-only terms (attributes.contract_terms, requirements, utilities, amenities); null when there are none. */
+  protected terms(L: Listing): { contract: { label: string; raw?: string | null }[]; requirements: string[]; utilities: string[]; amenities: string[] } | null {
+    const a = (L.attributes ?? {}) as Record<string, any>;
+    const ct = a['contract_terms'] ?? {}, rq = a['requirements'] ?? {};
+    const mo = (n: number) => `${n} month${n === 1 ? '' : 's'}`;
+    const contract = [
+      ct.short_term ? { label: 'Short-term contract', raw: null } : null,
+      ct.guaranteed_months != null || ct.guaranteed_raw ? { label: `Guaranteed ${ct.guaranteed_months != null ? mo(ct.guaranteed_months) : '(see wording)'}`, raw: ct.guaranteed_raw } : null,
+      ct.estimated_months != null || ct.estimated_raw ? { label: `Estimated ${ct.estimated_months != null ? mo(ct.estimated_months) : '(see wording)'}`, raw: ct.estimated_raw } : null,
+      ct.notice_months != null || ct.notice_raw ? { label: `Notice ${ct.notice_months != null ? mo(ct.notice_months) : '(see wording)'}`, raw: ct.notice_raw } : null,
+      ct.extension_raw ? { label: ct.max_total_months ? `Extension, max ${mo(ct.max_total_months)}` : 'Extension (see wording)', raw: ct.extension_raw } : null,
+    ].filter((c): c is { label: string; raw: string | null } => !!c);
+    const requirements = [
+      rq.min_income_sek != null ? `Income ≥ ${fmtKr(rq.min_income_sek)}` : '',
+      rq.residual_income_sek != null ? `Left after rent ≥ ${fmtKr(rq.residual_income_sek)} (one adult)` : '',
+      rq.residual_income_couple_sek != null ? `Left after rent ≥ ${fmtKr(rq.residual_income_couple_sek)} (couple)` : '',
+      rq.max_household != null ? `At most ${rq.max_household} people` : '',
+      ...(rq.raw ?? []),
+    ].filter(Boolean);
+    const utilities: string[] = a['utilities'] ?? [], amenities: string[] = a['amenities'] ?? [];
+    return contract.length || requirements.length || utilities.length || amenities.length ? { contract, requirements, utilities, amenities } : null;
+  }
   protected adLabel(s: string | null | undefined): string { return s ? AD_STATUS_LABEL[s as keyof typeof AD_STATUS_LABEL] ?? s : 'new'; }
   protected adEvidence(ev: Record<string, unknown> | null | undefined): string {
     return ev?.['rule'] ? `${ev['rule']}${ev['value'] ? ': ' + ev['value'] : ''}` : '';

@@ -49,6 +49,14 @@ describe('candidate filters', () => {
     expect(ids(applyAll(cats, {}, { pets: ['no'] }, 'pets'))).toBe('QSB');
   });
 
+  it('filters and sorts by issues: a home without issues is "none"', () => {
+    const hs = [home('X', { issue_codes: ['photos_missing', 'move_in_missing'] }), home('Y', { issue_codes: [] }),
+      home('Z', { issue_codes: ['photos_missing'] })];
+    expect(ids(applyAll(hs, {}, { issues: ['none'] }))).toBe('Y');
+    expect(ids(applyAll(hs, {}, { issues: ['photos_missing'] }))).toBe('XZ');
+    expect(ids(sortRows(hs, { key: 'issues', dir: 1 }))).toBe('YZX');
+  });
+
   it('gives one bar per value to a short discrete range, and spans to a long one', () => {
     expect(histogram([2, 2.5, 3], [2, 3], 0.5, -Infinity, Infinity).map((b) => b.value)).toEqual([2, 2.5, 3]);
     expect(histogram([1000, 5000], [0, 100000], 100, -Infinity, Infinity)[0].value).toBeUndefined();
