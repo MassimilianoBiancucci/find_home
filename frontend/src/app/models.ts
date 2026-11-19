@@ -156,6 +156,16 @@ export interface AgentRun {
   usage?: Record<string, Record<string, number>> | null;
   /** The cost is estimated from the price table (the run ended without a result event). */
   cost_estimated?: boolean | null;
+  /** Browser scans: per result page, and the coverage against the site's counter (GET /api/agent-runs/{id}). */
+  scan_report?: { sites: ScanReportSite[] } | null;
+}
+export interface ScanReportPage {
+  page: number | string; cards?: number; new?: number; updated?: number; duplicates?: number; total?: number;
+  last_page?: boolean; usage?: { tokens?: Record<string, Record<string, number>>; cost_estimate?: number } | null;
+}
+export interface ScanReportSite {
+  site: string; pages: ScanReportPage[]; cards: number; total: number | null; coverage: number | null; new: number;
+  duplicates: number; line: string; warning: string | null;
 }
 /** What Cancel did: stopped the agent and its children, found nothing running, or the run had already ended. */
 export interface CancelResult { cancelled: boolean; status: 'stopped' | 'not_running' | 'already_finished'; killed: number; note?: string | null; }

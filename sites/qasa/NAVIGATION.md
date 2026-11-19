@@ -31,8 +31,10 @@ results, run [`extract.js`](extract.js) with the JavaScript tool (it only reads 
 `scripts/findhome ingest listings -f $FINDHOME_RUN_DIR/qasa_page<N>.json --parser qasa --source agent_browser`.
 Stop early when a page brings only known listings (the ingest line shows `unchanged`). About 5-6k tokens per page.
 
-Scan URL (built from `site.yaml`; add `maxMonthlyCost` / `minSquareMeters` once set in `profile.yaml`):
-`https://qasa.com/se/sv/find-home?searchAreas=Stockholms_l%C3%A4n~~se&sharedHome=privateHome&minRoomCount=2&rules=pets&page=1`
+Scan URL (built from `site.yaml` and your hard filters; 59 cards per page, about 18 pages):
+`https://qasa.com/se/sv/find-home?searchAreas=Stockholms_l%C3%A4n~~se&sharedHome=privateHome&maxMonthlyCost=13000&minSquareMeters=40&minRoomCount=1&page=1`.
+The county without filters is 4 340 ads (74 pages, over the 20-page cap), so rent, size and rooms go in the URL
+(`url_filter_policy: when_over_cap`); pets and dates never do.
 
 ## 4. Filters
 | Canonical filter | Qasa URL parameter | Verified |
@@ -40,7 +42,7 @@ Scan URL (built from `site.yaml`; add `maxMonthlyCost` / `minSquareMeters` once 
 | `max_rent_sek` | `maxMonthlyCost` (monthly cost incl. tenant fee) | yes (count changed) |
 | `min_size_m2` | `minSquareMeters` | yes |
 | `min_rooms_rok` | `minRoomCount` (rum, kitchen not counted) | yes |
-| `pets_allowed` | `rules=pets` ("Husdjur tillåtet") | yes |
+| `pets_allowed` | `rules=pets` ("Husdjur tillåtet") exists but is **never sent**: it hides every "ask" and unknown ad | local only |
 | own home, not shared | `sharedHome=privateHome` ("Eget boende"), fixed | yes |
 | `move_in_from` | `earliestMoveIn` exists in the site code, value format not verified | local only |
 | `contract_types` | `contractTypes` exists, values not verified; `firstHand` is in the data | local only |
@@ -82,7 +84,7 @@ The search node is kept whole: `extract.js` sends every field without `__typenam
 `attributes.qasa`.
 
 ## 6. Pet wording
-The filter "Husdjur tillåtet" (`rules=pets`) and the per-listing `petsAllowed` flag come from the landlord's house
+The per-listing `petsAllowed` flag (and the URL filter "Husdjur tillåtet", `rules=pets`, which the scan never sends) come from the landlord's house
 rules; the trait `pets` appears on the detail page when allowed. Mapping: `petsAllowed: true` → `pet_status: yes`
 (evidence "Qasa house rules"); `false` → `unknown` (false is also the default, so it is not treated as a "no";
 the landlord is asked). Free text in descriptions may still say "inga husdjur": the evaluation run checks it.

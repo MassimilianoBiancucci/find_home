@@ -36,9 +36,10 @@ def test_argv_substitution(bundle):
     assert argv[:3] == ["claude", "-p", "PROMPT"]
     assert argv[argv.index("--session-id") + 1] == "s1"
     assert argv[argv.index("-n") + 1] == "findhome-browser_scan-r1abcdef"     # the name claude agents --json shows
-    assert argv[argv.index("--max-turns") + 1] == "64"                      # 40 + 12 per page
+    assert argv[argv.index("--max-turns") + 1] == "18"                      # 12 + 3 per page
     tools = argv[argv.index("--allowedTools") + 1].split(",")
-    assert "mcp__claude-in-chrome__javascript_tool" in tools and "Write(./inbox/**)" in tools
+    assert "mcp__claude-in-chrome__javascript_tool" in tools
+    assert not any(t.startswith(("Write", "mcp__claude-in-chrome__computer")) for t in tools)   # pages go by post
     assert not any("{" in a for a in argv)
     # a placeholder without a value drops itself and its flag
     values.pop("session_id")
@@ -53,23 +54,34 @@ def test_vscode_link_is_fully_encoded():
     assert unquote(link.split("prompt=", 1)[1]) == "follow x.md with site=qasa pages=20 run=abc & more"
 
 
-def test_move_in_sweep_and_browser_inputs(bundle):
-    from findhome.inbox import browser_inputs, move_in_sweep
+def test_search_urls_page_by_url_without_pet_or_date_filters(bundle):
+    from findhome.inbox import browser_paging, scan_urls
 
-    assert move_in_sweep("2026-12-01", "2027-04-30") == ["2026-12-01", "2027-01-01", "2027-02-01", "2027-03-01",
-                                                         "2027-04-01"]
-    assert move_in_sweep("2026-12-15", "2027-01-10") == ["2026-12-15", "2027-01-01"]
-    assert move_in_sweep(None, "2027-01-01") == [] and move_in_sweep("2027-02-01", "2027-01-01") == []
-    site = bundle.sites["samtrygg"]
+    sam = scan_urls(bundle.sites["samtrygg"], bundle)
+    assert sam[0] == "https://www.samtrygg.se/RentalObject/NewSearch?place=Stockholm&sort=newest&page=1"
+    assert len(sam) == 20 and browser_paging(bundle.sites["samtrygg"]) == {"page_size": 24}
+    qasa = scan_urls(bundle.sites["qasa"], bundle)
+    assert all("rules=" not in u and "earliestMoveIn" not in u and "move" not in u.lower() for u in qasa)
+    assert "page=20" in qasa[-1]
+
+
+def test_url_filter_policy(bundle):
+    from findhome.scanning.filters import resolve
+
+    site = bundle.sites["qasa"]
     hf = bundle.profile.kinds["rent"].hard_filters
-    got = browser_inputs(site, bundle)
-    assert got["inputs"][0]["label"] == "Önskat tillträde" and got["next_page"]["label"]
-    if hf.get("move_in_from") and hf.get("move_in_to"):
-        assert got["input_sets"] and not got["inputs_missing"]
-    else:                                                   # the example profile leaves the window unset
-        assert got["input_sets"] == [] and got["inputs_missing"]
-    assert browser_inputs(bundle.sites["qasa"], bundle) == {}
-
+    saved = dict(hf)
+    try:
+        hf.update(max_rent_sek=13000, pet_status_exclude=["no"], move_in_from="2027-01-01")
+        fm = {**site.filter_map, "pets_allowed": {"param": "rules", "value_map": {"true": "pets"}},
+              "move_in_from": {"param": "earliestMoveIn"}}
+        params = resolve(bundle, site.model_copy(update={"filter_map": fm}), "rent").params
+        assert params["maxMonthlyCost"] == 13000 and "rules" not in params and "earliestMoveIn" not in params
+        never = site.model_copy(update={"fetch": {**site.fetch, "url_filter_policy": {"mode": "never"}}})
+        assert "maxMonthlyCost" not in resolve(bundle, never, "rent").params
+    finally:
+        hf.clear()
+        hf.update(saved)
 
 def test_model_is_a_launch_parameter(bundle):
     for name, default in (("browser_scan", "sonnet"), ("site_onboarding", "opus"), ("pet_agent_check", "sonnet")):

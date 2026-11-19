@@ -121,7 +121,8 @@ async def _late_for(conn, run: str | None) -> str | None:
     return None
 
 
-async def _page_usage(conn, scan_run_id: str, meta: dict[str, Any], cards: int, res) -> None:
+async def _page_usage(conn, scan_run_id: str, meta: dict[str, Any], cards: int, res,
+                      data: dict[str, Any] | None = None) -> None:
     """One line per imported result page: its cards, new listings and the tokens the agent used since the previous
     page, kept in scan_runs.counts.pages and written to the agent run's log."""
     from findhome.agentrun import usage as u
@@ -130,7 +131,11 @@ async def _page_usage(conn, scan_run_id: str, meta: dict[str, Any], cards: int, 
     bundle = get_store().bundle
     mark = await runs_repo.usage_mark(conn, meta.get("run"), dict(bundle.agent.prices) if bundle else {})
     page = str(meta.get("page") or "?")
-    entry = {"cards": cards, "new": res.created, "updated": res.updated, **({"usage": mark} if mark else {})}
+    data = data or {}
+    total = data.get("total_shown") or data.get("totalCount")       # the site's counter for this search
+    entry = {"cards": cards, "new": res.created, "updated": res.updated, "duplicates": res.duplicate,
+             **({"total": total} if total else {}), **({"last_page": data["last_page"]} if "last_page" in data else {}),
+             **({"usage": mark} if mark else {})}
     await conn.execute("""UPDATE scan_runs SET counts = jsonb_set(coalesce(counts, '{}'::jsonb), '{pages}',
                                  coalesce(counts->'pages', '{}'::jsonb) || jsonb_build_object(%s::text, %s::jsonb))
                           WHERE id = %s""", (page, json.dumps(entry), scan_run_id))
@@ -145,6 +150,26 @@ async def _page_usage(conn, scan_run_id: str, meta: dict[str, Any], cards: int, 
             fh.write(json.dumps({"t": datetime.now(UTC).isoformat(), "s": "system", "m": line}, ensure_ascii=False) + "\n")
 
 
+async def import_data(conn, data: Any, name: str) -> dict[str, Any]:
+    """Import one result page (an inbox file's content, or a page posted by extract.js): ingest its listings into the
+    scan run of its agent run, mark them open (listed by the site), and record the page's counts. Commits."""
+    items = to_listings(data, seen_date(name))
+    meta = file_meta(data, items)
+    run_id = None
+    if meta["site"]:
+        run_id = await runs_repo.batch_scan_run(conn, meta["site"], meta["method"], meta["run"], name)
+    res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
+    for site in {i.source.site_slug for i in items}:          # listed in search results: the site says open
+        await repo.mark_seen_open(conn, site, [i.source.external_id for i in items if i.source.site_slug == site],
+                                  {"rule": "in search results", "page": meta.get("page"), "file": name})
+    if run_id:
+        await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
+        await _page_usage(conn, run_id, meta, len(items), res, data if isinstance(data, dict) else {})
+    await conn.commit()
+    return {"file": name, "created": res.created, "updated": res.updated, "unchanged": res.unchanged,
+            "duplicate": res.duplicate, "scan_run_id": run_id, "cards": len(items), "page": meta.get("page")}
+
+
 async def import_file(conn, path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -155,29 +180,33 @@ async def import_file(conn, path: Path) -> dict[str, Any]:
             _move(path, f"cancelled/{late}")
             log.info("inbox: %s parked: its run %s is over", path.name, late)
             return {"file": path.name, "parked": late}
-        items = to_listings(data, seen_date(path.name))
-        meta = file_meta(data, items)
-        run_id = None
-        if meta["site"]:
-            run_id = await runs_repo.batch_scan_run(conn, meta["site"], meta["method"], meta["run"], path.name)
-        res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
-        for site in {i.source.site_slug for i in items}:          # listed in search results: the site says open
-            await repo.mark_seen_open(conn, site, [i.source.external_id for i in items if i.source.site_slug == site],
-                                      {"rule": "in search results", "page": meta.get("page"), "file": path.name})
-        if run_id:
-            await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
-            await _page_usage(conn, run_id, meta, len(items), res)
-        await conn.commit()
+        summary = await import_data(conn, data, path.name)
     except Exception as exc:  # noqa: BLE001 - a bad file must not stop the others
         await conn.rollback()
         _move(path, "failed", f"{exc.__class__.__name__}: {exc}")
         log.warning("inbox: %s failed: %s", path.name, exc)
         return {"file": path.name, "error": str(exc)}
     _move(path, "processed")
-    summary = {"file": path.name, "created": res.created, "updated": res.updated, "unchanged": res.unchanged,
-               "duplicate": res.duplicate, "scan_run_id": run_id}
     log.info("inbox: %s", summary)
     return summary
+
+
+async def import_page_post(conn, site: str, run: str, doc: dict[str, Any]) -> dict[str, Any]:
+    """A result page posted by extract.js (POST /api/inbox/raw, kind page): kept in inbox/processed as the record a
+    file would leave, imported at once. The answer is the short line the agent needs to page on."""
+    if doc.get("translated"):
+        return {"translated": True, "stop": "page translated: turn off Chrome translation for Swedish"}
+    page = doc.get("page") or 1
+    name = f"{site}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}-p{page}.json"
+    data = {**doc, "site": site, "parser": site, "source": "agent_browser", "run": run}
+    folder = inbox_dir() / "processed"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / name).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    async with _import_lock():
+        res = await import_data(conn, data, name)
+    total = doc.get("total_shown") or doc.get("totalCount")
+    return {"page": page, "cards": res["cards"], "new": res["created"], "updated": res["updated"],
+            "duplicates": res["duplicate"], "total": total, "last_page": doc.get("last_page"), "file": name}
 
 
 def scan_urls(site, bundle, pages: int | None = None) -> list[str]:
@@ -193,40 +222,11 @@ def scan_urls(site, bundle, pages: int | None = None) -> list[str]:
     return [q.url for q in HttpListScanner(site, save_raw=False).build_queries(params, limit)]
 
 
-def move_in_sweep(start, end) -> list[str]:
-    """Dates to try in a site's move-in field: move_in_from, then the 1st of every following month up to move_in_to."""
-    from datetime import date
-
-    def as_date(v):
-        return v if isinstance(v, date) else date.fromisoformat(str(v)) if v else None
-    a, b = as_date(start), as_date(end)
-    if not a or not b or b < a:
-        return []
-    out, cur = [a], date(a.year + (a.month == 12), a.month % 12 + 1, 1)
-    while cur <= b:
-        out.append(cur)
-        cur = date(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
-    return [d.isoformat() for d in out]
-
-
-def browser_inputs(site, bundle) -> dict[str, Any]:
-    """The search inputs a browser scan sets on the result page and every combination of values to try, from the
-    profile (scan.browser.inputs). The app computes them so the agent never invents a value (e.g. today)."""
-    cap = (site.scan or {}).get("browser") or {}
-    inputs = cap.get("inputs") or []
-    paging = {"next_page": cap["next_page"]} if cap.get("next_page") else {}
-    if not inputs:
-        return paging
-    hf = dict(bundle.profile.kinds[site.kinds[0]].hard_filters) if bundle and site.kinds[0] in bundle.profile.kinds else {}
-    sets: list[dict[str, str]] = [{}]
-    missing = []
-    for inp in inputs:
-        if inp.get("filter") == "move_in_from":
-            dates = move_in_sweep(hf.get("move_in_from"), hf.get("move_in_to"))
-            if not dates:
-                missing.append("move_in_from / move_in_to")
-            sets = [{**s, inp["label"]: d} for s in sets for d in dates]
-    return {"inputs": inputs, "input_sets": [] if missing else sets, "inputs_missing": missing, **paging}
+def browser_paging(site) -> dict[str, Any]:
+    """How a browser scan pages: every result page is a URL of scan_urls, opened in order. `page_size` (cards per full
+    page) lets the agent stop after a short page; the app never asks it to type into a search form."""
+    pag = (site.fetch or {}).get("pagination") or {}
+    return {"page_size": pag.get("page_size")} if pag.get("page_size") else {}
 
 
 async def write_state(conn, bundle=None) -> None:
@@ -235,6 +235,10 @@ async def write_state(conn, bundle=None) -> None:
     from findhome.config.store import get_store
 
     bundle = bundle or get_store().bundle
+    totals = {r["site_slug"]: r["total"] for r in await (await conn.execute(
+        """SELECT DISTINCT ON (site_slug) site_slug,
+                  (SELECT max((p.value->>'total')::int) FROM jsonb_each(counts->'pages') p) AS total
+           FROM scan_runs WHERE counts ? 'pages' ORDER BY site_slug, started_at DESC""")).fetchall()}
     rows = await (await conn.execute(
         """SELECT s.site_slug, count(*) AS n, max(s.last_seen_at) AS last_seen,
                   max(COALESCE(l.attributes->>'publishedOrBumpedAt', l.attributes->>'publishedAt')) AS last_published
@@ -253,7 +257,8 @@ async def write_state(conn, bundle=None) -> None:
             # active sites, and browser sites waiting for their verification scan (unverified, browser on)
             "scan_urls": scan_urls(site, bundle) if site and (site.status == "active" or (
                 site.status == "unverified" and site.browser_scan()[0])) else [],
-            **(browser_inputs(site, bundle) if site else {}),
+            **(browser_paging(site) if site else {}),
+            "last_total": totals.get(slug),            # the site's counter in the last browser scan
             "updated_at": datetime.now(UTC).isoformat()}, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
 

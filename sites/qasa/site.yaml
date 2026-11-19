@@ -33,13 +33,14 @@ fetch:
     sharedHome: privateHome             # own home only, no room in a shared flat
   api: {endpoint: null, method: GET, items_path: null, body: null}
   selectors: {}                  # not used: scanner.py reads the embedded JSON instead of HTML
-  pagination: {type: page_param, param: page, max_pages: 20}   # ~59 listings per page, newest first
+  pagination: {type: page_param, param: page, page_size: 59, max_pages: 20}   # newest first
+  url_filter_policy: {mode: when_over_cap, expected_total_unfiltered: 4340, measured: '2026-11-16'}   # 74 pages unfiltered: rent, size and rooms go in the URL
   details: {enabled: false, max_per_run: 5}    # detail pages only for shortlisted listings, opened in the browser
 filter_map:
   max_rent_sek: {param: maxMonthlyCost, note: monthly cost incl. tenant fee (Qasa monthlyCost)}
   min_size_m2: {param: minSquareMeters}
   min_rooms_rok: {param: minRoomCount, note: Qasa rum count (kitchen not counted) ≈ rok}
-  pets_allowed: {param: rules, value_map: {'true': pets, 'false': null}, note: '"Husdjur tillåtet" = rules=pets'}
+  pets_allowed: {param: null, local_only: true, note: 'never a URL filter (rules=pets would hide every "ask" and unknown ad): pets are decided in the database'}
   accept_sovalkov: {param: null, local_only: true}
   areas_include: {param: null, local_only: true, note: search area is fixed_params.searchAreas; districts filtered locally}
   areas_exclude: {param: null, local_only: true}
@@ -65,4 +66,4 @@ politeness:
 schedule: {interval: null}       # started by hand only (risk_note)
 notes: >-
   Second-hand (andrahand) and some first-hand rentals, Sweden-wide; includes Blocket Bostad listings.
-  Strong pets support: filter "Husdjur tillåtet" (rules=pets) and petsAllowed per listing.
+  Strong pets support: petsAllowed per listing (the "Husdjur tillåtet" URL filter rules=pets is never sent).

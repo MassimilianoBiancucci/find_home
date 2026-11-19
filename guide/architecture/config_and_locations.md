@@ -15,7 +15,7 @@ checklist: [personal_data.md](../principles/personal_data.md); setup: [`config/R
 | File | Role |
 |---|---|
 | `profile.yaml` (personal; [example](../../config/profile.example.yaml)) | per listing kind: `hard_filters` (gate) and `preferences` (weighted groups) |
-| [`filters_catalog.yaml`](../../config/filters_catalog.yaml) | canonical filter keys, used by `hard_filters` and every site's `filter_map` |
+| [`filters_catalog.yaml`](../../config/filters_catalog.yaml) | canonical filter keys, used by `hard_filters` and every site's `filter_map`. Only hard filters can become URL params, and `pets_allowed` (derived from `pet_status_exclude`) and the move-in dates never do ([`resolve()`](../../backend/src/findhome/scanning/filters.py)): pets and dates are judged in the database |
 | `locations.yaml` (personal; [example](../../config/locations.example.yaml)) | categories and points with trips and time windows |
 | [`time_model.yaml`](../../config/time_model.yaml) | day types, default sampling grid, reliability statistics |
 | [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, walking threshold, map icon and colour) |

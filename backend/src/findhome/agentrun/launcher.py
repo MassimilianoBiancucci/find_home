@@ -186,6 +186,10 @@ async def start(bundle: ConfigBundle, profile_name: str, params: dict[str, Any] 
     rel = str(run_dir.relative_to(repo_root()))
     async with pool().connection() as conn:
         (run_dir / "context" / "history_digest.md").write_text(await history_digest(conn, bundle), encoding="utf-8")
+        if profile_name == "browser_scan":             # the scan URLs and page size as the config says now
+            from findhome import inbox
+
+            await inbox.write_state(conn, bundle)
         run_id = await runs_repo.create_agent_run(
             conn, profile=profile_name, command=profile.command, run_dir=rel,
             log_path=str((run_dir / "log.jsonl").relative_to(repo_root())) if launcher == "cli" else None,
@@ -351,6 +355,13 @@ async def _finish(run_id: str, status: str, exit_code: int | None, result: dict 
         _needs_close.discard(run_id)
         await runs_repo.finish_agent_run(conn, run_id, status, exit_code, result)
         await conn.commit()
+        if row.get("profile") == "browser_scan":     # coverage under 95 %: say so in the handover (repair trigger)
+            report = await runs_repo.scan_report(conn, run_id)
+            warnings = [f"{x['site']}: {x['warning']}" for x in (report or {}).get("sites", []) if x["warning"]]
+            if warnings:
+                await conn.execute("UPDATE agent_runs SET summary = coalesce(summary || E'\\n', '') || %s WHERE id = %s",
+                                   ("⚠ " + "; ".join(warnings), run_id))
+                await conn.commit()
         if status in ("ok", "partial"):              # scan → details job → status job (one agent at a time)
             from findhome.jobs.details import chain_after_run
             from findhome.jobs.status import chain_status

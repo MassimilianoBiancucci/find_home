@@ -1,16 +1,19 @@
 // Samtrygg extractor for browser scans (prompts/browser_scan_site.md).
 // Run it with the browser's JavaScript tool on a Samtrygg search page that is OPEN and rendered in the user's
 // browser (https://www.samtrygg.se/RentalObject/NewSearch?place=Stockholm&sort=newest&page=N, the scan_urls of
-// runs/state/samtrygg.json). It only reads the cards already in the DOM: no requests of its own. Cards carry no
+// runs/state/samtrygg.json). It reads the cards already in the DOM; its one request, with window.FH_POST set, hands
+// the page to your local app (see the end). Cards carry no
 // published date, so FH_SINCE is not used: new_count == on_page and older_reached is always false; duplicates are
 // removed at ingest. A page Chrome has translated returns {translated: true} and nothing else: stop the site.
 // The listing id is the /object/<id>/ segment of the card's URL (the app re-derives it from `url` when the browser
 // tool masks the id).
 //
-// Output: {page, on_page, new_count, older_reached, total_shown, total_city, last_page, docs}.
+// Output: {page, on_page, new_count, older_reached, total_shown, total_city, last_page, docs}; with window.FH_POST
+// set, {posted, page, on_page, last_page, cards, new, updated, duplicates, total} (the app imported the page).
 // total_shown: the counter's results for this search ("Visar 259 bostäder" / "Visar 68 av 259 bostäder" → 259 / 68);
 // last_page: the next-page control "›" is disabled or missing, so this is the last result page.
-(() => {
+(async () => {
+  const doc = (() => {
   const root = document.documentElement;
   if (root.classList.contains('translated-ltr') || root.classList.contains('translated-rtl') || !/^sv/i.test(root.lang || 'sv')) {
     return { translated: true, lang: root.lang || null };
@@ -56,4 +59,25 @@
   return { page, on_page: docs.length, new_count: docs.length, older_reached: false,
            total_shown: c ? int(c[1]) : null, total_city: c ? int(c[2] || c[1]) : null,
            last_page: !next || next.matches('.disabled, span'), docs };
+  })();
+  const P = window.FH_POST;
+  if (!P || doc.translated) return doc;
+  // With window.FH_POST = {api, site, run} set (the browser scan), the page goes straight to the app
+  // (POST <api>/api/inbox/raw, kind "page") and only its short answer comes back: the docs never pass through the
+  // agent's context (a whole page would be cut at the tool's 50 KB limit).
+  const brief = { page: doc.page, on_page: doc.on_page, last_page: doc.last_page };
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), 20000);
+  try {
+    const res = await fetch(`${P.api}/api/inbox/raw`, { method: 'POST', headers: { 'content-type': 'application/json' },
+      signal: stop.signal, body: JSON.stringify({ kind: 'page', site: P.site, run: P.run, url: location.href, doc }) });
+    const answer = await res.json().catch(() => ({}));
+    return { posted: res.ok, http: res.status, ...brief, ...answer };
+  } catch (e) {
+    const error = e && e.name === 'AbortError'
+      ? 'no answer from the app in 20 s (Chrome may be asking to allow local network access)' : String(e);
+    return { posted: false, error, ...brief };       // no docs: the page is too big to hand over through the agent
+  } finally {
+    clearTimeout(timer);
+  }
 })()

@@ -4,7 +4,7 @@ import { RouterLink } from '@angular/router';
 import { PetBadge } from '../components/pet-badge';
 import { SiteLogo } from '../components/site-logo';
 import { StatusChip } from '../components/status-chip';
-import { ScanRunListing } from '../models';
+import { ScanReportSite, ScanRunListing } from '../models';
 import { TimelineItem, fmtCost, isLive, resumeUrl, runVerdict } from '../run-format';
 import { ApiService, apiError } from '../services/api.service';
 import { ToastService } from '../services/toast.service';
@@ -88,6 +88,20 @@ import { ToastService } from '../services/toast.service';
     }
   </dl>
 
+  @for (r of report(); track r.site) {
+    <section class="fh-dsec"><h3>Scan report · {{ r.site }}</h3>
+      <div class="small mb-1" [class.text-danger]="r.warning">{{ r.line }} · {{ r.new }} new · {{ r.duplicates }} duplicates</div>
+      @if (r.warning) { <div class="fh-inline-err mb-1" style="max-width:none"><span>{{ r.warning }}</span></div> }
+      <table class="fh-usage">
+        <tr><th>page</th><th>cards</th><th>new</th><th>updated</th><th>dupl.</th><th>cost</th></tr>
+        @for (p of r.pages; track p.page) {
+          <tr><td>{{ p.page }}{{ p.last_page ? ' (last)' : '' }}</td><td>{{ p.cards ?? '–' }}</td><td>{{ p.new ?? '–' }}</td>
+            <td>{{ p.updated ?? '–' }}</td><td>{{ p.duplicates ?? '–' }}</td>
+            <td>{{ p.usage?.cost_estimate != null ? '≈ $' + p.usage!.cost_estimate!.toFixed(3) : '–' }}</td></tr>
+        }
+      </table>
+    </section>
+  }
   @if (counts().length) {
     <section class="fh-dsec"><h3>Counts</h3>
       <div class="d-flex flex-wrap gap-1">
@@ -159,6 +173,8 @@ export class RunDrawer implements OnChanges, OnDestroy {
   protected log = signal<string[]>([]);
   protected logDone = signal(false);
   protected listings = signal<ScanRunListing[]>([]);
+  /** A browser scan's pages and coverage (cards read against the site's counter). */
+  protected report = signal<ScanReportSite[]>([]);
   protected loadingListings = signal(false);
   protected error = signal('');
   private es?: EventSource;
@@ -207,7 +223,11 @@ export class RunDrawer implements OnChanges, OnDestroy {
     this.log.set([]);
     this.logDone.set(false);
     this.listings.set([]);
+    this.report.set([]);
     if (it.type === 'agent') this.tail(it.id);
+    if (it.type === 'agent' && it.agent?.profile === 'browser_scan') {
+      this.api.agentRun(it.id).subscribe({ next: (r) => this.report.set(r.scan_report?.sites ?? []), error: () => {} });
+    }
     if (it.type === 'scan') {
       this.loadingListings.set(true);
       this.api.scanRun(it.id).subscribe({

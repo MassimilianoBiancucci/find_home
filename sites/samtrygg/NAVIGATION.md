@@ -12,10 +12,17 @@ section at a time. Mark anything not yet confirmed with **To verify**.
 **To verify.** Login needed? BankID? Cookie wall? Rate limits seen? (`auth.mode` in site.yaml must match.)
 
 ## 3. Search flow
-**To verify.** Step-by-step clicks or URL parameters to reach a filtered Stockholm result list.
+By URL only: `https://www.samtrygg.se/RentalObject/NewSearch?place=Stockholm&sort=newest&page=N` lists every
+Stockholm ad, newest first, 24 cards per page, with a counter above the cards: "Visar 259 bostäder", or "Visar 68 av
+259 bostäder" when a search narrows it (extract.js reads both forms: `total_shown`, `total_city`). The last page has
+a disabled "›" (`last_page`). Never type into the form: the "Önskat tillträde" field is **read-only** (typed dates
+never applied: run `c7ebb96c` saw the same 6 cards for 4 dates), and the city page /hyra-bostad/stockholm shows only
+the newest 6. robots.txt disallows the search pages: read anyway by your decision (`risk_note`).
 
 ## 4. Filters
-**To verify.** Which canonical filters (config/filters_catalog.yaml) the site can apply and how; which are `local_only`.
+None in the URL (`url_filter_policy: never`): the whole set (259 on 2026-11-16, 11 pages) fits the 20-page cap, and
+every filter is applied in the database. A `from=` date would have kept 68 of 259 and dropped every "Nu" and
+December start.
 
 ## 5. Listing page anatomy
 Object page `/object/<id>/<city>/<area>/<street>/<rooms>` (investigation 2026-11-15/16):
@@ -43,7 +50,7 @@ flexible. A card without the "Husdjur ok" tag is not evidence: the object page d
 (`features=10`) is not used, so the `ask` listings are scanned too.
 
 ## 7. Pagination and limits
-**To verify.** How pages work, items per page, maximum pages, infinite scroll.
+`page=N` in the URL, 24 cards per page, at most 20 pages per scan (`max_pages`), 3 s between pages.
 
 ## 8. Known traps
 **To verify.** Duplicates, sponsored items, stale ads, scam patterns, listings that redirect elsewhere.

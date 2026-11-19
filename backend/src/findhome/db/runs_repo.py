@@ -297,3 +297,33 @@ async def _job_runs_for(conn, agent_ids: list) -> list[dict]:
         return []
     return await _all(conn, "SELECT id, job_key, status, counts, agent_run_id, started_at, finished_at "
                             "FROM job_runs WHERE agent_run_id = ANY(%s)", (agent_ids,))
+
+
+# ── the scan report of a browser scan (sub-plan #9) ─────────
+COVERAGE_WARN = 0.95
+
+
+async def scan_report(conn, agent_run_id: str) -> dict | None:
+    """Per result page of a browser scan run: cards, new, updated, duplicates, the site's counter and the page's token
+    share (#12); and the coverage, cards read against the counter ("259 of 259"). None for a run without pages."""
+    rows = await (await conn.execute(
+        "SELECT site_slug, counts FROM scan_runs WHERE agent_run_id::text = %s ORDER BY started_at",
+        (str(agent_run_id),))).fetchall()
+    sites = []
+    for r in rows:
+        pages = (r["counts"] or {}).get("pages") or {}
+        if not pages:
+            continue
+        items = sorted(({"page": int(k) if str(k).isdigit() else k, **v} for k, v in pages.items()),
+                       key=lambda p: (not isinstance(p["page"], int), p["page"] if isinstance(p["page"], int) else 0))
+        cards = sum(int(p.get("cards") or 0) for p in items)
+        total = max((int(p["total"]) for p in items if p.get("total")), default=None)
+        cov = round(cards / total, 3) if total else None
+        sites.append({"site": r["site_slug"], "pages": items, "cards": cards, "total": total, "coverage": cov,
+                      "new": sum(int(p.get("new") or 0) for p in items),
+                      "duplicates": sum(int(p.get("duplicates") or 0) for p in items),
+                      "line": f"{cards} of {total} cards ({cov:.0%})" if total else f"{cards} cards (no counter)",
+                      "warning": (f"coverage {cards} of {total} ({cov:.0%}) is under {COVERAGE_WARN:.0%}: a page is "
+                                  "missing, the page cap was reached or the counter changed") if cov is not None
+                                 and cov < COVERAGE_WARN else None})
+    return {"sites": sites} if sites else None

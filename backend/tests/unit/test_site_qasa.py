@@ -80,9 +80,9 @@ async def test_scanner_urls_paging_and_enrich(tmp_repo, monkeypatch, tmp_path):
     assert stats.parsed == 3 and stats.pages == 2 and not stats.errors
     first = seen[0]
     assert first.startswith("https://qasa.com/se/sv/find-home?")
-    for part in ("searchAreas=Stockholms_l%C3%A4n~~se", "sharedHome=privateHome", "rules=pets", "minRoomCount=2", "page=1"):
+    for part in ("searchAreas=Stockholms_l%C3%A4n~~se", "sharedHome=privateHome", "minRoomCount=2", "page=1"):
         assert part in first
-    assert filt["params"]["rules"] == "pets" and "contract_types" in filt["local_only"]
+    assert "rules=" not in first and "rules" not in filt["params"] and "contract_types" in filt["local_only"]
     enriched = await scanner.enrich(items[0])
     assert enriched.floor == 3 and enriched.build_year == 2021 and enriched.has_balcony and enriched.has_elevator
     assert enriched.attributes["building_floors"] == 4

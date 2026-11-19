@@ -155,7 +155,7 @@ profiles:
     command: claude
     prompt: >-
       Use the find-home skill: follow .agents/skills/find-home/prompts/browser_scan_site.md exactly,
-      with site={site} pages={pages} run={run_id}.
+      with site={site} pages={pages} run={run_id} api={api}.
     params:
       site: {type: site, required: true, site_needs: browser}
       pages: {type: int, min: 1, from_site: browser_pages}
@@ -166,16 +166,11 @@ profiles:
       - mcp__claude-in-chrome__tabs_create_mcp
       - mcp__claude-in-chrome__navigate
       - mcp__claude-in-chrome__javascript_tool
-      - mcp__claude-in-chrome__find
-      - mcp__claude-in-chrome__form_input
-      - mcp__claude-in-chrome__computer
       - mcp__claude-in-chrome__tabs_close_mcp
       - Bash(scripts/findhome run attach:*)
       - Bash(scripts/findhome run close:*)
-      - Write(./inbox/**)
-      - Edit(./inbox/**)
-    max_turns: 40               # room for search inputs (e.g. 5 move-in dates × date picker clicks)
-    turns_per: {param: pages, turns: 12}   # per page: next-page click + extract + file, for every input set
+    max_turns: 12
+    turns_per: {param: pages, turns: 3}    # per page: navigate + extract.js (it posts the page to the app)
     args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
            "-n", "findhome-{profile}-{run_short}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",

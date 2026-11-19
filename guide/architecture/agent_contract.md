@@ -86,11 +86,23 @@ when a file appears (watcher) and on `POST /api/inbox/import` (`findhome ingest 
 The API also writes `runs/state/<site>.json` (on startup, on config changes and after each inbox import):
 `last_published` (newest `attributes.publishedAt` seen), `known_listings`, and `scan_urls`, the result-page URLs
 (as many as the site's `politeness.max_pages_per_run`) built by the same filter mapping as the scripted scanner,
-and for sites whose result page has search fields (`scan.browser.inputs`), `inputs` and `input_sets`:
-[`browser_inputs()`](../../backend/src/findhome/inbox.py) computes every value combination from
-the profile (a move-in field gets `move_in_from`, then the 1st of each month up to `move_in_to`), so the agent
-tries each set instead of the page's default, and closes the run as `failed` when the profile leaves them unset; and `next_page` when further result pages are reached inside the page
-(the agent then pages up to the requested number for every set).
+`page_size` (cards on a full page) and `last_total` (the site's counter in the last browser scan). Every result page
+is a URL: the agent never types into a search form nor clicks a pager. **The volume rule** (QA T9 R9): read
+everything a site lists while it fits the page cap and filter in the database; `fetch.url_filter_policy` says when
+a site's hard filters still go in the URL (`never` for Samtrygg, `when_over_cap` for Qasa, 4 340 ads unfiltered),
+and pet and date filters never do ([`NEVER_IN_URL`](../../backend/src/findhome/scanning/filters.py)).
+
+**Result pages by post.** A browser scan runs `extract.js` with `window.FH_POST = {api, site, run}`: the script
+posts the page to `POST /api/inbox/raw` (kind `page`) and returns one short line (`{posted, page, on_page, cards,
+new, total, last_page}`), so a page's listings never pass through the agent's context (a whole page would be cut at
+the tool's 50 KB limit). [`import_page_post()`](../../backend/src/findhome/inbox.py) keeps the page in
+`inbox/processed/` as the record a file would leave and imports it at once into the run's scan run, the same way
+as a file ([`import_data()`](../../backend/src/findhome/inbox.py)). A post that fails stops the scan with the
+Chrome setup hint ([agent-permissions.md](../documentation/agent-permissions.md#when-a-browser-run-goes-wrong)):
+the agent never copies a page itself. Each page is recorded in `scan_runs.counts.pages[k]` (`cards`, `new`,
+`updated`, `duplicates`, `total`, `last_page`, the page's token share); [`scan_report()`](../../backend/src/findhome/db/runs_repo.py)
+adds the coverage, cards read against the site's counter ("259 of 259 cards"), returned with
+`GET /api/agent-runs/{id}` and shown in the run drawer. Coverage under 95 % adds a ⚠ line to the run's handover.
 Browser prompts such as [`browser_scan_site.md`](../../.agents/skills/find-home/prompts/browser_scan_site.md) and
 [`qasa_browser_scan.md`](../../.agents/skills/find-home/prompts/qasa_browser_scan.md) (Claude desktop) read only
 this file and `extract.js`, so a small model can run them.

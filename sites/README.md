@@ -34,10 +34,13 @@ page was read (from the file name), so a parser can date a card that shows a day
 `role: origin` sites are never scanned; an aggregator's `platforms` maps its `attributes.platform` values to them,
 so a listing shows where it was first published. `risk_note` records a decision to scan despite robots.txt or the
 terms (who, when, limits). `local_filter` holds scanner-side filters (`exclude_flags`, `search_area_buffer_m`).
-`scan.browser.inputs` lists search fields the browser agent sets on the result page before extracting (label,
-selector, how); the app derives the values to try from the profile (e.g. every month of the move-in window).
-`scan.browser.next_page` says how to reach further result pages inside the page (a next-page control) when they
-have no URL of their own; the browser agent then reads up to the chosen number of pages for every input set.
+Browser sites are searched **by URL**: `fetch.list_url_template` + `fixed_params` + the page param
+(`pagination: {type: page_param, param, page_size, max_pages}`); the agent opens one URL per page and stops after
+the last or a short page (fewer cards than `page_size`). The volume rule: read everything a site lists while it fits
+the page cap and filter in the database. `fetch.url_filter_policy` documents when hard filters still go in the URL
+(`mode: never`, or `when_over_cap` with the measured `expected_total_unfiltered`); pet and date filters never do,
+whatever the `filter_map` says. `scan.browser.inputs` (search fields set in the page) stays in the schema for a
+site whose search can only be set by a form; no site uses it.
 
 ## General filters → site filters
 

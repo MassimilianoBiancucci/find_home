@@ -54,8 +54,15 @@ async def inbox_raw(body: RawIn, conn=Depends(get_conn)):
     run = await runs_repo.get_agent_run(conn, body.run)
     if not run or run["status"] != "running":
         raise HTTPException(409, "no open agent run with this id")
-    if body.kind == "page":
-        raise HTTPException(422, "page posts are not enabled yet")
+    if body.kind == "page":                          # a result page of a browser scan (extract.js)
+        if body.doc is None:
+            raise HTTPException(422, "a page post needs doc")
+        from findhome import inbox
+
+        try:
+            return await inbox.import_page_post(conn, body.site, body.run, body.doc)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
     if not body.url or body.doc is None:
         raise HTTPException(422, f"a {body.kind} post needs url and doc")
     try:
@@ -98,7 +105,8 @@ async def agent_run(run_id: str, conn=Depends(get_conn)):
     row = await runs_repo.get_agent_run(conn, run_id)
     if not row:
         raise HTTPException(404, "no such agent run")
-    return row
+    report = await runs_repo.scan_report(conn, run_id) if row.get("profile") == "browser_scan" else None
+    return {**row, **({"scan_report": report} if report else {})}
 
 
 @router.get("/agent-profiles")

@@ -39,7 +39,9 @@ its permissions on its own command line, so they affect only that run:
 - `--strict-mcp-config`: only Claude in Chrome is loaded, none of your account's other connectors.
 - `--permission-mode dontAsk`: anything not allowed is refused instead of waiting on a prompt nobody sees.
 - `--allowedTools`: the browser tools the prompt uses, `scripts/findhome run attach|close` (plus `jobs next|submit`
-  for the pet check, all of `scripts/findhome` for onboarding) and writes under `inbox/` (onboarding: `sites/`).
+  for the jobs, all of `scripts/findhome` for onboarding) and writes only where a prompt needs files (`runs/details/`,
+  `runs/status/` for the CLI fallbacks; onboarding: `sites/`). A browser scan writes no file: `extract.js` posts each
+  result page to the app (step 6 below).
   Reading files in the repo needs no permission. Refused calls show up as `permission_denials` on the run.
 - `--session-id`: chosen by the app and stored on the run; `--max-turns` grows with the pages or listings asked.
 
@@ -63,8 +65,8 @@ Before the first run, once, by hand:
    "Never translate this site" on each site). A translated page is read wrong, so the scripts answer
    `{translated: true}` and the run stops.
 6. Allow **Local network access** for each browser site (`qasa.com`, `www.samtrygg.se`): open the site, click the
-   site-information icon left of the address → Site settings → Local network access → Allow. The details job's page
-   script sends the page's data from the site to the app on `127.0.0.1:8200` ([agent_contract.md](../architecture/agent_contract.md#file-inbox-agents-without-api-access)),
+   site-information icon left of the address → Site settings → Local network access → Allow. The browser scan's and
+   the jobs' page scripts send the page's data from the site to the app on `127.0.0.1:8200` ([agent_contract.md](../architecture/agent_contract.md#file-inbox-agents-without-api-access)),
    and Chrome holds such a request until the user allows it. A prompt left unanswered a few times turns into Block.
 
 Chrome must be open when a run starts; the run opens one tab and closes it.
