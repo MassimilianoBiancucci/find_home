@@ -18,12 +18,16 @@ tools (write only under `runs/details/`). Never try to get around a refusal, a C
 4. Repeat at most `<N>` times:
    a. Run `scripts/findhome jobs next <job_run>`. If it says `done`, go to step 5. Note the `short_id`, the `open:`
       URL, the `site:` and what is `missing:`.
-   b. Navigate the tab to the `open:` URL and wait until the page has rendered.
+   b. Navigate the tab to the `open:` URL and wait until the page has rendered. Check that the tab's URL is the
+      `open:` URL (the navigate answer or `tabs_context_mcp`); right after navigating, the previous page can still be
+      showing, and a script run on it would report the previous listing.
    c. Run the site's script with the JavaScript tool, as one piece of code: first the line
       `window.FH_POST = {api: "<api>", site: "<site>", run: "<run>", job_run: "<job_run>"};`
       then the word `await ` immediately followed by the whole text of `sites/<site>/detail_extract.js`, unchanged
       (without the Read tool's line numbers). The script returns a promise; without `await` the tool answers `{}`.
       The answer is short: `{posted: true, short_id, outcome, changed, missing}`.
+      If its `short_id` is not the one `jobs next` gave you, the previous page was still showing: wait, check the
+      URL again and run the script once more.
       - `outcome: "translated"` (or `{translated: true}`): Chrome has translated the page. Stop the whole run at
         step 6 with `--outcome failed` and the summary "page translated: turn off Chrome translation for Swedish".
       - `outcome: "gone"` or `"unread"`: nothing to add; go to the next listing.

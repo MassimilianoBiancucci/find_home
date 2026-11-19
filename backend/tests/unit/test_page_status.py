@@ -20,6 +20,7 @@ def box(text: str) -> str:
 def test_the_status_box_redirect_and_deadline():
     assert page_status(box("Bostaden är förmedlad. Kötid 2019-03-01"), URL, RULES)[0] == "rented"
     assert page_status(box("Annonseringen är avslutad"), URL, RULES)[0] == "applications_closed"
+    assert page_status(box("Annonsen är avregistrerad"), URL, RULES)[0] == "removed"
     assert page_status(box("För att anmäla intresse behöver du logga in"), URL, RULES)[0] == "open"
     status, ev = page_status("<html></html>", "https://bostad.stockholm.se/annonsen-ar-inte-langre-tillganglig/", RULES)
     assert status == "removed" and ev["rule"] == "redirect"

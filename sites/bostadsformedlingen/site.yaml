@@ -49,6 +49,7 @@ ad_status:                      # how an ad closes (seen on 6 pages, 2026-11-15)
   box:                          # the status box's first words → status (listing_status_script)
     Bostaden är förmedlad: rented
     Annonseringen är avslutad: applications_closed
+    Annonsen är avregistrerad: removed          # seen 2026-11-19 on an ad that redirected on 11-15
     För att anmäla intresse: open
 auth: {mode: none}              # listings are public; applying needs your login (BankID), never the agent's
 politeness: {min_delay_s: 3, max_pages_per_run: 1, respect_robots: true, user_agent: findhome/0.1 (personal home search)}
