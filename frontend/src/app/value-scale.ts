@@ -9,7 +9,7 @@ export interface ScaleField {
   values: number[];
 }
 /** Your move-in window from config/profile.yaml hard_filters (ISO dates, null when not set). */
-export interface MoveInWindow { from: string | null; to: string | null; }
+export interface MoveInWindow { from: string | null; to: string | null; /** move_in_from_slack_days: earlier than from − slack is rejected. */ slack_days?: number | null; }
 export interface ValueScale { n: number; fields: Record<ValueField, ScaleField>; move_in?: MoveInWindow; }
 export interface ValueRating { score: number; colour: string; title: string; }
 
@@ -52,14 +52,21 @@ export function rateValue(v: number | null | undefined, f: ValueField, s: ScaleF
 
 /**
  * A move-in date against your window: inside it green, before it amber (you would pay two rents or wait), after it
- * red (the move_in_to hard filter rejects it). No window set: no colour. ISO dates compare as strings.
+ * red (the move_in_to hard filter rejects it), and red more than slack_days before it (move_in_from_slack_days). No window set: no colour. ISO dates compare as strings.
  */
 export function rateMoveIn(date: string | null | undefined, w: MoveInWindow | null | undefined): ValueRating | null {
   if (!date || !w || (!w.from && !w.to)) return null;
   const d = date.slice(0, 10);
   const win = `your window ${w.from ?? '…'} → ${w.to ?? '…'} (config/profile.yaml)`;
   if (w.to && d > w.to) return { score: 0, colour: 'var(--fh-bad)', title: `${d}: after ${win}, rejected by move_in_to` };
-  if (w.from && d < w.from) return { score: 0.5, colour: 'var(--fh-mid)', title: `${d}: before ${win}` };
+  if (w.from && d < w.from) {
+    const slack = w.slack_days;
+    if (slack != null) {
+      const limit = new Date(Date.parse(w.from + 'T00:00:00Z') - slack * 86_400_000).toISOString().slice(0, 10);
+      if (d < limit) return { score: 0, colour: 'var(--fh-bad)', title: `${d}: more than ${slack} days before ${win}, rejected by move_in_from_slack_days` };
+    }
+    return { score: 0.5, colour: 'var(--fh-mid)', title: `${d}: before ${win}${slack != null ? ` (within ${slack} days)` : ''}` };
+  }
   return { score: 1, colour: 'var(--fh-good)', title: `${d}: inside ${win}` };
 }
 

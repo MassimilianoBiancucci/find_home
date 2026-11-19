@@ -46,6 +46,7 @@ filter_map:
   contract_types: {param: null, local_only: true, note: firstHand flag in the data; Qasa param contractTypes not verified}
   move_in_from: {param: null, local_only: true, note: 'Qasa param earliestMoveIn exists; format not verified'}
   move_in_to: {param: null, local_only: true}
+  move_in_from_slack_days: {param: null, local_only: true}
   pet_status_exclude: {param: null, local_only: true}
   max_commute_min_by_category: {param: null, local_only: true}
 field_map: {}                    # mapping lives in scanner.py document_to_listing()

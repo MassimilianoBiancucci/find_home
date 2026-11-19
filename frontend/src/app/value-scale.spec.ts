@@ -33,6 +33,12 @@ describe('rateMoveIn', () => {
     expect(rateMoveIn('2030-02-01', w)?.colour).toBe('var(--fh-mid)');
     expect(rateMoveIn('2030-07-01', w)?.colour).toBe('var(--fh-bad)');
   });
+  it('is red more than slack_days before the window, amber within the slack', () => {
+    const ws = { ...w, slack_days: 30 };
+    expect(rateMoveIn('2030-01-30', ws)?.colour).toBe('var(--fh-mid)');   // exactly from − 30 days: kept
+    expect(rateMoveIn('2030-01-29', ws)?.colour).toBe('var(--fh-bad)');
+    expect(rateMoveIn('2030-01-29', ws)?.title).toContain('move_in_from_slack_days');
+  });
   it('has no colour without a date or a window', () => {
     expect(rateMoveIn(null, w)).toBeNull();
     expect(rateMoveIn('2030-04-15', { from: null, to: null })).toBeNull();

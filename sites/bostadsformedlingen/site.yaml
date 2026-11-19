@@ -39,6 +39,7 @@ filter_map:                     # canonical key (config/filters_catalog.yaml) â†
   areas_include: {param: null, local_only: true}
   contract_types: {param: null, local_only: true}
   move_in_from: {param: null, local_only: true}
+  move_in_from_slack_days: {param: null, local_only: true}
 field_map: {}                   # mapping lives in scanner.py to_listing()
 pets: {filter_available: 'no', typical_wording: [Husdjur, allergianpassad]}
 ad_status:                      # how an ad closes (seen on 6 pages, 2026-11-15)

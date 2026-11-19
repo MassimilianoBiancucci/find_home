@@ -567,6 +567,13 @@ comes from filtering on posting dates.
   reasons in `rejected_by`. `pet_status_exclude` defaults to `["no"]`; the pet status itself is decided at ingest
   ([pets.md](pets.md)), and `cat_suitability` reads `pet_status_score` (`conflict` defaults to 0.4). A sleeping alcove adds one room only when
   `accept_sovalkov` is true. `max_commute_min_by_category` uses the best median of that category's points.
+  `move_in_to` rejects a later move-in; `move_in_from_slack_days` (unset: any earlier date passes) rejects a move-in
+  more than that many days before `move_in_from` (`move_in_from_slack`). An unknown move-in passes (it is a listing
+  issue, not a rejection). Candidates colours the date green inside the window, amber before it within the slack,
+  red outside. The slack is a database filter only: browser searches send no date, so changing it needs no scan.
+- **space** blends a size ramp (`min_size_m2` → `ideal_size_m2`) with a rooms ramp (`min_rooms_rok` →
+  `ideal_rooms_rok`, weight `rooms_weight`, 0.3) when `ideal_rooms_rok` is set and the rooms are known, so a one-room
+  flat scores below a two-room one of the same size ([`_space()`](../../backend/src/findhome/domain/scoring.py#L80)).
 - Each enabled preference group returns a 0..1 score or `None` when its data is missing (for example cost while
   `max_rent_sek` and `ideal_rent_sek` are unset). The total is the weighted mean of the groups that returned a
   score. Groups: cost, space, commute (point weight × window weight, linear between `good_min` and `bad_min`,
