@@ -127,3 +127,16 @@ def test_subset_keys_and_the_chain_after_a_browser_scan(client, db_url, monkeypa
     items = _sql(db_url, """SELECT l.short_id FROM job_items i JOIN listings l ON l.id = i.listing_id
                             WHERE i.job_run_id = %s""", (res["job_run"],))
     assert [r["short_id"] for r in items] == [sid]
+
+
+def test_urls_redacted_by_the_browser_tool_never_shrink_the_gallery(client, db_url):
+    sid, run, jr = _setup(client, db_url)
+    body = {"kind": "detail", "site": "samtrygg", "run": run, "job_run": jr, "url": URL, "doc": DOC}
+    client.post("/api/inbox/raw", json=body)
+    cut = {**DOC, "photos": ["https://img.invalid/a.jpg", "[BLOCKED: Cookie/query string data]"]}
+    res = client.post("/api/inbox/raw", json={**body, "doc": cut}).json()
+    assert res["outcome"] == "unchanged"
+    L = client.get(f"/api/listings/{sid}").json()["listing"]
+    assert L["photo_urls"] == DOC["photos"] and L["attributes"]["photo_count"] == 2
+    note = _sql(db_url, "SELECT note FROM job_items WHERE job_run_id = %s", (jr,))[0]["note"]
+    assert "1 URLs redacted" in note

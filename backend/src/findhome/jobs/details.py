@@ -150,6 +150,23 @@ async def find_listing(conn, site: str, url: str) -> dict | None:
                                WHERE s.site_slug = %s AND s.external_id = %s""", (site, str(ext)))
 
 
+REDACTED = "[BLOCKED"          # what the browser tool puts in place of URLs with query strings (CLI fallback only)
+
+
+def _drop_redacted(doc: dict) -> int:
+    """Remove the browser tool's redaction markers from the doc's string lists (a doc that passed through the agent's
+    context, `jobs post-detail`); the number removed."""
+    n = 0
+    for k, v in list(doc.items()):
+        if isinstance(v, list):
+            keep = [x for x in v if not (isinstance(x, str) and REDACTED in x)]
+            n += len(v) - len(keep)
+            doc[k] = keep
+        elif isinstance(v, dict):
+            n += _drop_redacted(v)
+    return n
+
+
 async def raw_detail(conn, site: str, url: str, doc: dict, job_run: str | None) -> dict:
     """A listing page's data posted by detail_extract.js: apply what the page had, record it on the job item."""
     L = await find_listing(conn, site, url)
@@ -165,13 +182,21 @@ async def raw_detail(conn, site: str, url: str, doc: dict, job_run: str | None) 
     if doc.get("listing") is None:
         await _record(conn, job_run, item, {}, {}, "unread", doc.get("reason") or "page state not readable", url)
         return {"short_id": L["short_id"], "outcome": "unread", "reason": doc.get("reason")}
+    redacted = _drop_redacted(doc)
     mapped = site_module(site).detail_to_listing(doc)
     attrs = {**(mapped.pop("attributes", None) or {}), "details_checked_at": datetime.now(UTC).isoformat(timespec="seconds")}
+    if redacted:              # a partial list never replaces a stored one
+        stored = await _one(conn, "SELECT photo_urls, floorplan_urls FROM listings WHERE id = %s", (L["id"],))
+        for col in ("photo_urls", "floorplan_urls"):
+            if stored[col]:
+                mapped.pop(col, None)
+        attrs.pop("photo_count", None)
     pet = _pet_from_flag(attrs.pop("pets_flag", None))
     before, after = await apply_fields(conn, L["id"], mapped, attrs, pet)
     missing = await missing_of(conn, L["id"])
-    await _record(conn, job_run, item, before, after, "changed" if after else "unchanged",
-                  ("still missing: " + ", ".join(missing)) if missing else None, url)
+    notes = ([f"{redacted} URLs redacted by the browser tool"] if redacted else []) + (
+        ["still missing: " + ", ".join(missing)] if missing else [])
+    await _record(conn, job_run, item, before, after, "changed" if after else "unchanged", "; ".join(notes) or None, url)
     if item and job_run:
         await mark_item_usage(conn, str(job_run), item["id"])
     return {"short_id": L["short_id"], "outcome": "changed" if after else "unchanged", "changed": sorted(after),
