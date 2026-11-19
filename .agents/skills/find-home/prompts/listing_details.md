@@ -28,7 +28,8 @@ tools (write only under `runs/details/`). Never try to get around a refusal, a C
         step 6 with `--outcome failed` and the summary "page translated: turn off Chrome translation for Swedish".
       - `outcome: "gone"` or `"unread"`: nothing to add; go to the next listing.
       - `posted: false`: the page could not send its data (the `error` says why). Save the answer's `doc` with the
-        Write tool as `runs/details/<short_id>.json` and run
+        Write tool as `runs/details/<short_id>.json`, exactly as returned: keep every `[BLOCKED: …]` entry (the app
+        then keeps the photos it already has instead of a shortened list). Then run
         `scripts/findhome jobs post-detail <job_run> --site <site> --url "<url>" --doc-file runs/details/<short_id>.json`.
    d. If `missing` lists `available_from` or the page shows contract terms the script cannot read: read the page
       text (`get_page_text`; `find` for "tillträde", "inflytt", "uppsägning", "deposition", "hyresgäster" when the
