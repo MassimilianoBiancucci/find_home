@@ -263,6 +263,7 @@ class BostadsformedlingenScanner(HttpListScanner):
         super().__init__(site, client=client, save_raw=save_raw)
         self.method = "api"
         self.filtered: dict[str, int] = {}
+        self.feed_ids: list[str] | None = None   # every ad in the feed (also those the local filter drops)
 
     def build_queries(self, params: dict[str, Any], max_pages: int) -> list[Query]:
         return [Query(FEED, 1)]                  # the feed is the whole region; filters are local
@@ -274,6 +275,8 @@ class BostadsformedlingenScanner(HttpListScanner):
         if not isinstance(data, list):
             raise ValueError("AllaAnnonser did not return a JSON list: the feed changed (follow site_repair.md)")
         snap = self._snapshot(q.page, resp.text, "json")
+        self.feed_ids = [str(d.get("LagenhetId") or d.get("AnnonsId")) for d in data
+                         if isinstance(d, dict) and (d.get("LagenhetId") or d.get("AnnonsId")) not in (None, "")]
         keep = []
         for doc in data:
             why = excluded(doc, self.site.local_filter or {})

@@ -351,13 +351,15 @@ async def _finish(run_id: str, status: str, exit_code: int | None, result: dict 
         _needs_close.discard(run_id)
         await runs_repo.finish_agent_run(conn, run_id, status, exit_code, result)
         await conn.commit()
-        if status in ("ok", "partial"):              # a browser scan hands over to the details job (one agent at a time)
+        if status in ("ok", "partial"):              # scan → details job → status job (one agent at a time)
             from findhome.jobs.details import chain_after_run
+            from findhome.jobs.status import chain_status
 
-            try:
-                await chain_after_run(conn, run_id)
-            except Exception as exc:  # noqa: BLE001 - the scan is done whatever the chain does
-                log.warning("details job not chained after %s: %s", run_id, exc)
+            for chain in (chain_after_run, chain_status):   # each starts only after its own profile
+                try:
+                    await chain(conn, run_id)
+                except Exception as exc:  # noqa: BLE001 - the run is done whatever the chain does
+                    log.warning("%s after %s failed: %s", chain.__name__, run_id, exc)
 
 
 async def cancel_run(run_id: str) -> dict[str, Any]:

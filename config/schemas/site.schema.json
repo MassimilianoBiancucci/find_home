@@ -395,6 +395,54 @@
       },
       "additionalProperties": false
     },
+    "ad_status": {
+      "type": "object",
+      "description": "How the site says an ad is closed (applications over, let, removed, gone). Scripted sites: feed and page rules read by the app; browser sites: the rules live in sites/<slug>/status_check.js.",
+      "properties": {
+        "feed_complete_min": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "a full feed with fewer ads is treated as broken and closes nothing"
+        },
+        "feed_missing_status": {
+          "enum": [
+            "applications_closed",
+            "removed",
+            "not_found"
+          ],
+          "description": "status of an open or unknown source missing from a complete feed"
+        },
+        "removed_url": {
+          "type": "string",
+          "description": "a final URL containing this text means the ad was removed"
+        },
+        "box_selector": {
+          "type": "string",
+          "description": "CSS selector of the page's status text"
+        },
+        "box": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "open",
+              "applications_closed",
+              "rented",
+              "removed",
+              "not_found"
+            ]
+          },
+          "description": "status text prefix → status (Swedish, as on the page)"
+        },
+        "check_script": {
+          "type": "string",
+          "description": "browser sites: the status script the agent runs (status_check.js)"
+        },
+        "note": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "auth": {
       "type": "object",
       "properties": {

@@ -8,7 +8,8 @@ One folder per website: `sites/<slug>/`
 | `NAVIGATION.md` | How to use the site well: search flow, filters, listing anatomy, pet wording, traps. Written and kept current by the agent. |
 | `scanner.py` | Optional. `make_scanner(site)` for sites the generic scanner cannot handle (Playwright, embedded JSON, a whole-region feed); `to_listing(doc)` converts browser-extracted items from `inbox/`. |
 | `extract.js` | Browser-only sites: run by the browser agent on a result page already loaded in your Chrome (reads the page, sends no requests). |
-| `detail_extract.js` | Browser-only sites: run on one listing page for the details job; reads the page's structured data first (JSON-LD, page state), visible text only for what that lacks. `scanner.py` `detail_to_listing(doc)` maps its output to the fields the page had. |
+| `detail_extract.js` | Browser-only sites: run on one listing page for the details job; reads the page's structured data first (JSON-LD, page state), visible text only for what that lacks. `scanner.py` `detail_to_listing(doc)` maps its output to the fields the page had; an optional `ad_status_of(doc)` returns the ad status the page shows. |
+| `status_check.js` | Browser-only sites: run on one listing page for the status job; returns `{status, evidence, price?}` (open, rented, removed, not_found, unknown) by the rules in its header. Scripted sites put their page rules in `site.yaml` `ad_status` instead (`removed_url`, `box_selector`, `box`), and a site with a whole-region feed sets `feed_complete_min` so a complete feed closes what it no longer lists. |
 
 Every browser script starts with the same check: a page Chrome has translated (`html.translated-ltr`, or a `lang`
 that is not Swedish) returns `{translated: true}` and is not read, since labels, dates and even street names change.

@@ -268,6 +268,7 @@ class SiteConfig(_Base):
     filter_map: dict[str, dict[str, Any]]
     field_map: dict[str, Any] = Field(default_factory=dict)
     pets: dict[str, Any] = Field(default_factory=dict)
+    ad_status: dict[str, Any] = Field(default_factory=dict)    # how the site says an ad is closed (#11)
     auth: dict[str, Any]
     politeness: dict[str, Any]
     schedule: dict[str, Any] = Field(default_factory=dict)

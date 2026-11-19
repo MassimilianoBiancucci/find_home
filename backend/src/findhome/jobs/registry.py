@@ -34,6 +34,16 @@ TYPES: dict[str, JobType] = {
         "listing_details_script", "inapp", "Listing details by script",
         "For sites the app may read by script (Bostadsförmedlingen): reads each chosen listing's page again, as a scan "
         "does, without tokens. Use it to refresh old listings without a full scan.", max_n=200),
+    "listing_status": JobType(
+        "listing_status", "agent", "Ad status check by the agent",
+        "The agent opens each chosen listing's page in your Chrome and runs the site's status_check.js, which tells "
+        "the app whether the ad is still open, let, removed or gone (with the evidence) and re-reads the price. Closed "
+        "listings leave Candidates (\"show closed\" brings them back). Undo per listing.",
+        profile="listing_status", max_n=80),
+    "listing_status_script": JobType(
+        "listing_status_script", "inapp", "Ad status check by script",
+        "For sites the app may read by script (Bostadsförmedlingen): reads the page of each chosen listing whose "
+        "applications closed, to tell a let flat from a removed ad (site.yaml ad_status rules). No tokens.", max_n=200),
 }
 
 

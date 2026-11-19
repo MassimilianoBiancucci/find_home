@@ -6,6 +6,7 @@ import { fmtKr, fmtNum, fmtScore, petClass, petSourceLabel, scoreColor } from '.
 import { FloorPlanMeta, GalleryComponent } from '../components/gallery';
 import { InfoButton } from '../components/info';
 import { PetBadge } from '../components/pet-badge';
+import { AD_STATUS_LABEL, AdStatusBadge } from '../components/ad-status-badge';
 import { SiteLogo } from '../components/site-logo';
 import { ScoreTip } from '../components/score-tip';
 import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
@@ -21,7 +22,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge],
   template: `
   <nav class="fh-detail-nav" aria-label="Candidates">
     @let n = nav();
@@ -251,10 +252,21 @@ import { TagsStore } from '../services/tags.store';
                 @if (s.first_scan_run_id || s.scan_run_id) {
                   <a class="ms-1" style="font-size:0.74rem" [routerLink]="['/runs']" [queryParams]="{ scan: s.first_scan_run_id || s.scan_run_id }"
                      title="The scan run that found this source">run ↗</a>
-                }</span>
+                }
+                <fh-ad-status class="ms-1" [status]="s.ad_status" [site]="sites.name(s.site_slug)" [checkedAt]="s.status_checked_at" [evidence]="s.status_evidence" /></span>
               <span class="text-body-secondary text-end" style="font-size:0.74rem" [title]="'first seen ' + (s.first_seen_at | date: 'medium') + ', last seen ' + (s.last_seen_at | date: 'medium')">
                 {{ s.first_seen_at | date: 'shortDate' }}{{ (s.last_seen_at | date: 'shortDate') !== (s.first_seen_at | date: 'shortDate') ? ' → ' + (s.last_seen_at | date: 'shortDate') : '' }}</span>
             </div>
+          }
+          @if (x.ad_status_events?.length) {
+            <div class="fh-hlabel">Ad status history</div>
+            <ul class="fh-tl">
+              @for (e of x.ad_status_events!.slice(0, 8); track e.at + e.site_slug) {
+                <li [title]="adEvidence(e.evidence)"><b>{{ sites.name(e.site_slug) }}: {{ adLabel(e.from_status) }} → {{ adLabel(e.to_status) }}</b>
+                  <span class="text-body-secondary ms-1">by {{ e.actor === 'job' ? 'status check' : e.actor }}</span>
+                  <div class="fh-tl-at">{{ e.at | date: 'medium' }}</div></li>
+              }
+            </ul>
           }
           @if (x.events.length) {
             <div class="fh-hlabel">Timeline</div>
@@ -273,6 +285,10 @@ import { TagsStore } from '../services/tags.store';
 })
 export class DetailPage {
   readonly shortId = input.required<string>();
+  protected adLabel(s: string | null | undefined): string { return s ? AD_STATUS_LABEL[s as keyof typeof AD_STATUS_LABEL] ?? s : 'new'; }
+  protected adEvidence(ev: Record<string, unknown> | null | undefined): string {
+    return ev?.['rule'] ? `${ev['rule']}${ev['value'] ? ': ' + ev['value'] : ''}` : '';
+  }
   private api = inject(ApiService);
   private router = inject(Router);
   private order = inject(CandidateOrderStore);

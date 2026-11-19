@@ -238,12 +238,36 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
                 summary["scored"] = (await score_listings(conn, ids, bundle))["scored"]
             except Exception as exc:  # noqa: BLE001 - the scan's data is stored; scores can be recomputed
                 log.warning("%s: scoring after the scan failed: %s", slug, exc)
+        summary.update(await feed_status(conn, site, scanner, items, stats))
         await repo.finish_scan_run(conn, run_id, "error" if stats.errors and not items else
                                    "partial" if stats.errors else "ok",
                                    {k: v for k, v in summary.items() if k not in ("filters", "short_ids_new")},
                                    "; ".join(stats.errors) or None, pages=stats.pages)
     summary["seconds"] = round(time.monotonic() - t0, 1)
     return summary
+
+
+async def feed_status(conn, site: SiteConfig, scanner, items: list[ListingIn], stats: ScanStats) -> dict[str, Any]:
+    """Ad status from a scan, free: the listed sources are open; on a site whose feed is complete (one response with
+    every open ad, ad_status.feed_complete_min in site.yaml), its open or unknown sources missing from the feed get
+    ad_status.feed_missing_status. A feed with errors or fewer ads than the minimum closes nothing."""
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    seen = [i.source.external_id for i in items]
+    out: dict[str, Any] = {"status_open": await repo.mark_seen_open(conn, site.slug, seen,
+                                                                   {"rule": "listed by a scan", "at": now})}
+    rules, feed = site.ad_status or {}, getattr(scanner, "feed_ids", None)
+    if feed is None or not rules.get("feed_complete_min"):
+        return out
+    if stats.errors or len(feed) < int(rules["feed_complete_min"]):
+        out["status_note"] = (f"feed of {len(feed)} ads with {len(stats.errors)} errors: treated as incomplete, "
+                              "nothing closed")
+        return out
+    await repo.mark_seen_open(conn, site.slug, feed, {"rule": "in the feed", "at": now})
+    out["status_closed"] = await repo.close_missing(
+        conn, site.slug, feed, rules.get("feed_missing_status", "applications_closed"),
+        {"rule": "not in the feed", "feed_url": (site.fetch.get("api") or {}).get("endpoint"), "feed_size": len(feed),
+         "at": now})
+    return out
 
 
 def summary_line(s: dict[str, Any]) -> str:

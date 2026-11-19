@@ -18,7 +18,8 @@ export class ApiService {
 
   health(): Observable<Health> { return this.http.get<Health>('/health'); }
 
-  listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number; origin?: string; site?: string; scanRun?: string } = {}) {
+  listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number; origin?: string; site?: string; scanRun?: string;
+                   closed?: 'exclude' | 'include' | 'only' } = {}) {
     let p = new HttpParams().set('limit', String(opts.limit ?? 5000));
     if (opts.status) p = p.set('status', opts.status);
     if (opts.q) p = p.set('q', opts.q);
@@ -26,6 +27,7 @@ export class ApiService {
     if (opts.site) p = p.set('site', opts.site);
     if (opts.scanRun) p = p.set('scan_run', opts.scanRun);
     if (opts.includeRejected === false) p = p.set('include_rejected', 'false');
+    if (opts.closed) p = p.set('closed', opts.closed);
     return this.http.get<{ config_hash: string; items: Listing[] }>('/api/listings', { params: p });
   }
   listing(id: string) { return this.http.get<ListingDetail>(`/api/listings/${id}`); }

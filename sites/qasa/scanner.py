@@ -205,6 +205,17 @@ def id_from_url(url: str | None) -> str | None:
     return m.group(1) if m else None
 
 
+AD_STATUS = {"normal": "open", "archived": "removed", "rented_out": "rented"}   # Home.status → ad status (#11)
+
+
+def ad_status_of(doc: dict) -> tuple[str, dict[str, Any]] | None:
+    """The ad status a detail_extract.js doc shows (the details job sets it too), or None when it does not tell."""
+    if doc.get("listing") is False and doc.get("status") == "not_found":
+        return "not_found", {"rule": "no Home object", "value": doc.get("og_title")}
+    status = AD_STATUS.get(doc.get("status")) if doc.get("listing") else None
+    return (status, {"rule": "Home.status", "value": doc.get("status")}) if status else None
+
+
 def detail_to_listing(doc: dict, ext: str | None = None) -> dict[str, Any]:
     """The listing page (detail_extract.js output) as the fields it has, for the details job: only what the page
     showed, so a missing value never overwrites a stored one. Rent is stored as the monthly cost (rent + tenant fee),

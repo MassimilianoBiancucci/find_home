@@ -34,6 +34,10 @@ export interface Listing {
   origin_site?: string | null;
   /** Sites the home was found on (listing_sources). */
   found_on?: string[] | null;
+  /** False when none of its sources is open any more (applications closed, let, removed, not found). */
+  ad_open?: boolean;
+  /** The ad status on each site it was found on. */
+  ad_sources?: { site: string; status: AdStatus; checked_at?: string | null }[] | null;
   available_from?: string | null;
   description_excerpt?: string | null;
   photo_urls: string[];
@@ -75,7 +79,14 @@ export interface CommuteRow {
 
 export interface Feedback { polarity: 'like' | 'dislike' | 'neutral'; tags: string[]; note?: string | null; actor: string; at: string; }
 export interface Evaluation { summary: string; pros: string[]; cons: string[]; questions_for_landlord: string[]; extracted: Record<string, unknown>; at: string; }
-export interface Source { site_slug: string; external_id: string; url?: string | null; source_method: string; first_seen_at: string; last_seen_at: string; scan_run_id?: string | null; first_scan_run_id?: string | null; }
+export type AdStatus = 'open' | 'applications_closed' | 'rented' | 'removed' | 'not_found' | 'unknown';
+export interface Source {
+  site_slug: string; external_id: string; url?: string | null; source_method: string; first_seen_at: string; last_seen_at: string;
+  scan_run_id?: string | null; first_scan_run_id?: string | null;
+  ad_status?: AdStatus; status_checked_at?: string | null; status_evidence?: Record<string, unknown> | null;
+}
+/** A change of an ad's status on one site (scan, status job or you). */
+export interface AdStatusEvent { at: string; from_status?: AdStatus | null; to_status: AdStatus; actor: string; evidence?: Record<string, unknown> | null; site_slug: string; }
 export interface StatusEvent { from_status?: string | null; to_status: string; actor: string; note?: string | null; at: string; }
 
 export interface ListingDetail {
@@ -87,6 +98,7 @@ export interface ListingDetail {
   evaluations: Evaluation[];
   sources: Source[];
   events: StatusEvent[];
+  ad_status_events?: AdStatusEvent[];
 }
 
 export type SiteStatus = 'unverified' | 'active' | 'broken' | 'disabled';
@@ -163,6 +175,10 @@ export interface JobSubset {
   sites?: string[]; origin_sites?: string[]; pet_status?: string[]; pet_source?: string[]; new_since?: string | null;
   passes_hard_filters?: boolean; order?: 'score_desc' | 'newest' | 'oldest'; short_ids?: string[];
   exclude_checked_within_days?: number | null; status?: string[];
+  /** Listings with a source in one of these ad statuses (status jobs). */
+  ad_status_in?: AdStatus[];
+  /** Listings with a source the site's last completed scan did not list. */
+  not_seen_since_last_scan?: boolean;
 }
 export interface JobSettings { subset: JobSubset; n: number; launcher?: Launcher; /** Agent jobs: model alias (haiku | sonnet | opus); the profile's default when unset. */ model?: string; }
 export interface JobRunBrief { id: string; status: string; counts: Record<string, number>; started_at: string; finished_at?: string | null; agent_run_id?: string | null; }

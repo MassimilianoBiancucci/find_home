@@ -161,6 +161,9 @@ async def import_file(conn, path: Path) -> dict[str, Any]:
         if meta["site"]:
             run_id = await runs_repo.batch_scan_run(conn, meta["site"], meta["method"], meta["run"], path.name)
         res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
+        for site in {i.source.site_slug for i in items}:          # listed in search results: the site says open
+            await repo.mark_seen_open(conn, site, [i.source.external_id for i in items if i.source.site_slug == site],
+                                      {"rule": "in search results", "page": meta.get("page"), "file": path.name})
         if run_id:
             await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
             await _page_usage(conn, run_id, meta, len(items), res)

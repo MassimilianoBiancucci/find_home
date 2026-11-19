@@ -208,9 +208,60 @@ async def get_listing(conn, short_id: str) -> dict:
 
 
 async def listing_sources(conn, listing_id) -> list[dict]:
-    return await _fetchall(conn, "SELECT site_slug, external_id, url, source_method, first_seen_at, last_seen_at, "
-                                 "scan_run_id, first_scan_run_id "
+    return await _fetchall(conn, "SELECT id, site_slug, external_id, url, source_method, first_seen_at, last_seen_at, "
+                                 "scan_run_id, first_scan_run_id, ad_status, status_checked_at, status_evidence "
                                  "FROM listing_sources WHERE listing_id = %s ORDER BY first_seen_at", (listing_id,))
+
+
+# ── ad status per source (sub-plan #11) ─────────────────────
+AD_STATUSES = ("open", "applications_closed", "rented", "removed", "not_found", "unknown")
+CLOSED_STATUSES = ("applications_closed", "rented", "removed", "not_found")
+# a listing is open while any source is open or unknown (never hide a home you may still apply for)
+AD_OPEN_SQL = ("coalesce((SELECT bool_or(ls.ad_status IN ('open', 'unknown')) FROM listing_sources ls "
+               "WHERE ls.listing_id = l.id), true)")
+
+
+async def _bulk_ad_status(conn, where: str, params: list, status: str, evidence: dict | None, actor: str) -> int:
+    """Set the status of the sources matching `where` (on listing_sources s); log an event for each that changes.
+    Returns the number of changes."""
+    if status not in AD_STATUSES:
+        raise ValueError(f"unknown ad status '{status}'; allowed: {', '.join(AD_STATUSES)}")
+    ev = Jsonb(evidence) if evidence is not None else None
+    row = await _fetchone(conn, f"""
+        WITH old AS (SELECT s.id, s.ad_status FROM listing_sources s WHERE {where}),
+             upd AS (UPDATE listing_sources s SET ad_status = %s, status_checked_at = now(), status_evidence = %s
+                     FROM old WHERE s.id = old.id RETURNING s.id),
+             evt AS (INSERT INTO source_status_events (source_id, from_status, to_status, evidence, actor)
+                     SELECT old.id, old.ad_status, %s, %s, %s FROM old WHERE old.ad_status <> %s RETURNING 1)
+        SELECT (SELECT count(*) FROM evt) AS changed, (SELECT count(*) FROM upd) AS checked""",
+        (*params, status, ev, status, ev, actor, status))
+    return int(row["changed"])
+
+
+async def set_ad_status(conn, source_id, status: str, evidence: dict | None, actor: str) -> bool:
+    """One source's status with its evidence; an event only when it changes. True when it changed."""
+    return bool(await _bulk_ad_status(conn, "s.id = %s", [source_id], status, evidence, actor))
+
+
+async def mark_seen_open(conn, site: str, external_ids: list[str], evidence: dict, actor: str = "scan") -> int:
+    """Sources a scan just listed: the site lists them, so the site says they are open."""
+    if not external_ids:
+        return 0
+    return await _bulk_ad_status(conn, "s.site_slug = %s AND s.external_id = ANY(%s)", [site, list(external_ids)],
+                                 "open", evidence, actor)
+
+
+async def close_missing(conn, site: str, present_ids: list[str], status: str, evidence: dict,
+                        actor: str = "scan") -> int:
+    """After a complete feed: the site's open or unknown sources that are not in it get `status`."""
+    return await _bulk_ad_status(conn, "s.site_slug = %s AND s.ad_status IN ('open', 'unknown') "
+                                 "AND NOT (s.external_id = ANY(%s))", [site, list(present_ids)], status, evidence, actor)
+
+
+async def source_status_events(conn, listing_id, limit: int = 20) -> list[dict]:
+    return await _fetchall(conn, """SELECT e.at, e.from_status, e.to_status, e.actor, e.evidence, s.site_slug
+                                    FROM source_status_events e JOIN listing_sources s ON s.id = e.source_id
+                                    WHERE s.listing_id = %s ORDER BY e.at DESC LIMIT %s""", (listing_id, limit))
 
 
 async def source_attributes(conn, site: str, external_id: str) -> dict | None:
@@ -229,8 +280,15 @@ async def source_exists(conn, site: str, ref: str) -> dict | None:
 async def list_listings(conn, config_hash: str, status: str | None = None, kind: str | None = None,
                         q: str | None = None, include_rejected: bool = True, limit: int = 200,
                         since: str | None = None, origin: str | None = None, site: str | None = None,
-                        scan_run: str | None = None) -> list[dict]:
+                        scan_run: str | None = None, closed: str = "include") -> list[dict]:
+    """`closed`: include | exclude | only the listings none of whose sources is open (ad status, sub-plan #11)."""
     where, params = ["true"], [config_hash]
+    if closed == "exclude":
+        where.append(AD_OPEN_SQL)
+    elif closed == "only":
+        where.append(f"NOT {AD_OPEN_SQL}")
+    elif closed != "include":
+        raise ValueError("closed must be include, exclude or only")
     if origin:
         where.append("l.origin_site = %s")
         params.append(origin)
@@ -259,7 +317,10 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
     return await _fetchall(
         conn, f"""SELECT l.*, s.total AS score, s.rejected_by, s.breakdown, s.config_hash AS score_hash,
                     (SELECT array_agg(DISTINCT ls.site_slug) FROM listing_sources ls WHERE ls.listing_id = l.id) AS found_on,
-                    (s.listing_id IS NULL) AS score_stale,
+                    (s.listing_id IS NULL) AS score_stale, {AD_OPEN_SQL} AS ad_open,
+                    (SELECT jsonb_agg(jsonb_build_object('site', ls.site_slug, 'status', ls.ad_status,
+                                                         'checked_at', ls.status_checked_at) ORDER BY ls.first_seen_at)
+                       FROM listing_sources ls WHERE ls.listing_id = l.id) AS ad_sources,
                     coalesce(ll.payload->'scores'->>'transport', ll.payload->>'transport')::float AS house_transport,
                     (ll.payload->>'services')::float AS house_services,
                     coalesce((ll.payload->'scores'->>'estimated')::boolean, false) AS house_estimated

@@ -1,4 +1,4 @@
-"""The browser scripts (extract.js, detail_extract.js) on fictional pages in jsdom, through tests/site_js.cjs.
+"""The browser scripts (extract.js, detail_extract.js, status_check.js) on fictional pages in jsdom, through tests/site_js.cjs.
 Skipped when node or the frontend's jsdom is not installed."""
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ pytestmark = pytest.mark.skipif(not shutil.which("node") or not (NODE_MODULES / 
                                 reason="needs node and frontend/node_modules/jsdom")
 
 
-def run(script: str, page: str, url: str, mode: str = "") -> dict:
+def run(script: str, page: str | Path, url: str, mode: str = "") -> dict:
     out = subprocess.run(["node", str(TESTS / "site_js.cjs"), str(REPO / "sites" / script), str(TESTS / "fixtures" / page),
                           url, mode], capture_output=True, text=True, check=True, timeout=60,
                          env={**os.environ, "NODE_PATH": str(NODE_MODULES)})
@@ -71,3 +71,27 @@ def test_qasa_search_page_keeps_whole_nodes():
     r = run("qasa/extract.js", "qasa/search_page.html", "https://qasa.com/se/sv/find-home?page=1")
     d = r["docs"][0]
     assert "__typename" not in json.dumps(d) and "publishedOrBumpedAt" in d and "displayStreetNumber" in d
+
+
+def test_samtrygg_status_from_http_code_badge_and_json_ld():
+    url = "https://www.samtrygg.se/object/abc124/x"
+    let = run("samtrygg/status_check.js", "samtrygg/gone_page.html", url, "http=410")
+    assert let["status"] == "rented" and let["evidence"]["value"] == "Uthyrd" and let["evidence"]["http"] == 410
+    assert run("samtrygg/status_check.js", "samtrygg/object_page.html", url, "http=404")["status"] == "not_found"
+    open_ = run("samtrygg/status_check.js", "samtrygg/object_page.html", url, "http=200")
+    assert open_["status"] == "open" and open_["price"] == 12500 and open_["evidence"]["rule"].startswith("JSON-LD")
+    assert run("samtrygg/status_check.js", "samtrygg/search_translated.html", url) == {"translated": True, "lang": "en"}
+
+
+def test_qasa_status_from_home_status(tmp_path):
+    url = "https://qasa.com/se/sv/home/1400001"
+    open_ = run("qasa/status_check.js", "qasa/detail_full.html", url, "hydrated")
+    assert open_["status"] == "open" and open_["price"] == 11654
+    page = (TESTS / "fixtures" / "qasa" / "detail_full.html").read_text(encoding="utf-8")
+    archived = tmp_path / "archived.html"
+    archived.write_text(page.replace('status\\":\\"normal', 'status\\":\\"archived'), encoding="utf-8")
+    assert run("qasa/status_check.js", archived, url)["status"] == "removed"
+    gone = run("qasa/status_check.js", "qasa/detail_missing.html", "https://qasa.com/se/sv/home/1400002")
+    assert gone["status"] == "not_found"
+    unread = run("qasa/status_check.js", "qasa/detail_nostate.html", "https://qasa.com/se/sv/home/1400003")
+    assert unread["status"] == "unknown"                    # never not_found without positive evidence

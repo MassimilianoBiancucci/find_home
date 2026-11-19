@@ -30,7 +30,7 @@ async def inbox_import():
 
 class RawIn(BaseModel):
     """What a browser script posts from a listing site's page (the only request a script may send)."""
-    kind: Literal["detail", "page"]
+    kind: Literal["detail", "status", "page"]
     site: str
     run: str = Field(description="The open agent run the script works for")
     url: str | None = None
@@ -40,8 +40,8 @@ class RawIn(BaseModel):
 
 @router.post("/inbox/raw")
 async def inbox_raw(body: RawIn, conn=Depends(get_conn)):
-    """A page's extracted data, posted by the site's script (detail_extract.js), so it never passes through the
-    agent's context. Accepted only for an open agent run, from the site's own origin (api/raw_cors.py)."""
+    """A page's extracted data, posted by the site's script (detail_extract.js, status_check.js), so it never passes
+    through the agent's context. Accepted only for an open agent run, from the site's own origin (api/raw_cors.py)."""
     import uuid as _uuid
 
     from findhome.jobs.details import raw_detail
@@ -57,8 +57,12 @@ async def inbox_raw(body: RawIn, conn=Depends(get_conn)):
     if body.kind == "page":
         raise HTTPException(422, "page posts are not enabled yet")
     if not body.url or body.doc is None:
-        raise HTTPException(422, "a detail post needs url and doc")
+        raise HTTPException(422, f"a {body.kind} post needs url and doc")
     try:
+        if body.kind == "status":
+            from findhome.jobs.status import apply_status
+
+            return await apply_status(conn, body.site, body.url, body.doc, body.job_run)
         return await raw_detail(conn, body.site, body.url, body.doc, body.job_run)
     except JobError as exc:
         raise HTTPException(404, str(exc)) from exc

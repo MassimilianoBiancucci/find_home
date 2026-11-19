@@ -854,3 +854,18 @@ a.fh-chipf { text-decoration: none; }
 .fh-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 0;
   .fh-pager-mid { font-size: 0.82rem; color: var(--bs-secondary-color); text-align: center; b { color: var(--bs-body-color); }
     select { padding-top: 0; padding-bottom: 0; height: 26px; font-size: 0.8rem; } } }
+
+// ── Ad status pills (open / closed on each site) and the "hide closed" toggle ──
+.fh-ad { --c: #8a93a3; display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; font-size: .72rem; font-weight: 700;
+  white-space: nowrap; color: #fff; background: var(--c); box-shadow: 0 0 0 2px color-mix(in srgb, var(--c) 22%, transparent),
+  0 3px 10px -4px var(--c); text-shadow: 0 1px 1px rgba(0, 0, 0, .2); }
+.fh-ad-open { --c: #12b886; }
+.fh-ad-applications_closed { --c: #f59f00; }
+.fh-ad-rented { --c: #7950f2; }
+.fh-ad-removed, .fh-ad-not_found { --c: #e03131; }
+.fh-ad-unknown { --c: transparent; color: #8a93a3; border: 1.5px dashed #8a93a3; box-shadow: none; text-shadow: none; }
+.fh-rej-toggle.fh-closed-toggle { border-color: #f59f00; background: linear-gradient(135deg, #ffc94d 0%, #f59f00 50%, #e67700 100%);
+  box-shadow: 0 0 0 3px rgba(245, 159, 0, .2), 0 4px 14px -4px rgba(245, 159, 0, .75);
+  &:hover { box-shadow: 0 0 0 4px rgba(245, 159, 0, .28), 0 6px 18px -4px rgba(245, 159, 0, .85); }
+  &.on { background: transparent; color: #e67700; box-shadow: none; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #e67700; } } }
+[data-bs-theme='dark'] .fh-rej-toggle.fh-closed-toggle.on { color: #ffc94d; border-color: #ffc94d; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #ffc94d; } }

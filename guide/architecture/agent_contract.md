@@ -73,7 +73,8 @@ When `FINDHOME_AGENT_RUN_ID` is set, `ingest evaluations` links the evaluations 
 (`{kind, site, run, job_run, url, doc}`), so the data goes from your Chrome to the app without passing through the
 agent's context. [`api/raw_cors.py`](../../backend/src/findhome/api/raw_cors.py) allows it only from the origins of
 the browser sites in `sites/` (and answers Chrome's private-network preflight), and the endpoint accepts it only for
-an agent run that is `running`. Kind `detail` (one listing page) feeds the details job ([jobs.md](jobs.md)).
+an agent run that is `running`. Kind `detail` (one listing page) feeds the details job, kind `status` (one listing
+page's ad status) the status job ([jobs.md](jobs.md#ad-status)).
 
 Claude in the desktop app works through the connected folder and its built-in browser and usually cannot reach
 `127.0.0.1:8200`. It writes JSON files into `inbox/` instead ([`inbox/README.md`](../../inbox/README.md)):

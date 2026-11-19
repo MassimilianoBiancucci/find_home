@@ -142,6 +142,8 @@ export class CandidateFiltersStore {
   readonly cats = signal<Cats>({});
   readonly sort = signal<Sort>({ key: 'score', dir: -1 });
   readonly hideRejected = signal(false);
+  /** Listings whose ad is closed on every site (applications over, let, removed, gone): hidden unless you ask. */
+  readonly hideClosed = signal(true);
   /** The list's homes before the ranges (server filters and "hide rejected" applied): the bubble's distributions. */
   readonly base = signal<Listing[]>([]);
   /** Set for a moment when the list reloads after "hide rejected": the charts open and animate to the new data. */

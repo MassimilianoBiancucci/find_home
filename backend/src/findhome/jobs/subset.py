@@ -5,7 +5,7 @@ from typing import Any
 
 KEYS = ("sites", "origin_sites", "pet_status", "pet_source", "new_since", "passes_hard_filters", "order",
         "short_ids", "exclude_checked_within_days", "status", "missing_fields", "exclude_details_checked_within_days",
-        "agent_run")
+        "agent_run", "ad_status_in", "not_seen_since_last_scan")
 # what the details job fills: no move-in, no photos, no description, no street number, or a page never read
 MISSING_FIELDS_SQL = ("(l.available_from IS NULL OR coalesce(jsonb_array_length(l.photo_urls), 0) = 0 "
                       "OR l.description_excerpt IS NULL OR NOT (l.attributes ? 'details_checked_at') "
@@ -55,6 +55,17 @@ def subset_sql(subset: dict[str, Any], config_hash: str, limit: int) -> tuple[st
         where.append("EXISTS (SELECT 1 FROM listing_sources ls JOIN scan_runs sr ON sr.id = ls.scan_run_id "
                      "WHERE ls.listing_id = l.id AND sr.agent_run_id::text = %s)")
         params.append(str(subset["agent_run"]))
+    if subset.get("ad_status_in"):                    # a source (on the chosen sites) with one of these statuses
+        site_cond = " AND ls.site_slug = ANY(%s)" if subset.get("sites") else ""
+        where.append(f"EXISTS (SELECT 1 FROM listing_sources ls WHERE ls.listing_id = l.id "
+                     f"AND ls.ad_status = ANY(%s){site_cond})")
+        params.append(list(subset["ad_status_in"]))
+        if site_cond:
+            params.append(list(subset["sites"]))
+    if subset.get("not_seen_since_last_scan"):        # a source the site's last completed scan did not list
+        where.append("EXISTS (SELECT 1 FROM listing_sources ls WHERE ls.listing_id = l.id AND ls.last_seen_at < "
+                     "(SELECT max(sr.started_at) FROM scan_runs sr WHERE sr.site_slug = ls.site_slug "
+                     "AND sr.status IN ('ok', 'partial') AND NOT sr.dry_run))")
     if subset.get("exclude_checked_within_days"):
         where.append("(l.pet_checked_at IS NULL OR l.pet_checked_at < now() - make_interval(days => %s))")
         params.append(int(subset["exclude_checked_within_days"]))

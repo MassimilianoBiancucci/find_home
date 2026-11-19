@@ -411,7 +411,7 @@ def jobs_next(job_run: str = typer.Argument(..., help="The job run id from your 
         f"{item['short_id']}  {item['title'] or ''} · {item['area'] or ''}",
         f"  open: {item['urls'][0] if item['urls'] else '(no URL)'}",
         f"  site: {item['sites'][0] if item['sites'] else '-'}",
-        *([f"  {item['why']}"] if "missing" in item else [
+        *([f"  {item['why']}"] if "missing" in item or "ad_status" in item else [
             f"  now: pets {item['current']['pet_status']} ({item['current']['pet_source'] or 'no source'}): "
             f"{item['current']['pet_evidence'] or '-'}"]),
         f"  {item['left_after_this']} more after this one"]))
@@ -419,17 +419,22 @@ def jobs_next(job_run: str = typer.Argument(..., help="The job run id from your 
 
 @jobs_app.command("post-detail")
 def jobs_post_detail(job_run: str, site: str = typer.Option(..., "--site"), url: str = typer.Option(..., "--url"),
-                     doc_file: Path = typer.Option(..., "--doc-file", help="detail_extract.js output saved as JSON")):
-    """Fallback when the page could not post its data itself (blocked by the site's security policy): send the
-    output of detail_extract.js for one listing page."""
+                     doc_file: Path = typer.Option(..., "--doc-file", help="the script's doc saved as JSON"),
+                     kind: str = typer.Option("detail", "--kind", help="detail (detail_extract.js) | status "
+                                                                       "(status_check.js)")):
+    """Fallback when the page could not post its data itself (local network access not allowed, app down): send the
+    output of detail_extract.js or status_check.js for one listing page."""
+    if kind not in ("detail", "status"):
+        typer.secho("--kind must be detail or status", fg="red")
+        raise typer.Exit(2)
     run = os.environ.get("FINDHOME_AGENT_RUN_ID")
     if not run:
         typer.secho("FINDHOME_AGENT_RUN_ID is not set (the app sets it for runs it starts)", fg="red")
         raise typer.Exit(2)
     doc = json.loads(doc_file.read_text(encoding="utf-8"))
-    res = _api().post("/api/inbox/raw", {"kind": "detail", "site": site, "run": run, "job_run": job_run, "url": url,
+    res = _api().post("/api/inbox/raw", {"kind": kind, "site": site, "run": run, "job_run": job_run, "url": url,
                                          "doc": doc.get("doc", doc)})
-    _out(res, f"{res.get('short_id')}: {res.get('outcome')}"
+    _out(res, f"{res.get('short_id')}: {res.get('outcome')}" + (f" ({res['status']})" if res.get("status") else "")
          + (f"; still missing: {', '.join(res['missing'])}" if res.get("missing") else ""))
 
 

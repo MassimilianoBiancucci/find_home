@@ -194,7 +194,7 @@ async def cancel_run(conn, run_id: str) -> dict:
 
 # ── agent protocol ──────────────────────────────────────────
 async def next_item(conn, run_id: str) -> dict | None:
-    run = await _one(conn, "SELECT status, job_key FROM job_runs WHERE id = %s", (run_id,))
+    run = await _one(conn, "SELECT status, job_key, settings FROM job_runs WHERE id = %s", (run_id,))
     if not run:
         raise JobError("no such job run")
     if run["status"] != "running":
@@ -212,6 +212,16 @@ async def next_item(conn, run_id: str) -> dict | None:
     sources = await _all(conn, "SELECT site_slug, url FROM listing_sources WHERE listing_id = %s AND url IS NOT NULL "
                                "ORDER BY first_seen_at", (item["listing_id"],))
     left = await _one(conn, "SELECT count(*) AS n FROM job_items WHERE job_run_id = %s AND state = 'queued'", (run_id,))
+    if run["job_key"] == "listing_status":          # the source to check first: on the job's sites, still open
+        sites = (run["settings"].get("subset") or {}).get("sites") or [s["site_slug"] for s in sources]
+        srcs = await _all(conn, """SELECT site_slug, url, ad_status FROM listing_sources
+                                   WHERE listing_id = %s AND url IS NOT NULL AND site_slug = ANY(%s)
+                                   ORDER BY (ad_status IN ('open', 'unknown')) DESC, last_seen_at DESC""",
+                          (item["listing_id"], list(sites)))
+        now = srcs[0]["ad_status"] if srcs else "unknown"
+        return {"short_id": L["short_id"], "title": L["title"], "area": L["area"], "address": L["address_raw"],
+                "urls": [s["url"] for s in srcs], "sites": [s["site_slug"] for s in srcs], "ad_status": now,
+                "why": f"ad status now: {now}", "left_after_this": left["n"]}
     if run["job_key"] == "listing_details":         # what the page read should fill
         from findhome.jobs.details import missing_of
 

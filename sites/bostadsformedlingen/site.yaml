@@ -41,6 +41,15 @@ filter_map:                     # canonical key (config/filters_catalog.yaml) �
   move_in_from: {param: null, local_only: true}
 field_map: {}                   # mapping lives in scanner.py to_listing()
 pets: {filter_available: 'no', typical_wording: [Husdjur, allergianpassad]}
+ad_status:                      # how an ad closes (seen on 6 pages, 2026-11-15)
+  feed_complete_min: 100        # the feed holds exactly the ads open for applications; a shorter one closes nothing
+  feed_missing_status: applications_closed
+  removed_url: /annonsen-ar-inte-langre-tillganglig/      # the listing page redirects here once the ad is removed
+  box_selector: .house-body-intresseanmalan .house-content > strong
+  box:                          # the status box's first words → status (listing_status_script)
+    Bostaden är förmedlad: rented
+    Annonseringen är avslutad: applications_closed
+    För att anmäla intresse: open
 auth: {mode: none}              # listings are public; applying needs your login (BankID), never the agent's
 politeness: {min_delay_s: 3, max_pages_per_run: 1, respect_robots: true, user_agent: findhome/0.1 (personal home search)}
 schedule: {interval: 12h}       # suggestion for an external scheduler: one request per run

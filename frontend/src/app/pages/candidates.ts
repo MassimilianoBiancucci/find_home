@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { PetBadge } from '../components/pet-badge';
+import { AdStatusBadge } from '../components/ad-status-badge';
 import { ScoreTip } from '../components/score-tip';
 import { SiteLogo } from '../components/site-logo';
 import { ZoneMinimap } from '../components/zone-minimap';
@@ -25,7 +26,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -37,6 +38,9 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <button type="button" class="fh-rej-toggle" [class.on]="fs.hideRejected()" [attr.aria-pressed]="fs.hideRejected()" (click)="toggleRejected()"
       [title]="fs.hideRejected() ? 'Rejected homes are hidden: click to show them' : 'Rejected homes are shown: click to hide them'">
       <span class="fh-rej-dot"></span>{{ fs.hideRejected() ? 'Rejected hidden' : 'Hide rejected' }}</button>
+    <button type="button" class="fh-rej-toggle fh-closed-toggle" [class.on]="fs.hideClosed()" [attr.aria-pressed]="fs.hideClosed()" (click)="toggleClosed()"
+      [title]="fs.hideClosed() ? 'Homes whose ad is closed on every site (applications over, let, removed, gone) are hidden: click to show them' : 'Closed ads are shown: click to hide them'">
+      <span class="fh-rej-dot"></span>{{ fs.hideClosed() ? 'Closed hidden' : 'Hide closed' }}</button>
     <button class="btn btn-sm btn-outline-primary" [disabled]="!!recomputing()" (click)="recompute()"
             title="Every home: its transport and services scores from the exact address (when missing), then all scores">
       @if (recomputing(); as rc) { <span class="spinner-border spinner-border-sm me-1"></span>{{ recomputeLabel(rc) }} }
@@ -108,7 +112,8 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
           @let i = page() * pageSize() + j;
           <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
             (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()">
-            <td class="fh-mono text-nowrap"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
+            <td class="fh-mono text-nowrap"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a>
+              @if (r.ad_open === false) { <fh-ad-status class="ms-1" [status]="r.ad_sources?.[0]?.status" [site]="r.ad_sources?.[0]?.site" [checkedAt]="r.ad_sources?.[0]?.checked_at" /> }</td>
             <td>
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
               @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
@@ -244,6 +249,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   }
   protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
   protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
+  protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
 
   ngOnInit(): void {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
@@ -294,6 +300,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   load(pulse = false): void {
     this.loading.set(true);
     this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.fs.hideRejected(),
+      closed: this.fs.hideClosed() ? 'exclude' : 'include',
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
       next: (res) => {
         this.all.set(res.items); this.fs.base.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set('');

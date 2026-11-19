@@ -173,6 +173,10 @@ async def raw_detail(conn, site: str, url: str, doc: dict, job_run: str | None) 
     if not L:
         raise JobError(f"no stored listing for {url}")
     item = await _item_for(conn, job_run, L["id"])
+    if not doc.get("translated"):                      # the page also tells the ad status (Qasa)
+        from findhome.jobs.status import status_from_detail
+
+        await status_from_detail(conn, site, url, doc)
     if doc.get("translated"):
         await _record(conn, job_run, item, {}, {}, "translated", "page translated by Chrome: nothing read", url)
         return {"short_id": L["short_id"], "outcome": "translated", "stop": "page translated: turn off Chrome translation"}
