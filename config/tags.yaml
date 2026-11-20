@@ -3,11 +3,14 @@
 #  Lifecycle statuses and feedback reason tags. The history digest turns tag
 #  counts into "liked / disliked traits" that steer the next agent run.
 # ─────────────────────────────────────────────────────────────
+# new: not looked at yet (glows on the map; stays until you change it). on_hold: you want it but cannot apply yet
+# (e.g. no BankID). assigned_elsewhere: you applied and the home went to someone else (not your own "rejected":
+# it does not count as a dislike). Every change is logged with its time (listing events), for application statistics.
 statuses:
-  default: [new, shortlisted, contacted, viewing, applied, rejected, archived]
+  default: [new, shortlisted, contacted, viewing, on_hold, applied, assigned_elsewhere, rejected, archived]
   by_kind:
-    buy: [new, shortlisted, contacted, viewing, bidding, rejected, archived]
-terminal_statuses: [rejected, archived]
+    buy: [new, shortlisted, contacted, viewing, on_hold, bidding, assigned_elsewhere, rejected, archived]
+terminal_statuses: [rejected, archived, assigned_elsewhere]
 tags:
   positive:
     great_commute: {label: Great commute}

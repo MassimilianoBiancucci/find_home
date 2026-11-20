@@ -1,6 +1,6 @@
 import { Injectable, effect, inject, signal, untracked } from '@angular/core';
 import type { Map as MlMap, Popup } from 'maplibre-gl';
-import { blipId } from '../../components/map-icons';
+import { houseId } from '../../components/map-icons';
 import { walkTone } from '../../format';
 import { GeoCollection, HouseLocation, HouseTrip, TransitResult } from '../../models';
 import { setColour } from '../../set-colours';
@@ -10,17 +10,11 @@ import { MapStateService } from './map-state.service';
 export type RouteView = 'walk' | 'transit' | 'both';
 const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 const ACCENT = '#b45cf0';
+/** The focused home's house and light: a brighter violet than the accent. */
+const HOME_VIOLET = '#c44dff';
 const BUILDING_LAYERS = ['zone-3d-buildings', 'fh-3d-buildings'];
-/** House layers, bottom to top; kept above the zone layers, which load after them. */
-export const HOUSE_LAYERS = ['house-building-3d', 'house-glow', 'house-transit-line', 'house-walk-casing', 'house-walk-line',
-  'house-walk-label', 'house-transit-shade', 'house-transit-glow', 'house-transit-hi', 'house-transit-core', 'house-pin'];
-
-/** The house layers that need moving so they are the topmost layers, in HOUSE_LAYERS order ([] when already so). */
-export function layersToRaise(order: string[]): string[] {
-  const present = HOUSE_LAYERS.filter((id) => order.includes(id));
-  const tail = order.slice(order.length - present.length);
-  return tail.join() === present.join() ? [] : present;
-}
+/** House layers and their ordering: layer-order.ts (MapStateService keeps them on top). */
+export { HOUSE_LAYERS, layersToRaise } from './layer-order';
 
 /** Walking paths from the house: one line per set in its category colour, labelled with tone-coloured minutes. */
 export function walkFeatures(loc: HouseLocation): { lines: GeoCollection; labels: GeoCollection } {
@@ -40,8 +34,10 @@ export function walkFeatures(loc: HouseLocation): { lines: GeoCollection; labels
 export interface TransitDraw {
   /** Only this trip (point_id), e.g. the zone view's point filter. */
   only?: string | null;
-  /** Draw the services' routes too (the house page's switch); your points' routes are always drawn. */
+  /** Draw the services' routes too; your points' routes are drawn unless `kind` says otherwise. */
   services?: boolean;
+  /** Only the trips of this kind (the Routes tab): your points' ('point') or the nearby services' ('service'). */
+  kind?: HouseTrip['kind'];
 }
 
 /** Trips whose every leg is a walk (too near for transit): the walking path to the target is already on the map. */
@@ -56,7 +52,8 @@ export function transitFeatures(t: TransitResult | null, opts: TransitDraw = {})
   const feats: any[] = [];
   for (const trip of t?.trips ?? []) {
     if (opts.only && trip.point_id !== opts.only) continue;
-    if (trip.kind === 'service' && (!opts.services || walkOnly(trip))) continue;
+    if (opts.kind && trip.kind !== opts.kind) continue;
+    if (trip.kind === 'service' && ((!opts.services && opts.kind !== 'service') || walkOnly(trip))) continue;
     for (const leg of trip.legs) {
       const walk = leg.mode === 'walk';
       const coords = leg.path?.length ? leg.path : walk ? [] : [[leg.from.lon, leg.from.lat], [leg.to.lon, leg.to.lat]];
@@ -114,7 +111,6 @@ export class HouseLayerService {
   private transit: TransitResult | null = null;
   private popup: Popup | null = null;
   private bound = false;
-  private raiser: (() => void) | null = null;
 
   constructor() {
     // the hovered route (on this map or in the Transit routes bubble) on top, glowing
@@ -126,6 +122,7 @@ export class HouseLayerService {
 
   show(loc: HouseLocation, transit: TransitResult | null): void {
     this.loc = loc;
+    this.state.focusListing.set(loc.listing.short_id);
     this.transit = transit;
     this.install();
     this.update();
@@ -139,7 +136,7 @@ export class HouseLayerService {
     const map = this.state.map(), loc = this.loc;
     if (!map || !loc) return;
     const pts: number[][] = [[loc.lon, loc.lat], ...points];
-    for (const f of transitFeatures(this.transit, { services: this.travel.showServices() }).features) pts.push(...(f.geometry as any).coordinates);
+    for (const f of transitFeatures(this.transit, this.travel.draw()).features) pts.push(...(f.geometry as any).coordinates);
     const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
     map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
       { padding: 80, maxZoom: 15, pitch: 45, duration: 1200 });
@@ -148,10 +145,8 @@ export class HouseLayerService {
   setOnlyPoint(id: string | null): void { this.onlyPoint.set(id); this.update(); }
 
   clear(): void {
-    const map = this.state.map();
-    if (map && this.raiser) map.off('styledata', this.raiser);
-    this.raiser = null;
     this.popup?.remove();
+    this.state.focusListing.set(null);
     this.state.removeGroup('house');
     this.state.removeGroup('house-building');
     this.loc = null;
@@ -169,9 +164,13 @@ export class HouseLayerService {
       sources: { 'house-walk': { type: 'geojson', data: EMPTY as any }, 'house-walk-label': { type: 'geojson', data: EMPTY as any },
         'house-transit': { type: 'geojson', data: EMPTY as any }, 'house-here': { type: 'geojson', data: here as any } },
       layers: [
+        // the focused home's light: a wide violet glow and a brighter core, lying on the ground under its house
         { id: 'house-glow', type: 'circle', source: 'house-here',
-          paint: { 'circle-color': ACCENT, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 14, 17, 46], 'circle-blur': 0.9,
-            'circle-opacity': 0.55, 'circle-pitch-alignment': 'map' } },
+          paint: { 'circle-color': HOME_VIOLET, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 40, 17, 105], 'circle-blur': 0.8,
+            'circle-opacity': 0.9, 'circle-pitch-alignment': 'map' } },
+        { id: 'house-glow-core', type: 'circle', source: 'house-here',
+          paint: { 'circle-color': '#f0c8ff', 'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 16, 17, 42], 'circle-blur': 0.9,
+            'circle-opacity': 0.8, 'circle-pitch-alignment': 'map' } },
         { id: 'house-transit-line', type: 'line', source: 'house-transit', layout: { 'line-cap': 'round', 'line-join': 'round' },
           paint: { 'line-color': ['get', 'colour'], 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 7], 'line-opacity': 0.9,
             'line-dasharray': ['case', ['get', 'walk'], ['literal', [1, 1.5]], ['literal', [1, 0]]] } },
@@ -184,22 +183,15 @@ export class HouseLayerService {
             'text-offset': [0, -1.3], 'text-allow-overlap': true, 'symbol-z-order': 'source' },
           paint: { 'text-color': TONE_PAINT, 'text-halo-color': '#0b0b10', 'text-halo-width': 1.6 } },
         ...routeHighlightLayers('house-transit', 'house-transit'),
+        // the focused home: the same house marker as every listing, bright violet and larger (its listing marker is
+        // left out meanwhile: MapStateService.focusListing)
         { id: 'house-pin', type: 'symbol', source: 'house-here',
-          layout: { 'icon-image': blipId('home', ACCENT), 'icon-size': 1.6, 'icon-allow-overlap': true, 'icon-ignore-placement': true } },
+          layout: { 'icon-image': houseId(HOME_VIOLET), 'icon-anchor': 'center', 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 1.5, 14, 2, 17, 2.6] } },
       ] as any,
     });
     const map = this.state.map();
     if (map && !this.bound) { this.bindHover(map); this.bound = true; }
-    if (map && !this.raiser) {
-      this.raiser = () => this.raise(map);
-      map.on('styledata', this.raiser);
-    }
-  }
-
-  /** Keep the house layers on top: the zone's heatmap, 3D buildings and pins are added after them. */
-  private raise(map: MlMap): void {
-    const order = (map.getStyle()?.layers ?? []).map((l) => l.id);
-    for (const id of layersToRaise(order)) if (map.getLayer(id)) map.moveLayer(id);
   }
 
   private update(): void {
@@ -209,7 +201,7 @@ export class HouseLayerService {
     this.state.setData('house-walk', r === 'transit' ? EMPTY : walks.lines);
     this.state.setData('house-walk-label', r === 'transit' ? EMPTY : walks.labels);
     this.state.setData('house-transit', r === 'walk' ? EMPTY
-      : transitFeatures(this.transit, { only: this.onlyPoint(), services: this.travel.showServices() }));
+      : transitFeatures(this.transit, { only: this.onlyPoint(), ...this.travel.draw() }));
   }
 
   /** Find the building footprint under the address once the tiles are drawn; fall back to a small extruded box. */

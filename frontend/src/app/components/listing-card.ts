@@ -98,7 +98,7 @@ const REASON: Record<string, string> = {
           <span class="fh-lc-k">Origin</span><span class="fh-lc-v"><fh-site-logo [slug]="t.origin_site" [withName]="true" /></span>
         }
         <span class="fh-lc-k">Seen</span>
-        <span class="fh-lc-v">{{ t.first_seen_at | date: 'd MMM y' }} <span class="fh-lc-dim">· {{ t.status }}</span></span>
+        <span class="fh-lc-v">{{ t.first_seen_at | date: 'd MMM y' }} <span class="fh-lc-dim">· {{ t.status.replaceAll('_', ' ') }}</span></span>
         @if (t.rejected_by?.length) {
           <span class="fh-lc-k">Rejected</span>
           <span class="fh-lc-v fh-lc-wrap">@for (r of t.rejected_by!; track r) { <span class="fh-lc-chip bad" [title]="r">{{ reason(r) }}</span> }</span>

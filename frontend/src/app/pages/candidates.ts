@@ -6,6 +6,8 @@ import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { PetBadge } from '../components/pet-badge';
 import { AdStatusBadge } from '../components/ad-status-badge';
 import { IssueTip } from '../components/issue-tip';
+import { StaleTip } from '../components/stale-tip';
+import { ContractCell } from '../components/contract-cell';
 import { ListingCard } from '../components/listing-card';
 import { issuesOf } from '../issues';
 import { ScoreTip } from '../components/score-tip';
@@ -30,13 +32,13 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, CandidateColumns, ListingCard],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, StaleTip, ContractCell, CandidateColumns, ListingCard],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
     <select class="form-select form-select-sm w-auto" [(ngModel)]="status" (ngModelChange)="load()">
       <option value="">all statuses</option>
-      @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
+      @for (s of tags.statuses(); track s) { <option [value]="s">{{ tags.statusLabel(s) }}</option> }
     </select>
     <input #search class="form-control form-control-sm w-auto" placeholder="search (/)" [(ngModel)]="q" (keyup.enter)="load()" />
     <button type="button" class="fh-rej-toggle" [class.on]="fs.hideRejected()" [attr.aria-pressed]="fs.hideRejected()" (click)="toggleRejected()"
@@ -135,7 +137,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
                 </td> }
                 @case ('transport') { <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}@if (r.house_estimated) { <i class="fh-est-dot inline"></i> }</td> }
                 @case ('services') { <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td> }
-                @case ('status') { <td>{{ r.status }}</td> }
+                @case ('status') { <td>{{ tags.statusLabel(r.status) }}</td> }
                 @case ('area') { <td>@if (r.origin_site) { <fh-site-logo class="me-1" [slug]="r.origin_site" [title]="originTip(r)" /> }{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td> }
                 @case ('move_in') { <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
                   {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td> }
@@ -145,7 +147,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
                 @case ('rent') { <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td> }
                 @case ('per_m2') { <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td> }
                 @case ('pets') { <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td> }
-                @case ('contract') { <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td> }
+                @case ('contract') { <td class="small"><fh-contract-cell [listing]="r" /></td> }
                 @case ('ad_status') { <td class="text-nowrap">@for (a of r.ad_sources ?? []; track a.site) { <fh-ad-status class="me-1" [status]="a.status" [site]="sites.name(a.site)" [checkedAt]="a.checked_at" /> }</td> }
                 @case ('found_on') { <td class="text-nowrap">@for (s of r.found_on ?? []; track s) { <fh-site-logo class="me-1" [slug]="s" [title]="sites.name(s)" /> }</td> }
                 @case ('photos') { <td class="text-center small" [class.text-body-secondary]="!r.photo_urls?.length">{{ r.photo_urls?.length || '–' }}</td> }
@@ -155,7 +157,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
                 }
               }
             }
-            <td class="fh-stale-col">@if (r.ad_stale) { <span class="fh-stale" [title]="staleTip(r)" aria-label="Ad status not confirmed recently">⏱</span> }</td>
+            <td class="fh-stale-col">@if (r.ad_stale) { <fh-stale-tip [listing]="r" [staleDays]="staleDays()" /> }</td>
           </tr>
         }
       </tbody>
@@ -291,11 +293,8 @@ export class CandidatesPage implements OnInit, OnDestroy {
   protected toggleMoveIn(): void { this.fs.moveInMisses.update((v) => !v); this.load(true); }
   protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
   /** "Ad status last confirmed 9 days ago": why the row has a clock. */
-  protected staleTip(r: Listing): string {
-    if (!r.ad_checked_at) return 'Ad status never checked: it may have closed. The status job checks it.';
-    const days = Math.floor((Date.now() - new Date(r.ad_checked_at).getTime()) / 86_400_000);
-    return `Ad status last confirmed ${days} day${days === 1 ? '' : 's'} ago: it may have closed. The status job checks it.`;
-  }
+  /** agent.yaml ad_status.stale_after_days, from the list response: how long a confirmed ad status is trusted. */
+  protected staleDays = signal(7);
 
   ngOnInit(): void {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
@@ -353,7 +352,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
       closed: this.fs.hideClosed() ? 'exclude' : 'include', moveInMisses: this.fs.hideRejected() && this.fs.moveInMisses(),
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
       next: (res) => {
-        this.all.set(res.items); this.fs.base.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set('');
+        this.all.set(res.items); this.fs.base.set(res.items); if (res.stale_after_days) this.staleDays.set(res.stale_after_days); this.cursor.set(0); this.loading.set(false); this.error.set('');
         if (pulse) this.fs.flash();
       },
       error: (e) => { this.error.set(apiError(e)); this.loading.set(false); },

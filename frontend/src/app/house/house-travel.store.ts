@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { HouseTrip, TransitPlan, TransitResult } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 
@@ -15,7 +15,7 @@ export function mergeTrips(old: TransitResult | undefined, which: TransitWhich, 
 /**
  * "Compute transit routes" state per listing, shared by the house page and the 3D house view: the call counts
  * (dry runs, no API calls) for your points and for the services, the itineraries once computed (both kinds merged),
- * whether the services' routes are drawn, and the route under the mouse. Results stay for the session; the server
+ * the Routes tab (whose routes the maps draw), and the route under the mouse. Results stay for the session; the server
  * caches them.
  */
 @Injectable({ providedIn: 'root' })
@@ -29,8 +29,12 @@ export class HouseTravelStore {
   /** `${id}|${which}` while computing. */
   readonly busy = signal<string | null>(null);
   readonly error = signal('');
-  /** Draw the services' transit routes on the maps (off: their walks are enough); on after computing them. */
-  readonly showServices = signal(false);
+  /** The Routes tab: whose paths the maps draw, your points' or the nearby services'. Computing the services shows them. */
+  readonly tab = signal<TransitWhich>('points');
+  /** The maps draw the services' routes (the Nearby services tab) rather than your points'. */
+  readonly showServices = computed(() => this.tab() === 'services');
+  /** What the maps draw (transitFeatures options): the tab's routes only. */
+  readonly draw = computed(() => ({ kind: this.showServices() ? 'service' as const : 'point' as const }));
   /** The trip (point_id, or service:<set>) under the mouse, on a map or in the list: drawn on top, glowing. */
   readonly hover = signal<string | null>(null);
 
@@ -59,7 +63,7 @@ export class HouseTravelStore {
         this.results.update((m) => ({ ...m, [id]: mergeTrips(m[id], which, r) }));
         this.plans.update((m) => ({ ...m, [k]: { ...r, calls: 0, cached: r.destinations } }));
         this.done.update((m) => ({ ...m, [id]: [...new Set([...(m[id] ?? []), which])] }));
-        if (which === 'services') this.showServices.set(true);
+        this.tab.set(which);
         this.busy.set(null);
       },
       error: (e) => { this.error.set(apiError(e)); this.busy.set(null); },

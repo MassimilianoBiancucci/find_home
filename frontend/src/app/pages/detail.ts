@@ -11,7 +11,7 @@ import { IssueTip } from '../components/issue-tip';
 import { ISSUE_CLASS_LABEL } from '../issues';
 import { SiteLogo } from '../components/site-logo';
 import { ScoreTip } from '../components/score-tip';
-import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
+import { HouseHome, HouseRoutes, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
 import { ZoneMinimap } from '../components/zone-minimap';
 import { ValueScaleStore, valueOf } from '../value-scale';
@@ -24,7 +24,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge, IssueTip],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseRoutes, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge, IssueTip],
   template: `
   <nav class="fh-detail-nav" aria-label="Candidates">
     @let n = nav();
@@ -46,7 +46,7 @@ import { TagsStore } from '../services/tags.store';
       <fh-pet-badge prefix="pets " [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
       @if (x.listing.origin_site) { <fh-site-logo [slug]="x.listing.origin_site" [withName]="true" [title]="'First published on ' + sites.name(x.listing.origin_site)" /> }
       <select class="form-select form-select-sm fh-status-select" title="Status" aria-label="Status" [ngModel]="x.listing.status" (ngModelChange)="setStatus($event)">
-        @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
+        @for (s of tags.statuses(); track s) { <option [value]="s">{{ tags.statusLabel(s) }}</option> }
       </select>
       @if (x.listing.canonical_url) { <a class="fh-btn-glow" [href]="x.listing.canonical_url" target="_blank" rel="noopener">Open on site ↗</a> }
     }
@@ -66,38 +66,50 @@ import { TagsStore } from '../services/tags.store';
           @let rr = values.rate(L, 'rent_sek'); @let rm = values.rate(L, 'rent_per_m2');
           @let ro = values.rate(L, 'rooms_rok'); @let rs = values.rate(L, 'size_m2');
           <div class="fh-facts">
+            @let vRent = kr(L.rent_sek); @let vM2 = kr(perM2(L)); @let vRooms = num(L.rooms_rok) + ' rok'; @let vSize = num(L.size_m2, ' m²');
+            @let vFloor = '' + (L.floor ?? '?'); @let vType = L.contract_type ? L.contract_type.replace('_', '-') : '?';
+            @let vEnd = L.contract_end ? '→ ' + (L.contract_end | date: 'd MMM y') : '';
+            @let vMove = L.available_from ? (L.available_from | date: 'd MMM y') ?? '?' : '?';
             <div class="fh-fact" [style.--c]="rr?.colour" [title]="rr?.title ?? ''"><span class="fh-fact-l">Rent</span>
-              <span class="fh-fact-v">{{ kr(L.rent_sek) }}</span><span class="fh-fact-n">per month</span></div>
+              <span class="fh-fact-v" [style.--len]="vRent.length">{{ vRent }}</span><span class="fh-fact-n">per month</span></div>
             <div class="fh-fact" [style.--c]="rm?.colour" [title]="rm?.title ?? ''"><span class="fh-fact-l">Per m²</span>
-              <span class="fh-fact-v">{{ kr(perM2(L)) }}</span><span class="fh-fact-n">per month</span></div>
+              <span class="fh-fact-v" [style.--len]="vM2.length">{{ vM2 }}</span><span class="fh-fact-n">per month</span></div>
             <div class="fh-fact" [style.--c]="ro?.colour" [title]="ro?.title ?? ''"><span class="fh-fact-l">Rooms</span>
-              <span class="fh-fact-v">{{ num(L.rooms_rok) }} rok</span><span class="fh-fact-n">{{ L.has_sovalkov ? '+ sovalkov' : '\u00a0' }}</span></div>
+              <span class="fh-fact-v" [style.--len]="vRooms.length">{{ vRooms }}</span><span class="fh-fact-n">{{ L.has_sovalkov ? '+ sovalkov' : '\u00a0' }}</span></div>
             <div class="fh-fact" [style.--c]="rs?.colour" [title]="rs?.title ?? ''"><span class="fh-fact-l">Size</span>
-              <span class="fh-fact-v">{{ num(L.size_m2, ' m²') }}</span><span class="fh-fact-n">&nbsp;</span></div>
+              <span class="fh-fact-v" [style.--len]="vSize.length">{{ vSize }}</span><span class="fh-fact-n">&nbsp;</span></div>
             <div class="fh-fact"><span class="fh-fact-l">Floor</span>
-              <span class="fh-fact-v">{{ L.floor ?? '?' }}</span><span class="fh-fact-n">{{ L.build_year ? 'built ' + L.build_year : '\u00a0' }}</span></div>
-            <div class="fh-fact"><span class="fh-fact-l">Contract</span>
-              <span class="fh-fact-v">{{ L.contract_type ? L.contract_type.replace('_', '-') : '?' }}</span><span class="fh-fact-n">{{ L.contract_end ? 'until ' + L.contract_end : '\u00a0' }}</span></div>
+              <span class="fh-fact-v" [style.--len]="vFloor.length">{{ vFloor }}</span><span class="fh-fact-n">{{ L.build_year ? 'built ' + L.build_year : '\u00a0' }}</span></div>
+            <div class="fh-fact" [title]="L.contract_end ? 'Fixed term, until ' + (L.contract_end | date: 'd MMMM y') : ''"><span class="fh-fact-l">Contract</span>
+              <span class="fh-fact-v" [style.--len]="vType.length">{{ vType }}</span>
+              <span class="fh-fact-n" [class.fh-fact-end]="!!vEnd" [style.--len]="vEnd.length">{{ vEnd || '\u00a0' }}</span></div>
             @let mv = values.moveIn(L);
             <div class="fh-fact" [style.--c]="mv?.colour" [title]="mv?.title ?? ''"><span class="fh-fact-l">Move in</span>
-              <span class="fh-fact-v">{{ L.available_from ? (L.available_from | date: 'd MMM y') : '?' }}</span><span class="fh-fact-n">&nbsp;</span></div>
+              <span class="fh-fact-v" [style.--len]="vMove.length">{{ vMove }}</span><span class="fh-fact-n">&nbsp;</span></div>
           </div>
           <div class="fh-feats">
             @for (f of features(L); track f.label) {
               <span class="fh-feat" [class.yes]="f.v === true" [class.no]="f.v === false">{{ f.v === true ? '✓' : f.v === false ? '✕' : '?' }} {{ f.label }}</span>
             }
           </div>
-          @if (L.description_excerpt) { <p class="fh-desc-text">{{ L.description_excerpt }}</p> }
+          @if (L.description_excerpt) {
+            <button type="button" class="fh-desc-tg" [attr.aria-expanded]="descOpen()" (click)="descOpen.set(!descOpen())"
+              [title]="descOpen() ? 'Fold the description away' : 'Show the description from the ad'">
+              <i aria-hidden="true">{{ descOpen() ? '▾' : '▸' }}</i> Description
+              @if (!descOpen()) { <span class="fh-desc-peek">{{ L.description_excerpt }}</span> }</button>
+            @if (descOpen()) { <p class="fh-desc-text">{{ L.description_excerpt }}</p> }
+          }
         </section>
 
         @if (x.issues?.length) {
           <section class="fh-hcard fh-issues-card">
-            <header><h2>Issues</h2><span class="fh-hsub">{{ x.issues!.length }} missing value{{ x.issues!.length === 1 ? '' : 's' }}</span>
+            <header><h2>Issues</h2><span class="fh-hsub">{{ x.issues!.length }} issue{{ x.issues!.length === 1 ? '' : 's' }}</span>
               <button type="button" class="fh-btn-glow ms-auto" [disabled]="detailsBusy()" (click)="completeDetails(x)"
                       title="Read this listing's page again (the details job, for this listing only)">Complete details</button></header>
             @for (i of x.issues!; track i.code) {
               <div class="fh-issue-row"><span class="fh-issue-trigger" aria-hidden="true">⚠</span>
-                <div><b>{{ i.label }}</b> <span class="fh-issue-cls" [class.check]="i.cls === 'check_extraction'">{{ issueCls[i.cls] }}</span>
+                <div><b>{{ i.label }}</b> <span class="fh-issue-cls" [class.check]="i.cls === 'check_extraction'" [class.attn]="i.cls === 'attention'">{{ issueCls[i.cls] }}</span>
+                  @if (i.detail) { <span class="fh-issue-detail">{{ i.detail }}</span> }
                   <div class="text-body-secondary small">{{ i.hint }}</div></div></div>
             }
           </section>
@@ -133,7 +145,6 @@ import { TagsStore } from '../services/tags.store';
             <div class="col-xl-6"><fh-house-home [loc]="l" [transit]="travel.results()[l.listing.short_id] ?? null" /></div>
             <div class="col-xl-6"><fh-house-zone [loc]="l" /></div>
           </div>
-          <fh-house-travel [loc]="l" [collapsed]="true" /><fh-house-transit [loc]="l" [collapsed]="true" />
         } @else if (locError() && !outside()) {
           <div class="fh-hcard"><div class="fh-hnote">House analysis not available: {{ locError() }}</div></div>
         } @else if (!locError()) {
@@ -267,6 +278,8 @@ import { TagsStore } from '../services/tags.store';
           }
         </section>
 
+        @if (loc(); as l) { <fh-house-routes [loc]="l" /> }
+
         <section class="fh-hcard" [class.collapsed]="!digestOpen()">
           <header><h2><button type="button" class="fh-hcard-tg" [attr.aria-expanded]="digestOpen()" (click)="digestOpen.set(!digestOpen())">Digest for agents</button></h2>
             <button type="button" class="fh-chipf ms-auto" (click)="copy()" title="Copy the digest to paste it to an agent">copy</button></header>
@@ -372,6 +385,8 @@ export class DetailPage {
   protected scoreOpen = signal(false);
   /** The agent digest folds to its header (copy still works). */
   protected digestOpen = signal(false);
+  /** The ad's description: folded to one line until opened (kept while moving between homes). */
+  protected descOpen = signal(false);
   protected polarityTone = (p: string) => (p === 'like' ? 't-yes' : p === 'dislike' ? 't-no' : 't-unknown');
   protected tags = inject(TagsStore);
   protected sites = inject(SitesStore);

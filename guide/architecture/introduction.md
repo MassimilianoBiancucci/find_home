@@ -140,11 +140,15 @@ Settings edits whole YAML files in CodeMirror; Locations edits points through JS
 [`listing_issues()`](../../backend/src/findhome/domain/issues.py) computes them from the listing row on every request
 (never stored, so they are true after any scan, job or edit): `move_in_missing`, `photos_missing`,
 `floorplan_missing`, `description_missing`, `address_partial`, `coords_missing` / `coords_approximate`,
-`rent_missing` / `size_missing` / `rooms_missing` and `page_translated` (the last page read stopped on a translated
-page). Each has a class: `not_in_source` (the ad does not give it: its page was read, `details_checked_at`, or it
-gives words like "Nu") or `check_extraction` (its page was never read, or every ad has it), with a hint. List rows
-carry `issue_codes`, the listing its full `issues`. The ad status, pets and contract terms are not issues: they have
-their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
+`rent_missing` / `size_missing` / `rooms_missing`, `page_translated` (the last page read stopped on a translated
+page) and `contract_fixed_term` (the contract ends on a set date, `contract_end`). Each has a class: `not_in_source`
+(the ad does not give it: its page was read, `details_checked_at`, or it gives words like "Nu"), `check_extraction`
+(its page was never read, or every ad has it) or `attention` (nothing is missing, but it matters: the fixed term,
+an orange tag), with a hint and, for some, a short `detail` shown apart from the label as a badge that never breaks (the fixed term's "ends 31 May 2027"). In the ⚠ tooltip each issue is a row with its class tag on the right. List rows carry `issue_codes`, the listing its full `issues`. The ad status, pets and
+the other contract terms are not issues: they have their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
+The Candidates **Contract** column shows only the type, with an orange dot on a fixed term; hovering it opens
+[`fh-contract-cell`](../../frontend/src/app/components/contract-cell.ts)'s tooltip: from → to and the length, and the
+terms the ad states (extension yes or no, guaranteed, notice) with its wording.
 
 **Candidates list.** [`candidates.ts`](../../frontend/src/app/pages/candidates.ts) is the triage table (keys in
 its header). The server applies the status, the search, the scope chips, **Hide rejected** (a red badge: filled
@@ -155,7 +159,12 @@ their date in red. The id is a violet pill (`.fh-id-badge`); hovering or focusin
 other cells keep their own tooltips. The **Issues** column shows a yellow "⚠ n" badge; hovering it opens the tape tooltip
 ([`fh-issue-tip`](../../frontend/src/app/components/issue-tip.ts): a yellow panel in an animated yellow-black border,
 still under reduced motion) with each issue, its class and hint. A clock at the end of a row says the ad's status
-was not confirmed in `agent.yaml` `ad_status.stale_after_days`. The page then applies the ranges of the **Filters**
+was not confirmed in `agent.yaml` `ad_status.stale_after_days` (sent with the list as `stale_after_days`). Hovering
+it opens [`fh-stale-tip`](../../frontend/src/app/components/stale-tip.ts): the days since the last confirmation (or
+"Never confirmed" and how long ago the home was found) on a bar with the limit in the middle; the ad on each site
+(status pill, when and how it was last checked, first and last seen by a scan: `ad_sources.first_seen` /
+`last_seen`); and the history, newest first (found on each site, ad status changes, your status changes), fetched
+from the listing on the first hover and kept for the session. The page then applies the ranges of the **Filters**
 bubble (ranges and chips) and the sort ([`rows`](../../frontend/src/app/pages/candidates.ts#L200)). Every column header but Id sorts:
 the first click puts the better end first (score high, rent low, move-in early), the second reverses, and homes
 without the value stay last. The default is score, high first.
@@ -254,21 +263,21 @@ the page is destroyed. Box widths and collapsed bubbles persist in localStorage;
 In the Pages bubble each page has its own colour and a line icon ([`fh-nav-icon`](../../frontend/src/app/components/nav-icon.ts)),
 shown on the right of its row in a round badge: outlined at rest, filled and glowing for the current page; the key
 of its shortcut is in the tooltip. The list sits in a bright gradient frame and the map modes in a smaller one under
-Map (the `bright-frame` mixin in [`app.scss`](../../frontend/src/app/app.scss)). Collapsed, box 1 is a rail of the
+Map (the `bright-frame` mixin in [`app.scss`](../../frontend/src/app/app.scss)), joined to the Map row by a short
+glowing stem only while a map page is open. Collapsed, box 1 is a rail of the
 same badges.
 
 **House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) shows a ⚠ next to the id
 when the listing has issues (the same tape tooltip), loads the listing and its
 house analysis (`GET /api/listings/{id}/location`) side by side. Its main column, top to bottom: the photo band;
-the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, ✓ / ✕ / ?
-chips for lift and balcony, the ad's text); **Issues** (one row per issue with its class and hint, and **Complete
+the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, as many per row as fit, each value sized to its tile and its own length so nothing is cut with "…" (`--len` and container units in `.fh-fact-v`), a fixed term's end in orange under the contract type, ✓ / ✕ / ?
+chips for lift and balcony, the ad's text folded to a one-line peek until **Description** is clicked); **Issues** (one row per issue with its class and hint, and **Complete
 details**, which runs the details job on this listing only: the agent one for browser sites, the in-app one for
 Bostadsförmedlingen); **Contract and conditions** (contract terms with the ad's wording on hover, requirements,
-what the rent includes, amenities; display-only, never scored, hidden when the ad gives none); **On the map**; **This home** and **Its zone** side by side; **Travel to
-your points** and **Transit routes**, both folded to their header until clicked (`collapsed`); the **Commute** table;
+what the rent includes, amenities; display-only, never scored, hidden when the ad gives none); **On the map**; **This home** and **Its zone** side by side; the **Commute** table;
 the latest agent evaluation (pros, cons and questions for the landlord as lists). The side column holds **Where**,
 **Score** (folded to its total until clicked; each group as a bar coloured by its score), **Pets** (your answer as
-chips), **Feedback** (polarity and tags as chips, then the saved feedback), the agent digest (folded, with a copy
+chips), **Feedback** (polarity and tags as chips, then the saved feedback), **Routes** (beside the house map), the agent digest (folded, with a copy
 chip) and **Sources & timeline** (the status changes as a timeline). Every card uses the `.fh-hcard` look; choices are
 bright badges (`.fh-chipf`: outlined until chosen, then filled and glowing) and the main action of a card is a
 glowing pill (`.fh-btn-glow`, the others `.fh-btn-ghost`). Navigation buttons (previous and next home with the
@@ -288,8 +297,8 @@ glowing round badge (`.fh-btn-nav`). All of these live in [`styles.scss`](../../
     walking path to that nearest target carries its minutes in green / yellow / red. Icons show from zoom 13;
     chips hide a category.
   - Your points are pinned. Computed itineraries are drawn from `HouseTravelStore` along the real lines and
-    streets: your points' always, the services' only with the switch on (it turns on when they are computed; a
-    service too near for transit is not drawn, its walk is). Hovering a route, on the map or in a bubble row,
+    streets, those of the Routes tab only (`HouseTravelStore.tab`: your points' or the nearby services'; a service
+    too near for transit is not drawn, its walk is). Hovering a route, on the map or in a bubble row,
     sets `HouseTravelStore.hover`: [`routeHighlightLayers()`](../../frontend/src/app/pages/map/house-layer.service.ts)
     draw that trip on top with a shade, a glow and a white core, and the other routes dim. **Lines** toggles every
     line of a mode (`GET /api/geo/transit/lines_<mode>`, loaded on first use), under the routes.
@@ -297,12 +306,16 @@ glowing round badge (`.fh-btn-nav`). All of these live in [`styles.scss`](../../
   - Outside every zone (the analysis answers 409 "outside every zone"): the home's position only.
   - **Full-screen zone view** requests full screen inside the click (browsers refuse it later), then opens
     `/map/zone/<id>?listing=<short id>`;
-- **Travel to your points**: per point the free station estimate, or the listing's computed commute, with the
-  comparison line ("better than N % of zones"), and the exact trip once its route is computed.
-- **Transit routes** ([`HouseTransit`](../../frontend/src/app/house/house-bubbles.ts)): **Compute transit routes to
-  your points** and **to nearby services** ask for the itineraries (`POST .../transit?which=points|services`), each
-  with its call count from the dry run (no API call) on the button and in its tooltip; the switch for the
-  services' routes on the map; and the computed routes, hoverable.
+- **Routes** ([`HouseRoutes`](../../frontend/src/app/house/house-bubbles.ts)), two tabs, each with its own button and
+  its own paths on the maps (the tab is `HouseTravelStore.tab`, read through `draw()` by the house map and the zone
+  view; computing one kind switches to its tab):
+  - **Your points**: per point the free station estimate, or the listing's computed commute, with the comparison
+    line ("better than N % of zones"), and the exact itinerary with its legs once **Compute routes to your points**
+    ran (`POST .../transit?which=points`);
+  - **Nearby services**: **Compute routes to nearby services** (`which=services`), then the itinerary to the nearest
+    target of each set, with the walk it beats or not.
+
+  Each button carries its call count from the dry run (no API call); the rows are hoverable.
 
 **Previous and next home.** The bar on top of the detail page steps through the candidates list in the order you
 last saw it, with its filters, ranges and sort (also `j` / `k`). A home that is not in that list (opened from the map or by URL)
@@ -379,8 +392,8 @@ buttons and an **Icon size** slider (0.6× to 1.8×, kept per browser) that scal
 the first time it is switched on.
 **Houses on the map** are a house shape in the score colour (lighter roof, white outline, dark rim, a door, a soft
 shadow: `installHouse()` in [`map-icons.ts`](../../frontend/src/app/components/map-icons.ts), image `house:<hex>`)
-centred on its spot, its size by the score (0.35× at 0.3 up to 1.6× at 0.9, unscored 0.6×; the best drawn on
-top), inside a soft light of the same colour and scale (`listings-halo`) that reaches all round it and slowly pulses
+centred on its spot, its size by the score (0.2× at 0.3, 0.45× at 0.5, 0.95× at 0.7, 1.6× at 0.9, unscored 0.6×; the best drawn on
+top); a home still to look at (status `new`, its ad open: `GLOWS` in [`map-shell.ts`](../../frontend/src/app/pages/map/map-shell.ts)) sits inside a soft light of the same colour and scale (`listings-halo`) that reaches all round it and slowly pulses
 ([`pulseHalo()`](../../frontend/src/app/pages/map/map-shell.ts): a 2.8 s breath, about 12 redraws a second, paused while
 the tab is hidden, still under reduced motion); layers that tint zones go below the light; larger as you zoom in; rejected homes are red dots (the Rejected listings layer). In **Explore** the houses are the homes the
 **Listing filters** bubble keeps: the Candidates Filters bubble and its store
@@ -484,7 +497,7 @@ stateDiagram-v2
 | picker: outline, hover, click | [`installPicker()`](../../frontend/src/app/pages/map/zone.service.ts#L49) |
 | load facts and lines, then heatmap and targets | [`select()`](../../frontend/src/app/pages/map/zone.service.ts#L83) |
 | neon outline (three blurred lines), dimmed outside, 3D buildings at distance 0 from the zone | [`drawFocus()`](../../frontend/src/app/pages/map/zone.service.ts#L167) |
-| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L201) |
+| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff, under the 3D buildings (a building in front hides the streets behind it, which show faintly through its 0.72 opacity, so the depth reads) | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L201) |
 | camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L261) |
 
 The right panel shows, in order:
@@ -503,15 +516,23 @@ loads the house analysis and focuses the zone on the house: the camera flies to 
 ([`ZoneService.select()`](../../frontend/src/app/pages/map/zone.service.ts) with a focus point). Then
 [`HouseLayerService`](../../frontend/src/app/pages/map/house-layer.service.ts) adds the `house` layers:
 - the building under the address, found with `queryRenderedFeatures` on the 3D building layer once tiles are
-  idle and extruded in the accent colour (a 12 m box when no footprint is found), a glow and a home pin;
+  idle and extruded in the accent colour (a 12 m box when no footprint is found); the home itself as the same house
+  marker as every listing, larger and bright violet (`houseId('#c44dff')`), inside a wide violet light with a brighter
+  core. Meanwhile its own listing marker is left out (`MapStateService.focusListing`, applied by the shell as a layer
+  filter, `listingFilters()`), so it is drawn once;
 - the walking path to the nearest target of each set in the set's colour, labelled with the minutes in
-  green / yellow / red;
+  green / yellow / red; the paths lie on the ground under the 3D buildings like the heatmap's streets (above them),
+  their labels on top;
 - the transit legs of the computed routes in their line colours along the track, walking legs dotted along the
-  streets, the services' only with the switch on, the hovered one on top and glowing.
+  streets, those of the Routes tab only, the hovered one on top and glowing.
 
-The layers stay above the zone's own layers, which load after them: `layersToRaise()` on `styledata` moves them
-only when needed. The right panel shows "This home", "Travel to your points" and "Transit routes" (the same components and the
-same `HouseTravelStore` as the house page) above the zone panel, with a Walk / Transit / Both switch. The Zone bubble's
+**The homes stay on top in every mode.** [`layer-order.ts`](../../frontend/src/app/pages/map/layer-order.ts) lists the
+topmost layers, bottom to top: the homes (rejected dots, the houses' light, the houses), then the focused home's
+layers above. [`MapStateService.raiseTop()`](../../frontend/src/app/pages/map/map-state.service.ts) moves them to the top
+(only when they are not already there) after each group is added and each style load, and tucks the zone view's ground lines (the heatmap's streets, then the home's walking paths: `UNDER_BUILDINGS`) just under its 3D buildings; a mode that moves its own
+layers up (the zone view's service pins) calls it after. So no heatmap, zone fill, 3D building, pin, area shape or
+line covers a home. Explore's pinned card has **⌖ Zone view**, which opens this view on the home. The right panel
+shows "This home" and "Routes" (the same components and the same `HouseTravelStore` as the house page) above the zone panel, with a Walk / Transit / Both switch. The Zone bubble's
 ⛶ toggles full screen for the whole app.
 
 The map's **right-click menu** ([`ContextMenuService`](../../frontend/src/app/pages/map/context-menu.service.ts#L16),

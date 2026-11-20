@@ -1,4 +1,5 @@
 import { Injectable, isDevMode, signal } from '@angular/core';
+import { BUILDINGS, layersToRaise, layersToTuck } from './layer-order';
 import type { LayerSpecification, Map as MlMap, SourceSpecification, StyleSpecification } from 'maplibre-gl';
 
 export type MapLib = typeof import('maplibre-gl');
@@ -28,6 +29,8 @@ export class MapStateService {
   readonly styleReady = signal(0);                  // bumps after each style (re)load + groups re-applied
   readonly settings = signal<MapSettings | null>(null);
   readonly selection = signal<Selection | null>(null);
+  /** The home the zone view is about (short id): drawn by the house layers, so the listing markers leave it out. */
+  readonly focusListing = signal<string | null>(null);
   readonly visible = signal<Record<string, boolean>>(this.readVisible());
   private groups = new Map<string, LayerGroup>();
   private data = new Map<string, unknown>();
@@ -63,7 +66,21 @@ export class MapStateService {
   addGroup(g: LayerGroup): void {
     this.groups.set(g.id, g);
     const map = this.map();
-    if (map && this.loaded) this.apply(map, g);
+    if (map && this.loaded) { this.apply(map, g); this.raiseTop(); }
+  }
+
+  /**
+   * Keeps the homes on top of every mode's layers (zone heatmap, 3D buildings, service pins, area shapes, lines), and
+   * the zone view's focused home above them, and the zone view's ground lines under its 3D buildings (layer-order.ts). Runs after each group is added and each style load;
+   * a mode that moves its own layers up calls it after.
+   */
+  raiseTop(): void {
+    const map = this.map();
+    if (!map || !this.loaded) return;
+    const ids = () => (map.getStyle()?.layers ?? []).map((l) => l.id);
+    for (const id of layersToRaise(ids())) if (map.getLayer(id)) map.moveLayer(id);
+    // the zone view's ground lines (heatmap streets, then the home's walks) just under its 3D buildings
+    for (const id of layersToTuck(ids())) if (map.getLayer(id)) map.moveLayer(id, BUILDINGS);
   }
 
   removeGroup(id: string): void {
@@ -88,6 +105,7 @@ export class MapStateService {
     if (!map) return;
     this.loaded = true;
     for (const g of this.groups.values()) this.apply(map, g);
+    this.raiseTop();
     this.styleReady.update((n) => n + 1);
   }
 

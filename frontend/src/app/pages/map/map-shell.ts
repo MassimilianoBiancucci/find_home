@@ -23,11 +23,12 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
 /**
- * A house's size by its score: the best homes big, the weakest very small (scores run about 0.3–0.9; unscored 0.6×).
+ * A house's size by its score: the best homes big, the weakest very small, steeper in the middle so the differences
+ * show (scores run about 0.3–0.9: 0.2× at 0.3, 0.45× at 0.5, 0.95× at 0.7, 1.6× at 0.9; unscored 0.6×).
  * Scales both the house and its light.
  */
 const SCORE_SIZE = ['case', ['==', ['get', 'score'], null], 0.6,
-  ['interpolate', ['linear'], ['to-number', ['get', 'score'], 0], 0.3, 0.35, 0.6, 0.85, 0.9, 1.6]];
+  ['interpolate', ['linear'], ['to-number', ['get', 'score'], 0], 0.3, 0.2, 0.5, 0.45, 0.7, 0.95, 0.9, 1.6]];
 /** The light's radius by zoom and score, times `k` (the pulse): it reaches all round the house. */
 const haloRadius = (k: number) => ['interpolate', ['linear'], ['zoom'],
   9, ['*', 17 * k, SCORE_SIZE], 13, ['*', 23 * k, SCORE_SIZE], 16, ['*', 31 * k, SCORE_SIZE]];
@@ -49,6 +50,19 @@ export function pulseHalo(map: MlMap, layer = 'listings-halo'): () => void {
   };
   raf = requestAnimationFrame(tick);
   return () => cancelAnimationFrame(raf);
+}
+
+/** A listing that no hard filter rejects (drawn as a house; the rejected ones are red dots). */
+const SCORED = ['==', ['coalesce', ['length', ['coalesce', ['get', 'rejected_by'], ['literal', []]]], 0], 0];
+
+/** Only the homes still to look at glow: status "new" (until you change it) and the ad still open. */
+const GLOWS = ['all', ['==', ['get', 'status'], 'new'], ['!=', ['get', 'ad_open'], false]];
+
+/** The listing layers' filters, leaving out the focused home (the zone view draws it itself). */
+export function listingFilters(focus: string | null): Record<string, unknown> {
+  const notFocus = focus ? [['!=', ['get', 'short_id'], focus]] : [];
+  const all = (...f: unknown[]) => (f.length + notFocus.length > 1 ? ['all', ...f, ...notFocus] : f[0]);
+  return { 'listings-halo': all(SCORED, GLOWS), listings: all(SCORED), 'listings-rejected': all(['!', SCORED]) };
 }
 
 /** A listing's score colour on the map (the same steps as its house icon). */
@@ -128,6 +142,15 @@ export class MapShell {
       const mode = this.theme.theme();
       untracked(() => this.applyStyle(mode));
     });
+    // the zone view's focused home is drawn by its own layers: the listing markers leave it out
+    effect(() => {
+      const focus = this.state.focusListing(), map = this.state.map();
+      this.state.styleReady();
+      if (!map) return;
+      untracked(() => {
+        for (const [id, f] of Object.entries(listingFilters(focus))) if (map.getLayer(id)) map.setFilter(id, f as any);
+      });
+    });
   }
 
   /**
@@ -205,7 +228,7 @@ export class MapShell {
   }
 
   private addBaseLayers(map: MlMap, pts: any, lst: any): void {
-    const scored = ['==', ['coalesce', ['length', ['coalesce', ['get', 'rejected_by'], ['literal', []]]], 0], 0];
+    const scored = SCORED;
     this.state.addGroup({
       id: 'buildings-3d',
       layers: (style) => {
@@ -222,8 +245,9 @@ export class MapShell {
       id: 'listings',
       sources: { listings: { type: 'geojson', data: lst } },
       layers: [
-        // a soft light in the score colour under each house, slowly pulsing (pulseHalo): visible on any base map or tint
-        { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
+        // a soft light in the score colour under each house still to look at (status new, ad open), slowly pulsing
+        // (pulseHalo): visible on any base map or tint
+        { id: 'listings-halo', type: 'circle', source: 'listings', filter: listingFilters(null)['listings-halo'] as any,
           paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.65, 'circle-blur': 0.6,
             'circle-pitch-alignment': 'map' } },
         { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,

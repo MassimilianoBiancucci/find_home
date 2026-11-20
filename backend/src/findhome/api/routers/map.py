@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 
 from findhome.api.state import bundle, registry
 from findhome.core.db import get_conn
+from findhome.db import repo
 from findhome.domain.commute import resolve_point_coords
 
 router = APIRouter(prefix="/api/map", tags=["map"])
@@ -35,8 +36,8 @@ async def points(conn=Depends(get_conn)):
 async def listings(conn=Depends(get_conn)):
     b = bundle()
     rows = await (await conn.execute(
-        """SELECT l.short_id, l.lat, l.lon, l.status, l.rent_sek, l.rooms_rok, l.size_m2, l.pet_status, l.area,
-                  s.total AS score, s.rejected_by
+        f"""SELECT l.short_id, l.lat, l.lon, l.status, l.rent_sek, l.rooms_rok, l.size_m2, l.pet_status, l.area,
+                  s.total AS score, s.rejected_by, {repo.AD_OPEN_SQL} AS ad_open
            FROM listings l LEFT JOIN scores s ON s.listing_id = l.id AND s.config_hash = %s
            WHERE l.lat IS NOT NULL AND l.status <> 'archived'""", (b.config_hash,))).fetchall()
     feats = [{"type": "Feature", "geometry": {"type": "Point", "coordinates": [r["lon"], r["lat"]]},

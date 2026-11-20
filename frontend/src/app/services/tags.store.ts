@@ -8,6 +8,8 @@ export class TagsStore {
   private api = inject(ApiService);
   readonly config = signal<TagsConfig | null>(null);
   readonly statuses = computed(() => this.config()?.statuses.default ?? ['new', 'shortlisted', 'rejected']);
+  /** A status in words: "on_hold" → "on hold", "assigned_elsewhere" → "assigned elsewhere". */
+  statusLabel(status: string | null | undefined): string { return (status ?? '').replace(/_/g, ' '); }
   readonly positive = computed(() => Object.entries(this.config()?.tags.positive ?? {}).map(([k, v]) => ({ key: k, label: v.label })));
   readonly negative = computed(() => Object.entries(this.config()?.tags.negative ?? {}).map(([k, v]) => ({ key: k, label: v.label })));
 

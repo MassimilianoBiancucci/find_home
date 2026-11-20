@@ -30,6 +30,7 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
     <div class="fh-row"><img [src]="house('#d69e2e')" width="22" alt="" /> score ≥ .5</div>
     <div class="fh-row"><img [src]="house('#e53e3e')" width="22" alt="" /> lower</div>
     <div class="fh-row"><img [src]="house('#888888')" width="22" alt="" /> unscored</div>
+    <div class="small text-body-secondary mt-1">Glowing: still <b>new</b> (until you change its status) with the ad open; the others have no light.</div>
     <div class="small text-body-secondary mt-1">Hover a house for its card; click it to pin the card in the Inspector.</div>
     <div class="small text-body-secondary mt-1">Your points use their category icon and colour (Locations). Dashed lines: straight line to the nearest place you care about.</div>
   </ng-template>
@@ -55,8 +56,11 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
         @if (photos(); as ph) { <fh-gallery class="mt-2 d-block" [compact]="true" [photos]="ph.photo_urls" [plans]="ph.floorplan_urls" [link]="ph.canonical_url" />
           <div class="mt-2"><span class="small text-body-secondary me-1">Score</span>
             <fh-score-tip [total]="ph.score?.total ?? p['score']" [breakdown]="ph.score?.breakdown" [rejected]="ph.score?.rejected_by" /></div> }
-        <div class="d-flex gap-2 mt-2">
+        @let row = rowOf(p['short_id']);
+        <div class="d-flex flex-wrap gap-2 mt-2">
           <button class="fh-btn-glow" (click)="open(p['short_id'])">Open listing</button>
+          <button class="fh-btn-ghost" [disabled]="!row?.zone_id" (click)="zoneView(row!)"
+            [title]="row?.zone_id ? 'The zone view focused on this home: its walks, routes and the zone around it' : 'Outside the analysed zones: no zone view'">⌖ Zone view</button>
           <button class="fh-btn-ghost" (click)="state.selection.set(null)">Unpin</button>
         </div>
       }
@@ -184,6 +188,10 @@ export class ExploreMode {
     });
   }
   protected open(id: string): void { this.router.navigate(['/candidates', id]); }
+  /** The zone view focused on a home (/map/zone/:zone?listing=…): the home on top, with its walks and routes. */
+  protected zoneView(l: Listing): void {
+    if (l.zone_id) this.router.navigate(['/map/zone', l.zone_id], { queryParams: { listing: l.short_id } });
+  }
   /** The homes the Candidates list would load (rejected ones too: they are their own layer), closed per the toggle. */
   loadRows(): void {
     this.api.listings({ closed: this.fs.hideClosed() ? 'exclude' : 'include' }).subscribe({
@@ -228,7 +236,7 @@ export class ExploreMode {
 export function toGeo(rows: Listing[]): { type: 'FeatureCollection'; features: unknown[] } {
   return { type: 'FeatureCollection', features: rows.filter((r) => r.lat != null && r.lon != null).map((r) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [r.lon, r.lat] },
-    properties: { short_id: r.short_id, status: r.status, rent_sek: r.rent_sek, rooms_rok: r.rooms_rok, size_m2: r.size_m2,
+    properties: { short_id: r.short_id, status: r.status, ad_open: r.ad_open ?? true, rent_sek: r.rent_sek, rooms_rok: r.rooms_rok, size_m2: r.size_m2,
       pet_status: r.pet_status, area: r.area, score: r.score ?? null, rejected_by: r.rejected_by ?? [] },
   })) };
 }

@@ -224,13 +224,18 @@ export class ZoneService {
         return src ? [{
           id: 'zone-3d-buildings', source: src, 'source-layer': 'building', type: 'fill-extrusion', minzoom: 13,
           filter: ['<=', ['distance', f.outline], 0],
-          paint: { 'fill-extrusion-color': this.theme.theme() === 'dark' ? '#5a5f7a' : '#b9b3c9', 'fill-extrusion-opacity': 0.8,
+          paint: { 'fill-extrusion-color': this.theme.theme() === 'dark' ? '#5a5f7a' : '#b9b3c9', 'fill-extrusion-opacity': 0.72,
             'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0] },
         } as any] : [];
       },
     });
   }
 
+  /**
+   * The heatmap's street lines lie on the ground under the 3D buildings (MapStateService.raiseTop tucks them under,
+   * layer-order.ts): a building in front hides the streets behind it, which still show faintly through its slight
+   * transparency, so the depth reads.
+   */
   private drawHeat(h: ZoneHeatmap): void {
     this.state.addGroup({
       id: 'zone-heat', below: 'zone-targets',
@@ -266,6 +271,7 @@ export class ZoneService {
     this.state.setData('zone-targets', fc);
     const map = this.state.map();
     for (const id of ['zone-targets-halo', 'zone-targets-pin']) if (map?.getLayer(id)) map.moveLayer(id);   // above everything added since
+    this.state.raiseTop();                                                                                   // the homes above them
   }
 
   setIconScale(v: number): void {

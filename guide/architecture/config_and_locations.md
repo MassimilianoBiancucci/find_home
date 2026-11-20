@@ -19,7 +19,7 @@ checklist: [personal_data.md](../principles/personal_data.md); setup: [`config/R
 | `locations.yaml` (personal; [example](../../config/locations.example.yaml)) | categories and points with trips and time windows |
 | [`time_model.yaml`](../../config/time_model.yaml) | day types, default sampling grid, reliability statistics |
 | [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, walking threshold, map icon and colour) |
-| [`tags.yaml`](../../config/tags.yaml) | lifecycle statuses (per kind) and feedback reason tags |
+| [`tags.yaml`](../../config/tags.yaml) | lifecycle statuses (per kind) and feedback reason tags. You set a home's status by hand; `new` stays until you change it (and glows on the map); `on_hold` is a home you want but cannot apply for yet; `assigned_elsewhere` one you applied for that went to someone else, kept apart from your own `rejected` (which feeds the agent's dislikes). Every change is a listing event with its time, the base for application statistics. The UI shows them with spaces (`TagsStore.statusLabel()`) |
 | [`providers.yaml`](../../config/providers.yaml) | routing, geocoding, POI providers, mode priority, budget, cache, prefilter, map style |
 | [`agent.yaml`](../../config/agent.yaml) | agent profiles the app starts (browser scan, onboarding, pet job, scan, evaluate): command, prompt, parameters, allowed tools, launchers ([agent_contract.md](agent_contract.md#runs)) |
 | [`pet_rules.yaml`](../../config/pet_rules.yaml) | pet wording rules per language ([pets.md](pets.md)); applied at ingest, not part of the config hash |
@@ -53,7 +53,8 @@ operations on a JSON pointer path; `write_text` replaces a whole file.
 ## Config hash
 
 `config_hash` is a 16-character SHA-256 over the canonical JSON of the scoring files (profile, locations,
-time_model, poi, tags, search_area). Every row in `scores` and `commute_results` stores the hash it was computed with. Reading
+time_model, poi, search_area). `tags.yaml` (statuses and feedback tags) and `pet_rules.yaml` are not part of it: no
+score reads them, so editing them keeps the scores. Every row in `scores` and `commute_results` stores the hash it was computed with. Reading
 always uses the active hash, so changing a weight or a window makes old results invisible (stale) until
 `scores recompute` or a new commute run.
 
@@ -551,7 +552,7 @@ flowchart TD
   listing's own commute when computed, else the estimate) against the zone and as "better than N % of zones".
 
 `POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L175)) is the only call that uses ResRobot. It is triggered
-by the two buttons of the Transit routes bubble: `which=points` for your points
+by the two buttons of the Routes card (one per tab): `which=points` for your points
 ([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L135)), `which=services` for the nearest target of each service set, reached on a
 weekday at `house.services_depart` (`all`, the default, does both). Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L163) and are cached in `routing_cache` per ~100 m
 cell, like the house page's. With `dry=true` it returns only the number of calls not yet cached

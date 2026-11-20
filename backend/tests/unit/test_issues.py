@@ -1,4 +1,5 @@
-"""Listing issues (sub-plan #7): one fictional listing per code and class; pets and contract never an issue."""
+"""Listing issues (sub-plan #7): one fictional listing per code and class; pets and the contract type never an issue,
+a set contract end is one (attention)."""
 from __future__ import annotations
 
 from findhome.domain.issues import issue_codes, listing_issues
@@ -42,3 +43,13 @@ def test_move_in_words_address_coordinates_core_fields_and_translation():
     assert by_code({**FULL, "last_read_translated": True})["page_translated"].cls == "check_extraction"
     assert issue_codes({**FULL, "attributes": {**FULL["attributes"], "floorplans": [{"url": "x", "kind": "pdf"}]},
                         "floorplan_urls": []}) == []
+
+
+def test_a_set_contract_end_is_an_attention_issue():
+    plain = by_code({**FULL, "contract_type": "second_hand"})
+    assert "contract_fixed_term" not in plain
+    fixed = by_code({**FULL, "contract_type": "second_hand", "contract_end": "2027-05-31",
+                     "attributes": {**FULL["attributes"], "contract_terms": {"extension_raw": "possibilityOfExtension: false"}}})
+    i = fixed["contract_fixed_term"]
+    assert i.cls == "attention" and i.label == "Fixed-term contract" and i.detail == "ends 31 May 2027"
+    assert "cannot be extended" in i.hint

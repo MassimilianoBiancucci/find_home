@@ -171,7 +171,10 @@ def test_map_endpoints(client, sample_listings):
     pts = client.get("/api/map/points").json()
     central = next(f for f in pts["features"] if f["properties"]["id"] == "stockholm-central")
     assert central["geometry"]["coordinates"] == [18.0586, 59.3303]
-    assert len(client.get("/api/map/listings").json()["features"]) == 3
+    feats = client.get("/api/map/listings").json()["features"]
+    assert len(feats) == 3
+    # the map draws a glow on the homes still "new" whose ad is open: both are in the properties
+    assert all(f["properties"]["status"] == "new" and f["properties"]["ad_open"] is True for f in feats)
 
 
 def test_agent_run_launch_and_log(client):

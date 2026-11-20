@@ -173,7 +173,7 @@ export class ExploreColour {
     <div class="fh-xf">
       <label>Pipeline status
         <select class="form-select form-select-sm" multiple size="3" [(ngModel)]="statusList">
-          @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
+          @for (s of tags.statuses(); track s) { <option [value]="s">{{ tags.statusLabel(s) }}</option> }
         </select></label>
       <label>Seen on the site
         <select class="form-select form-select-sm" [(ngModel)]="f.seen">

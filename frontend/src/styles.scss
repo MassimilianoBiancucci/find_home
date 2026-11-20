@@ -377,17 +377,32 @@ pre.fh-pre {
 .fh-detail-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
   .fh-detail-pos { flex: 1; text-align: center; font-size: 0.78rem; color: var(--bs-secondary-color); } }
 /* the listing page: key facts as labelled bubbles */
-.fh-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
-.fh-fact { position: relative; border-radius: 10px; padding: 6px 10px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
-  border-top: 3px solid var(--c, var(--fh-violet-soft));
-  .fh-fact-l { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color); }
-  .fh-fact-v { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.2; color: var(--c, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .fh-fact-n { display: block; font-size: 0.72rem; color: var(--bs-secondary-color); } }
+// The key facts of a listing: as many tiles per row as fit (all seven on a wide card). Each value's size follows its
+// tile's width and its own length (--len, characters): short values stay large, a long one ("15 Dec 2026",
+// "second-hand") shrinks just enough to fit, down to a readable minimum, never cut with "…".
+.fh-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }
+.fh-fact { position: relative; min-width: 0; border-radius: 10px; padding: 6px 9px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+  border-top: 3px solid var(--c, var(--fh-violet-soft)); container-type: inline-size;
+  .fh-fact-l { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fh-fact-v { display: block; font-size: clamp(0.7rem, calc(100cqi / (var(--len, 6) * 0.64)), 1.05rem); font-weight: 700; line-height: 1.2;
+    color: var(--c, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fh-fact-n { display: block; font-size: clamp(0.6rem, calc(100cqi / (var(--len, 10) * 0.6)), 0.72rem); color: var(--bs-secondary-color);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fh-fact-n.fh-fact-end { color: #ff9f1a; font-weight: 600; } }
 .fh-feats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .fh-feat { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem;
   border: 1px solid var(--bs-border-color); color: var(--bs-secondary-color);
   &.yes { color: var(--fh-good); border-color: color-mix(in srgb, var(--fh-good) 45%, transparent); background: rgba(31, 157, 85, 0.1); }
   &.no { color: var(--fh-bad); border-color: color-mix(in srgb, var(--fh-bad) 40%, transparent); } }
+// The listing's description, folded to a one-line peek until opened.
+.fh-desc-tg { display: flex; align-items: baseline; gap: 6px; width: 100%; margin-top: 10px; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--bs-border-color); background: transparent; color: var(--bs-emphasis-color); font-size: .8rem; font-weight: 600;
+  text-align: left; cursor: pointer; transition: border-color .15s, background .15s;
+  i { font-style: normal; font-size: .7rem; color: var(--fh-violet); }
+  &:hover { border-color: color-mix(in srgb, var(--fh-violet) 55%, transparent); background: var(--fh-violet-soft); } }
+.fh-desc-peek { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400;
+  color: var(--bs-secondary-color); }
 .fh-desc-text { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--fh-violet-soft); border-radius: 0 8px 8px 0;
   background: var(--bs-body-bg); font-size: 0.84rem; color: var(--bs-secondary-color); white-space: pre-line; }
 /* the candidates list: 0-100 indices, and its hover card */
@@ -883,23 +898,31 @@ a.fh-chipf { text-decoration: none; }
   box-shadow: 0 0 0 2px rgba(255, 212, 0, .25), 0 0 10px rgba(255, 212, 0, .6); line-height: 1.5;
   .fh-issue-n { font-weight: 800; }
   &.fh-issue-icon { padding: 0 7px; font-size: .95rem; } }
-.fh-tape { position: fixed; z-index: 2000; width: 320px; border-radius: 10px; padding: 4px; pointer-events: none; }
+.fh-tape { position: fixed; z-index: 2000; width: 320px; border-radius: 10px; padding: 4px; pointer-events: none; text-align: left; white-space: normal; }
 .fh-tape::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 4px;
   background: repeating-linear-gradient(45deg, #ffd400 0 10px, #111 10px 20px); background-size: 28px 28px;
   animation: fh-tape-move 1s linear infinite;
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .fh-tape > .fh-tape-body { position: relative; background: #fff8c2; color: #111; border-radius: 7px; padding: 8px 10px; font-size: .78rem;
   box-shadow: 0 0 14px rgba(255, 212, 0, .7);
-  ul { margin: 0; padding-left: 1rem; } li + li { margin-top: 4px; }
+  ul { margin: 0; padding-left: 1rem; } li + li { margin-top: 6px; }
+  .fh-tape-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .fh-tape-row b { min-width: 0; }
+  .fh-tape-detail { display: inline-block; margin: 2px 0 1px; padding: 0 8px; border-radius: 999px; white-space: nowrap;
+    font-size: .7rem; font-weight: 700; color: #8a4300; background: #ffe2b8; border: 1px solid #f0a050; }
   .fh-tape-title { font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: .68rem; margin-bottom: 4px; }
-  .fh-tape-cls { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #111; color: #ffd400; font-size: .64rem; font-weight: 700; }
+  .fh-tape-cls { flex: none; white-space: nowrap; padding: 0 6px; border-radius: 999px; background: #111; color: #ffd400; font-size: .64rem; font-weight: 700; }
+  .fh-tape-cls.attn { background: #f07b00; color: #fff; }
   .fh-tape-hint { color: #444; font-size: .72rem; } }
 @keyframes fh-tape-move { to { background-position: 28px 0; } }
 @media (prefers-reduced-motion: reduce) { .fh-tape::before { animation: none; } }
 .fh-issue-row { display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; border-top: 1px dashed var(--bs-border-color);
   &:first-of-type { border-top: 0; } }
 .fh-issue-cls { margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: .66rem; font-weight: 700; background: #e9ecef; color: #495057;
-  &.check { background: #111; color: #ffd400; } }
+  &.check { background: #111; color: #ffd400; }
+  &.attn { background: #ff9f1a; color: #fff; } }
+.fh-issue-detail { margin-left: 4px; padding: 0 8px; border-radius: 999px; white-space: nowrap; font-size: .7rem; font-weight: 700;
+  color: #ff9f1a; border: 1px solid color-mix(in srgb, #ff9f1a 60%, transparent); }
 
 // ── The listing id on Candidates: a bright pill (violet, the app's accent) that alone opens the home card ──
 .fh-id-badge { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; font-family: var(--bs-font-monospace);

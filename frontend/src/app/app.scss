@@ -76,13 +76,13 @@
   transition: transform 0.2s, box-shadow 0.2s, background 0.2s, color 0.2s;
 }
 // Second-level pages (the map modes): a smaller cyan-to-violet frame inside the list, joined to its parent row by a
-// short glowing stem.
+// short glowing stem while that row is the active page (it has its own frame then; otherwise the stem hangs loose).
 .fh-nav-children {
   display: flex; flex-direction: column; gap: 2px; margin: 6px 2px 6px 14px; padding: 5px; border-radius: 16px;
   @include bright-frame(#6ff3ff, #19b8e6, #c43dff, rgba(25, 184, 230, 0.55));
-  &::after { content: ''; position: absolute; left: 18px; top: -7px; width: 2px; height: 7px; border-radius: 1px;
-    background: #19b8e6; box-shadow: 0 0 6px #19b8e6; }
 }
+.fh-nav.active + .fh-nav-children::after { content: ''; position: absolute; left: 18px; top: -7px; width: 2px; height: 7px;
+  border-radius: 1px; background: #19b8e6; box-shadow: 0 0 6px #19b8e6; }
 .fh-nav-child { padding: 3px 4px 3px 10px; font-size: 0.85rem;
   .fh-nav-ic { width: 21px; height: 21px; } }
 .fh-nav-foot { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--bs-border-color); }

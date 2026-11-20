@@ -29,7 +29,7 @@ export class ApiService {
     if (opts.includeRejected === false) p = p.set('include_rejected', 'false');
     if (opts.closed) p = p.set('closed', opts.closed);
     if (opts.moveInMisses) p = p.set('move_in_misses', 'true');
-    return this.http.get<{ config_hash: string; items: Listing[] }>('/api/listings', { params: p });
+    return this.http.get<{ config_hash: string; stale_after_days?: number; items: Listing[] }>('/api/listings', { params: p });
   }
   listing(id: string) { return this.http.get<ListingDetail>(`/api/listings/${id}`); }
   setStatus(id: string, status: string, note?: string) {

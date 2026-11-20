@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { walkTone } from '../format';
 import { HouseLocation, TransitResult } from '../models';
 import { ApiService } from '../services/api.service';
-import { HouseHome, HouseTransit, HouseTravel, HouseZone } from './house-bubbles';
+import { HouseHome, HouseRoutes, HouseZone } from './house-bubbles';
 import { HouseTravelStore, mergeTrips } from './house-travel.store';
 
 const walk = (set: string, minutes: number | null, n = 1) =>
@@ -41,7 +41,7 @@ function setup() {
   const api = { listingTransit: vi.fn((_id: string, dry: boolean, which = 'all') => of(dry
     ? { destinations: 2, calls: 2, cached: 0, ttl_days: 30, provider: 'resrobot' }
     : { ...TRANSIT, trips: TRANSIT.trips.filter((x) => which === 'all' || x.kind === kind(which)) })) };
-  TestBed.configureTestingModule({ imports: [HouseHome, HouseZone, HouseTravel, HouseTransit], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });
+  TestBed.configureTestingModule({ imports: [HouseHome, HouseZone, HouseRoutes], providers: [provideRouter([]), { provide: ApiService, useValue: api }] });
   return api;
 }
 
@@ -62,35 +62,43 @@ describe('house bubbles', () => {
     expect(rows[1].textContent).toContain('none near');
   });
 
-  it('shows the estimate first, then the exact itinerary after computing the routes to your points', async () => {
+  it('shows the estimate first, then the exact itinerary after computing the routes to your points, a tab per kind', async () => {
     const api = setup();
-    const make = <T,>(c: new (...a: any[]) => T) => { const f = TestBed.createComponent(c); f.componentRef.setInput('loc', LOC); f.detectChanges(); return f; };
-    const travel = make(HouseTravel);
-    const transit = make(HouseTransit);
+    const f = TestBed.createComponent(HouseRoutes);
+    f.componentRef.setInput('loc', LOC);
+    f.detectChanges();
     await Promise.resolve();                         // the dry-run counts are requested in a microtask
-    transit.detectChanges();
-    const el = travel.nativeElement as HTMLElement, tr = transit.nativeElement as HTMLElement;
+    f.detectChanges();
+    const el = f.nativeElement as HTMLElement;
+    const store = TestBed.inject(HouseTravelStore);
     expect(el.textContent).toContain('~31 min');
     expect(el.textContent).toContain('estimate');
-    expect(el.querySelector('button.btn')).toBeNull();                                 // the buttons live in Transit routes
     expect(api.listingTransit).toHaveBeenCalledWith('L-TEST', true, 'points');
     expect(api.listingTransit).toHaveBeenCalledWith('L-TEST', true, 'services');
-    const buttons = [...tr.querySelectorAll<HTMLButtonElement>('button.btn')];
-    expect(buttons.map((b) => b.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'Compute transit routes to your points 2 API calls', 'Compute transit routes to nearby services 2 API calls']);
-    const store = TestBed.inject(HouseTravelStore);
+    const tabs = [...el.querySelectorAll<HTMLButtonElement>('.fh-rtab')];
+    expect(tabs.map((t) => t.textContent?.replace(/\s+/g, ' ').trim().replace(/ \d+$/, ''))).toEqual(['Your points', 'Nearby services']);
+    const compute = () => el.querySelector<HTMLButtonElement>('.fh-tbtns button')!;
+    expect(compute().textContent?.replace(/\s+/g, ' ').trim()).toBe('Compute routes to your points 2 API calls');
     expect(store.showServices()).toBe(false);
-    buttons[0].click();
-    travel.detectChanges(); transit.detectChanges();
+    compute().click();
+    f.detectChanges();
     expect(api.listingTransit).toHaveBeenCalledWith('L-TEST', false, 'points');
     expect(el.textContent).toContain('27 min');
     expect(el.querySelectorAll('.fh-leg').length).toBe(2);
-    expect(store.showServices()).toBe(false);                                        // points do not turn the services on
-    buttons[1].click();
-    expect(store.showServices()).toBe(true);                                         // computing the services does
+    expect(store.showServices()).toBe(false);                                        // the points' routes are drawn
     // hovering a route row marks it for the maps
-    (tr.querySelector('.fh-trow') as HTMLElement).dispatchEvent(new Event('mouseenter'));
+    (el.querySelector('.fh-trow') as HTMLElement).dispatchEvent(new Event('mouseenter'));
     expect(store.hover()).toBe('office');
+    // the services' tab has its own button; computing them shows their routes on the maps
+    tabs[1].click();
+    f.detectChanges();
+    expect(store.showServices()).toBe(true);
+    expect(compute().textContent?.replace(/\s+/g, ' ').trim()).toBe('Compute routes to nearby services 2 API calls');
+    compute().click();
+    f.detectChanges();
+    expect(api.listingTransit).toHaveBeenCalledWith('L-TEST', false, 'services');
+    expect(store.tab()).toBe('services');
+    store.tab.set('points');
   });
 
   it('shows transport with reach, marked estimate with an orange dot when some minutes are estimated', () => {

@@ -3,7 +3,7 @@ import { DecimalPipe } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { HeatSummary, HouseLocation, IndexKey, ZoneLine } from '../../models';
-import { HouseHome, HouseTransit, HouseTravel } from '../../house/house-bubbles';
+import { HouseHome, HouseRoutes } from '../../house/house-bubbles';
 import { HouseTravelStore } from '../../house/house-travel.store';
 import { ApiService, apiError } from '../../services/api.service';
 import { HouseLayerService, RouteView } from './house-layer.service';
@@ -21,7 +21,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
 /** Map → Zone: pick a zone, fly into it, and study walking / cycling access to stops and services along the streets. */
 @Component({
   selector: 'fh-zone-mode',
-  imports: [DecimalPipe, RouterLink, InfoButton, ExplainInline, HouseHome, HouseTravel, HouseTransit],
+  imports: [DecimalPipe, RouterLink, InfoButton, ExplainInline, HouseHome, HouseRoutes],
   template: `
   <ng-template #zoneTpl>
     @if (zone.facts(); as f) {
@@ -92,8 +92,7 @@ const MODE_LABEL: Record<string, string> = { metro: 'Metro', commuter_rail: 'Com
         title="Zoom out to the home, your points and the transit routes (Compute transit routes draws them)">
         ⤢ Home, your points{{ travel.results()[h.listing.short_id] ? ' and routes' : '' }}</button>
       <fh-house-home [loc]="h" [transit]="travel.results()[h.listing.short_id] ?? null" />
-      <fh-house-travel [loc]="h" />
-      <fh-house-transit [loc]="h" />
+      <fh-house-routes [loc]="h" />
       <hr class="my-3" />
     } @else if (houseError()) { <div class="small text-danger mb-2">House: {{ houseError() }}</div> }
     @if (zone.facts(); as f) {
