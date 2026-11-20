@@ -17,6 +17,8 @@ import { ApiService, apiError } from '../services/api.service';
 import { CandidateOrderStore } from '../services/candidate-order.store';
 import { LayoutService } from '../services/layout.service';
 import { CandidateFilters, CandidateFiltersStore, SortKey, applyAll, sortRows } from './candidate-filters';
+import { CandidateColumns, ColumnsStore, lastCheck } from './candidate-columns';
+import { AD_STATUS_LABEL } from '../components/ad-status-badge';
 import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
@@ -28,7 +30,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, CandidateColumns],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -81,6 +83,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
   }
 
   <ng-template #filtersTpl><fh-candidate-filters [count]="rows().length" /></ng-template>
+  <ng-template #columnsTpl><fh-candidate-columns /></ng-template>
   @if (!all().length && !loading()) {
     <div class="fh-empty">No listings yet. Ingest the sample with
       <code>scripts/findhome ingest listings -f backend/tests/fixtures/listings_sample.json</code>, or run a scan from Sites.</div>
@@ -112,7 +115,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <div class="table-responsive">
     <table class="table table-sm table-hover align-middle">
       <thead><tr><th>Id</th>
-        @for (c of columns; track c.key) { <ng-container *ngTemplateOutlet="th; context: { $implicit: c.key, label: c.label, tip: c.tip, cls: c.cls }" /> }
+        @for (c of cols.defs(); track c.key) { <ng-container *ngTemplateOutlet="th; context: { $implicit: c.key, label: c.label, tip: c.tip, cls: c.cls }" /> }
         <th class="fh-stale-col" title="A clock: the ad's status was not confirmed recently, it may have closed"></th>
       </tr></thead>
       <tbody>
@@ -122,25 +125,36 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             <td class="text-nowrap"><a class="fh-id-badge" [routerLink]="['/candidates', r.short_id]"
               (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()" (focus)="hoverIn(r, $event)" (blur)="hoverOut()">{{ r.short_id }}</a>
               @if (r.ad_open === false) { <fh-ad-status class="ms-1" [status]="r.ad_sources?.[0]?.status" [site]="r.ad_sources?.[0]?.site" [checkedAt]="r.ad_sources?.[0]?.checked_at" /> }</td>
-            <td>
-              <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
-              @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
-            </td>
-            <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}@if (r.house_estimated) { <i class="fh-est-dot inline"></i> }</td>
-            <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td>
-            <td>{{ r.status }}</td>
-            <td>@if (r.origin_site) { <fh-site-logo class="me-1" [slug]="r.origin_site" [title]="originTip(r)" /> }{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td>
             @let ro = values.rate(r, 'rooms_rok'); @let rs = values.rate(r, 'size_m2');
             @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2'); @let mv = values.moveIn(r);
-            <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
-              {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td>
-            <td class="text-center">@if (r.issue_codes?.length) { <fh-issue-tip [issues]="issuesOf(r)" /> }</td>
-            <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
-            <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td>
-            <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
-            <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
-            <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td>
-            <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
+            @for (c of cols.defs(); track c.key) {
+              @switch (c.key) {
+                @case ('score') { <td>
+                  <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
+                  @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
+                </td> }
+                @case ('transport') { <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}@if (r.house_estimated) { <i class="fh-est-dot inline"></i> }</td> }
+                @case ('services') { <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td> }
+                @case ('status') { <td>{{ r.status }}</td> }
+                @case ('area') { <td>@if (r.origin_site) { <fh-site-logo class="me-1" [slug]="r.origin_site" [title]="originTip(r)" /> }{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td> }
+                @case ('move_in') { <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
+                  {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td> }
+                @case ('issues') { <td class="text-center">@if (r.issue_codes?.length) { <fh-issue-tip [issues]="issuesOf(r)" /> }</td> }
+                @case ('rooms') { <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td> }
+                @case ('size') { <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td> }
+                @case ('rent') { <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td> }
+                @case ('per_m2') { <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td> }
+                @case ('pets') { <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td> }
+                @case ('contract') { <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td> }
+                @case ('ad_status') { <td class="text-nowrap">@for (a of r.ad_sources ?? []; track a.site) { <fh-ad-status class="me-1" [status]="a.status" [site]="sites.name(a.site)" [checkedAt]="a.checked_at" /> }</td> }
+                @case ('found_on') { <td class="text-nowrap">@for (s of r.found_on ?? []; track s) { <fh-site-logo class="me-1" [slug]="s" [title]="sites.name(s)" /> }</td> }
+                @case ('photos') { <td class="text-center small" [class.text-body-secondary]="!r.photo_urls?.length">{{ r.photo_urls?.length || '–' }}</td> }
+                @default {
+                  @let x = extra(c.key, r);
+                  <td [class]="c.cls + ' small text-nowrap'" [style.color]="x.colour" [title]="x.title">{{ x.text }}</td>
+                }
+              }
+            }
             <td class="fh-stale-col">@if (r.ad_stale) { <span class="fh-stale" [title]="staleTip(r)" aria-label="Ad status not confirmed recently">⏱</span> }</td>
           </tr>
         }
@@ -215,17 +229,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   protected rows = computed(() => sortRows(applyAll(this.all(), this.fs.filters(), this.fs.cats()), this.fs.sort()));
   private layout = inject(LayoutService);
   private filtersTpl = viewChild.required<TemplateRef<unknown>>('filtersTpl');
-  /** The sortable columns, in table order. */
-  protected columns: { key: SortKey; label: string; tip?: string; cls?: string }[] = [
-    { key: 'score', label: 'Score' },
-    { key: 'transport', label: 'Transport', cls: 'text-center', tip: 'The home\'s transport score, 0-100, from its exact address: walks to rail and bus, lines and departures nearby. Click to sort.' },
-    { key: 'services', label: 'Services', cls: 'text-center', tip: 'The home\'s services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near. Click to sort.' },
-    { key: 'status', label: 'Status' }, { key: 'area', label: 'Area / address' },
-    { key: 'move_in', label: 'Move in', tip: 'The move-in date the ad gives, against your window in config/profile.yaml (move_in_from → move_in_to): green inside, amber before, red after (rejected). Click to sort.' },
-    { key: 'issues', label: 'Issues', cls: 'text-center', tip: 'What the listing is missing (move-in, photos, floor plan, street number …): hover the badge for each issue and whether the ad lacks it or the extraction should be checked. Click to sort.' },
-    { key: 'rooms', label: 'Rooms' }, { key: 'size', label: 'm²' }, { key: 'rent', label: 'Rent' }, { key: 'per_m2', label: 'kr/m²' },
-    { key: 'pets', label: 'Pets' }, { key: 'contract', label: 'Contract' },
-  ];
+  private columnsTpl = viewChild.required<TemplateRef<unknown>>('columnsTpl');
   /** Pages: the cursor decides the page, so j / k and the selection move across pages too. */
   protected pageSizes = [25, 50, 100, 200];
   protected pageSize = signal(readPageSize());
@@ -253,7 +257,8 @@ export class CandidatesPage implements OnInit, OnDestroy {
 
   constructor() {
     const destroy = inject(DestroyRef);
-    afterNextRender(() => this.layout.register(destroy, [{ id: 'candidate-filters', title: 'Filters', tpl: this.filtersTpl() }]));
+    afterNextRender(() => this.layout.register(destroy, [{ id: 'candidate-filters', title: 'Filters', tpl: this.filtersTpl() },
+      { id: 'candidate-columns', title: 'Columns', tpl: this.columnsTpl() }]));
     // the order you see is the order the listing page steps through; a new filter or sort starts at the top
     effect(() => { const ids = this.rows().map((l) => l.short_id); untracked(() => this.order.set(ids)); });
     effect(() => { this.fs.filters(); this.fs.cats(); this.fs.sort(); untracked(() => this.cursor.set(0)); });
@@ -261,6 +266,55 @@ export class CandidatesPage implements OnInit, OnDestroy {
   protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
   protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
   protected issuesOf = issuesOf;
+  /** The shown columns, their order and your views (candidate-columns.ts; saved in the app database). */
+  protected cols = inject(ColumnsStore);
+  /** Text, colour and tooltip of a column added from the Columns bubble (the default columns have their own cells). */
+  protected extra(key: string, r: Listing): { text: string; title: string; colour: string | null } {
+    const a = (r.attributes ?? {}) as Record<string, any>, t = a['contract_terms'] ?? {};   // eslint-disable-line @typescript-eslint/no-explicit-any
+    const yn = (v: boolean | null | undefined) => (v == null ? '–' : v ? '✓' : '✕');
+    const day = (v: string | null | undefined) => (v ? new Date(v).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: '2-digit' }) : '–');
+    const mo = (n: number | null | undefined) => (n == null ? '–' : `${n} mo`);
+    const out = (text: string, title = '', colour: string | null = null) => ({ text, title, colour });
+    if (key.startsWith('part_')) {
+      const g = key.slice(5), p = r.breakdown?.[g];
+      return p?.score == null ? out('–', p?.why ?? 'no data for this part')
+        : out(String(Math.round(p.score * 100)), `${p.why} · weight ${p.weight}`, scoreColor(p.score));
+    }
+    switch (key) {
+      case 'floor': return out(r.floor == null ? '–' : String(r.floor));
+      case 'lift': return out(yn(r.has_elevator));
+      case 'balcony': return out(yn(r.has_balcony));
+      case 'build_year': return out(r.build_year == null ? '–' : String(r.build_year));
+      case 'furnished': return out(yn((r as Listing & { furnished?: boolean | null }).furnished), a['furnishing_raw'] ?? '');
+      case 'sovalkov': return out(yn(r.has_sovalkov));
+      case 'contract_start': return out(day(r.contract_start));
+      case 'contract_end': return out(r.contract_end ? day(r.contract_end) : a['open_ended'] ? 'open-ended' : '–');
+      case 'guaranteed': return out(mo(t['guaranteed_months']), t['guaranteed_raw'] ?? '');
+      case 'notice': return out(mo(t['notice_months']), t['notice_raw'] ?? '');
+      case 'short_term': return out(t['short_term'] ? 'short-term' : '–');
+      case 'apply_by': {
+        const d = a['apply_by'] as string | undefined, past = !!d && d.slice(0, 10) < new Date().toISOString().slice(0, 10);
+        return out(day(d), past ? 'the deadline has passed' : '', past ? 'var(--fh-bad)' : null);
+      }
+      case 'move_in_raw': return out(a['move_in_raw'] ?? '–');
+      case 'deposit': return out(r.deposit_sek == null ? '–' : this.kr(r.deposit_sek));
+      case 'ad_checked': return out(day(r.ad_checked_at), r.ad_checked_at ? new Date(r.ad_checked_at).toLocaleString('sv-SE') : 'never confirmed');
+      case 'status_check': {
+        const c = lastCheck(r);
+        if (!c) return out('never', 'The ad status was never checked: the next scan or status job will');
+        const how = (s: NonNullable<Listing['ad_sources']>[number]) => s.check === 'status_check.js' ? 'status job'
+          : s.check === 'detail_extract.js' ? 'details job' : s.rule?.startsWith('listed') || s.rule?.includes('feed') || s.rule?.includes('search') ? 'scan' : 'check';
+        const title = (r.ad_sources ?? []).map((s) => `${this.sites.name(s.site)}: ${AD_STATUS_LABEL[s.status] ?? s.status}`
+          + (s.checked_at ? ` · ${new Date(s.checked_at).toLocaleString('sv-SE')} · ${how(s)}${s.rule ? ` (${s.rule})` : ''}` : ' · never checked')).join('\n');
+        return out(`${day(c.checked_at)} · ${AD_STATUS_LABEL[c.status] ?? c.status}`, title, r.ad_stale ? 'var(--fh-mid)' : null);
+      }
+      case 'first_seen': return out(day(r.first_seen_at));
+      case 'last_changed': return out(day(r.last_changed_at));
+      case 'plan': return out(r.floorplan_urls?.length || (a['floorplans'] ?? []).length ? '✓' : '–');
+      case 'zone': return out(r.zone_name ?? '–');
+      default: return out('');
+    }
+  }
   protected toggleMoveIn(): void { this.fs.moveInMisses.update((v) => !v); this.load(true); }
   protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
   /** "Ad status last confirmed 9 days ago": why the row has a clock. */
@@ -274,6 +328,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
     this.sites.load();
     this.values.load();
+    this.cols.load();
     this.route.queryParamMap.subscribe((q) => {
       this.origin.set(q.get('origin') ?? '');
       this.site.set(q.get('site') ?? '');

@@ -330,7 +330,9 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
                     (SELECT array_agg(DISTINCT ls.site_slug) FROM listing_sources ls WHERE ls.listing_id = l.id) AS found_on,
                     (s.listing_id IS NULL) AS score_stale, {AD_OPEN_SQL} AS ad_open,
                     (SELECT jsonb_agg(jsonb_build_object('site', ls.site_slug, 'status', ls.ad_status,
-                                                         'checked_at', ls.status_checked_at) ORDER BY ls.first_seen_at)
+                                                         'checked_at', ls.status_checked_at,
+                                                         'rule', ls.status_evidence->>'rule',
+                                                         'check', ls.status_evidence->>'check') ORDER BY ls.first_seen_at)
                        FROM listing_sources ls WHERE ls.listing_id = l.id) AS ad_sources,
                     (SELECT max(ls.status_checked_at) FROM listing_sources ls WHERE ls.listing_id = l.id
                        AND ls.ad_status IN ('open', 'unknown')) AS ad_checked_at,

@@ -914,3 +914,22 @@ a.fh-chipf { text-decoration: none; }
   &:hover { box-shadow: 0 0 0 4px rgba(12, 165, 194, .28), 0 6px 18px -4px rgba(12, 165, 194, .85); }
   &.on { background: transparent; color: #087f96; box-shadow: none; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #087f96; } } }
 [data-bs-theme='dark'] .fh-rej-toggle.fh-movein-toggle.on { color: #4fd8ef; border-color: #4fd8ef; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #4fd8ef; } }
+
+// ── The Columns bubble on Candidates: the shown columns in order (drag or ↑ ↓), the rest to add, named views ──
+.fh-cols-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.fh-cols-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.fh-cols-list li { display: flex; align-items: center; gap: 4px; padding: 2px 4px 2px 6px; border-radius: 8px; font-size: .78rem;
+  background: var(--fh-violet-soft); border: 1px solid transparent; cursor: grab;
+  &.drag-over { border-color: var(--fh-violet); box-shadow: 0 0 0 2px var(--fh-violet-soft); }
+  &:active { cursor: grabbing; } }
+.fh-cols-grip { opacity: .45; font-size: .8rem; }
+.fh-cols-name { flex: 1; font-weight: 600; }
+.fh-cols-btn { border: 0; background: none; padding: 0 4px; line-height: 1.3; border-radius: 4px; color: inherit; font-size: .78rem;
+  &:hover:not(:disabled) { background: var(--fh-violet); color: #fff; }
+  &:disabled { opacity: .25; } }
+.fh-cols-view { display: inline-flex; align-items: center; border-radius: 999px; border: 1.5px solid var(--fh-violet); overflow: hidden;
+  font-size: .74rem; font-weight: 700;
+  button { border: 0; background: none; color: var(--fh-violet); padding: 1px 8px; }
+  .fh-cols-view-x { padding: 1px 6px; opacity: .6; &:hover { opacity: 1; } }
+  &.sel { background: linear-gradient(135deg, #c86bff, #990ae3); box-shadow: 0 0 10px rgba(153, 10, 227, .5);
+    button { color: #fff; } } }
