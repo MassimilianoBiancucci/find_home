@@ -20,6 +20,6 @@ describe('contract cell', () => {
 
   it('names the end date in the fixed-term issue of a list row', () => {
     const l = { issue_codes: ['contract_fixed_term'], contract_end: '2027-05-31' } as unknown as Listing;
-    expect(issuesOf(l)[0]).toMatchObject({ label: 'Fixed-term contract: ends 2027-05-31', cls: 'attention' });
+    expect(issuesOf(l)[0]).toMatchObject({ label: 'Fixed-term contract', detail: 'ends 31 May 2027', cls: 'attention' });
   });
 });

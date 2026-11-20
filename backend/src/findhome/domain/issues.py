@@ -8,6 +8,7 @@ class `attention` (nothing is missing, but you would have to move again).
 from __future__ import annotations
 
 import re
+from datetime import date
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
@@ -20,6 +21,7 @@ class Issue:
     label: str
     cls: Cls
     hint: str
+    detail: str = ""      # a short fact shown apart from the label (e.g. "ends 31 May 2027")
 
     def as_dict(self) -> dict[str, str]:
         return asdict(self)
@@ -69,12 +71,13 @@ def listing_issues(L: dict[str, Any]) -> list[Issue]:
             out.append(Issue(code, label, "check_extraction", "Every ad on this site gives it: the parser missed it."))
     if L.get("contract_end"):
         end = L["contract_end"]
-        end = end.isoformat() if hasattr(end, "isoformat") else str(end)
+        end = end if hasattr(end, "strftime") else date.fromisoformat(str(end)[:10])
         terms = a.get("contract_terms") or {}
         no_ext = "false" in str(terms.get("extension_raw") or "").lower()
-        out.append(Issue("contract_fixed_term", f"Fixed-term contract: ends {end}", "attention",
+        out.append(Issue("contract_fixed_term", "Fixed-term contract", "attention",
                          "The contract ends on a set date: you would have to move again then"
-                         + (" (the ad says it cannot be extended)." if no_ext else ".")))
+                         + (" (the ad says it cannot be extended)." if no_ext else "."),
+                         f"ends {end.day} {end:%b %Y}"))
     if L.get("last_read_translated"):
         out.append(Issue("page_translated", "Last page read stopped: Chrome had translated it", "check_extraction",
                          "Turn off Chrome translation for Swedish, then run Complete details again."))

@@ -144,7 +144,7 @@ Settings edits whole YAML files in CodeMirror; Locations edits points through JS
 page) and `contract_fixed_term` (the contract ends on a set date, `contract_end`). Each has a class: `not_in_source`
 (the ad does not give it: its page was read, `details_checked_at`, or it gives words like "Nu"), `check_extraction`
 (its page was never read, or every ad has it) or `attention` (nothing is missing, but it matters: the fixed term,
-an orange tag), with a hint. List rows carry `issue_codes`, the listing its full `issues`. The ad status, pets and
+an orange tag), with a hint and, for some, a short `detail` shown apart from the label as a badge that never breaks (the fixed term's "ends 31 May 2027"). In the ⚠ tooltip each issue is a row with its class tag on the right. List rows carry `issue_codes`, the listing its full `issues`. The ad status, pets and
 the other contract terms are not issues: they have their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
 The Candidates **Contract** column shows only the type, with an orange dot on a fixed term; hovering it opens
 [`fh-contract-cell`](../../frontend/src/app/components/contract-cell.ts)'s tooltip: from → to and the length, and the

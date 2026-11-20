@@ -898,9 +898,13 @@ a.fh-chipf { text-decoration: none; }
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
 .fh-tape > .fh-tape-body { position: relative; background: #fff8c2; color: #111; border-radius: 7px; padding: 8px 10px; font-size: .78rem;
   box-shadow: 0 0 14px rgba(255, 212, 0, .7);
-  ul { margin: 0; padding-left: 1rem; } li + li { margin-top: 4px; }
+  ul { margin: 0; padding-left: 1rem; } li + li { margin-top: 6px; }
+  .fh-tape-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .fh-tape-row b { min-width: 0; }
+  .fh-tape-detail { display: inline-block; margin: 2px 0 1px; padding: 0 8px; border-radius: 999px; white-space: nowrap;
+    font-size: .7rem; font-weight: 700; color: #8a4300; background: #ffe2b8; border: 1px solid #f0a050; }
   .fh-tape-title { font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: .68rem; margin-bottom: 4px; }
-  .fh-tape-cls { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #111; color: #ffd400; font-size: .64rem; font-weight: 700; }
+  .fh-tape-cls { flex: none; white-space: nowrap; padding: 0 6px; border-radius: 999px; background: #111; color: #ffd400; font-size: .64rem; font-weight: 700; }
   .fh-tape-cls.attn { background: #f07b00; color: #fff; }
   .fh-tape-hint { color: #444; font-size: .72rem; } }
 @keyframes fh-tape-move { to { background-position: 28px 0; } }
@@ -910,6 +914,8 @@ a.fh-chipf { text-decoration: none; }
 .fh-issue-cls { margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: .66rem; font-weight: 700; background: #e9ecef; color: #495057;
   &.check { background: #111; color: #ffd400; }
   &.attn { background: #ff9f1a; color: #fff; } }
+.fh-issue-detail { margin-left: 4px; padding: 0 8px; border-radius: 999px; white-space: nowrap; font-size: .7rem; font-weight: 700;
+  color: #ff9f1a; border: 1px solid color-mix(in srgb, #ff9f1a 60%, transparent); }
 
 // ── The listing id on Candidates: a bright pill (violet, the app's accent) that alone opens the home card ──
 .fh-id-badge { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; font-family: var(--bs-font-monospace);

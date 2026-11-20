@@ -98,12 +98,13 @@ import { TagsStore } from '../services/tags.store';
 
         @if (x.issues?.length) {
           <section class="fh-hcard fh-issues-card">
-            <header><h2>Issues</h2><span class="fh-hsub">{{ x.issues!.length }} missing value{{ x.issues!.length === 1 ? '' : 's' }}</span>
+            <header><h2>Issues</h2><span class="fh-hsub">{{ x.issues!.length }} issue{{ x.issues!.length === 1 ? '' : 's' }}</span>
               <button type="button" class="fh-btn-glow ms-auto" [disabled]="detailsBusy()" (click)="completeDetails(x)"
                       title="Read this listing's page again (the details job, for this listing only)">Complete details</button></header>
             @for (i of x.issues!; track i.code) {
               <div class="fh-issue-row"><span class="fh-issue-trigger" aria-hidden="true">⚠</span>
                 <div><b>{{ i.label }}</b> <span class="fh-issue-cls" [class.check]="i.cls === 'check_extraction'" [class.attn]="i.cls === 'attention'">{{ issueCls[i.cls] }}</span>
+                  @if (i.detail) { <span class="fh-issue-detail">{{ i.detail }}</span> }
                   <div class="text-body-secondary small">{{ i.hint }}</div></div></div>
             }
           </section>

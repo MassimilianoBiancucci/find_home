@@ -51,4 +51,5 @@ def test_a_set_contract_end_is_an_attention_issue():
     fixed = by_code({**FULL, "contract_type": "second_hand", "contract_end": "2027-05-31",
                      "attributes": {**FULL["attributes"], "contract_terms": {"extension_raw": "possibilityOfExtension: false"}}})
     i = fixed["contract_fixed_term"]
-    assert i.cls == "attention" and "2027-05-31" in i.label and "cannot be extended" in i.hint
+    assert i.cls == "attention" and i.label == "Fixed-term contract" and i.detail == "ends 31 May 2027"
+    assert "cannot be extended" in i.hint
