@@ -53,7 +53,8 @@ listings; the app stores everything, scores it, puts it on a map and gives you t
 
 The screenshots use public listing data from the rental sites. Your own places and search area are personal and
 never committed: in these images they come from the repo's example files (`Office (example)`, `Partner (example)`,
-a made-up search area), and the travel minutes to them are illustrative.
+a search area drawn from them), and the travel minutes to them, on the maps and in the routes, are
+illustrative.
 
 ### Candidates
 
@@ -112,20 +113,23 @@ Everything about one home, with the previous and next home of your list one key 
 
 ### Map: Area
 
-![The Area mode: a drawn search area made of a polygon and a circle, with the listings inside, near and outside it counted on the right.](docs/screenshots/area.webp)
+![The Area mode: a search area made of every zone within 25 minutes of your points by transit, with the listings inside, near and outside it counted on the right.](docs/screenshots/area.webp)
 
-Draw where you want to live. An area is made of weighted pieces: whole zones, a **reach** (the zones within N
-minutes of your points), brush strokes, lasso, circle or polygon shapes, and erasers. A buffer softens the edge.
-Homes inside score full marks for area, those just outside less, the rest are filtered out.
+Decide where you want to live from how long it takes to get to your places. The **Reach** tool selects every zone
+whose transit time to your points stays under a limit, for all of them weighted or for one, in every time window
+or one: here, the 95 zones within 25 minutes. Refine it with more weighted pieces: single zones, brush strokes,
+lasso, circle or polygon shapes, and erasers. A buffer softens the edge. Homes inside score full marks for area,
+those just outside less, the rest are filtered out.
 
 ### Map: Connectivity
 
-![The Connectivity mode: Stockholm's zones coloured by the transport index percentile, with the view options on the left.](docs/screenshots/connectivity.webp)
+![The Connectivity mode: every zone around Stockholm coloured by its transit minutes to your points, weighted, from green to red.](docs/screenshots/connectivity.webp)
 
-How well each neighbourhood is connected: the transit minutes from every zone to each of your points and their
-weighted mix, or the **transport index** (lines, frequency and stops within a short walk, by time of day) as a
-percentile. The matrix bubble shows how many routes are computed, failed or estimated, and what refreshing them
-would cost in API calls.
+How well each neighbourhood is connected to your life: the transit minutes from every zone to your points in their
+time windows, as their weighted mix or for one point at a time. Hover a zone for its minutes per point. The
+**transport index** view colours the zones by public transport quality instead (lines, frequency and stops within a
+short walk, by time of day). The matrix bubble shows how many routes are computed, failed or estimated, and what
+refreshing them would cost in API calls.
 
 ### Map: Zone
 
