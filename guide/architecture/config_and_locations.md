@@ -68,6 +68,17 @@ The Locations editor suggests addresses while typing through `GET /api/geocode/s
 `ORS_API_KEY`, else Photon; never Nominatim, whose policy forbids autocomplete). Picking a suggestion saves both
 `address` and `coords`, so the point does not depend on runtime geocoding.
 
+The editor ([`pages/locations.ts`](../../frontend/src/app/pages/locations.ts)) opens on an **overview**: the list of
+points and a map of all of them (click either to jump to a point's card, which glows for a moment). Each card has the
+form on the left (Place, Scoring, Trips) and its own map on the right, sticky while the form scrolls (stacked above
+it on narrow screens): [`fh-point-map`](../../frontend/src/app/components/point-map.ts), on the main map's style
+(light or dark, the search area outlined, outside it greyed), movable and zoomable, the point a large standing pin in
+its category colour inside a soft light, every other point a small blip with its name (click one to jump to it),
+framed to centre the point with all the others in view (⟲ returns there). **Place on map** then a click on the map
+sets the coordinates (the address is kept as typed). Each map is created when it first scrolls into view. Each trip
+draws its windows on a 24-hour bar (arrive by violet, depart at cyan). A card whose point differs from the saved file
+shows **unsaved**, and Save point only then; Saved otherwise.
+
 **Geocoding** ([`providers/geocode.py`](../../backend/src/findhome/providers/geocode.py)) resolves points
 without `coords` and listings without coordinates through `geocode_cache`. The query sent to Nominatim gets
 `, Sverige` only when the address names no country (`sverige` / `sweden`). Hits are cached for
