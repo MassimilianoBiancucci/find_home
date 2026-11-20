@@ -155,7 +155,12 @@ their date in red. The id is a violet pill (`.fh-id-badge`); hovering or focusin
 other cells keep their own tooltips. The **Issues** column shows a yellow "⚠ n" badge; hovering it opens the tape tooltip
 ([`fh-issue-tip`](../../frontend/src/app/components/issue-tip.ts): a yellow panel in an animated yellow-black border,
 still under reduced motion) with each issue, its class and hint. A clock at the end of a row says the ad's status
-was not confirmed in `agent.yaml` `ad_status.stale_after_days`. The page then applies the ranges of the **Filters**
+was not confirmed in `agent.yaml` `ad_status.stale_after_days` (sent with the list as `stale_after_days`). Hovering
+it opens [`fh-stale-tip`](../../frontend/src/app/components/stale-tip.ts): the days since the last confirmation (or
+"Never confirmed" and how long ago the home was found) on a bar with the limit in the middle; the ad on each site
+(status pill, when and how it was last checked, first and last seen by a scan: `ad_sources.first_seen` /
+`last_seen`); and the history, newest first (found on each site, ad status changes, your status changes), fetched
+from the listing on the first hover and kept for the session. The page then applies the ranges of the **Filters**
 bubble (ranges and chips) and the sort ([`rows`](../../frontend/src/app/pages/candidates.ts#L200)). Every column header but Id sorts:
 the first click puts the better end first (score high, rent low, move-in early), the second reverses, and homes
 without the value stay last. The default is score, high first.

@@ -6,6 +6,7 @@ import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { PetBadge } from '../components/pet-badge';
 import { AdStatusBadge } from '../components/ad-status-badge';
 import { IssueTip } from '../components/issue-tip';
+import { StaleTip } from '../components/stale-tip';
 import { ListingCard } from '../components/listing-card';
 import { issuesOf } from '../issues';
 import { ScoreTip } from '../components/score-tip';
@@ -30,7 +31,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, CandidateColumns, ListingCard],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, StaleTip, CandidateColumns, ListingCard],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -155,7 +156,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
                 }
               }
             }
-            <td class="fh-stale-col">@if (r.ad_stale) { <span class="fh-stale" [title]="staleTip(r)" aria-label="Ad status not confirmed recently">⏱</span> }</td>
+            <td class="fh-stale-col">@if (r.ad_stale) { <fh-stale-tip [listing]="r" [staleDays]="staleDays()" /> }</td>
           </tr>
         }
       </tbody>
@@ -291,11 +292,8 @@ export class CandidatesPage implements OnInit, OnDestroy {
   protected toggleMoveIn(): void { this.fs.moveInMisses.update((v) => !v); this.load(true); }
   protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
   /** "Ad status last confirmed 9 days ago": why the row has a clock. */
-  protected staleTip(r: Listing): string {
-    if (!r.ad_checked_at) return 'Ad status never checked: it may have closed. The status job checks it.';
-    const days = Math.floor((Date.now() - new Date(r.ad_checked_at).getTime()) / 86_400_000);
-    return `Ad status last confirmed ${days} day${days === 1 ? '' : 's'} ago: it may have closed. The status job checks it.`;
-  }
+  /** agent.yaml ad_status.stale_after_days, from the list response: how long a confirmed ad status is trusted. */
+  protected staleDays = signal(7);
 
   ngOnInit(): void {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
@@ -353,7 +351,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
       closed: this.fs.hideClosed() ? 'exclude' : 'include', moveInMisses: this.fs.hideRejected() && this.fs.moveInMisses(),
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
       next: (res) => {
-        this.all.set(res.items); this.fs.base.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set('');
+        this.all.set(res.items); this.fs.base.set(res.items); if (res.stale_after_days) this.staleDays.set(res.stale_after_days); this.cursor.set(0); this.loading.set(false); this.error.set('');
         if (pulse) this.fs.flash();
       },
       error: (e) => { this.error.set(apiError(e)); this.loading.set(false); },

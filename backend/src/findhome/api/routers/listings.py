@@ -37,7 +37,8 @@ async def list_listings(status: str | None = None, kind: str | None = None, q: s
 
     rows = await repo.list_listings(conn, bundle().config_hash, status, kind, q, include_rejected, limit, since,
                                     origin, site, scan_run, closed, stale_days(), move_in_misses)
-    return {"config_hash": bundle().config_hash, "items": _with_zone(rows)}
+    # stale_after_days: how long a confirmed ad status is trusted (the clock on a row: agent.yaml ad_status)
+    return {"config_hash": bundle().config_hash, "stale_after_days": stale_days(), "items": _with_zone(rows)}
 
 
 @router.get("/scale")

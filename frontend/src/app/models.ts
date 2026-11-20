@@ -39,7 +39,9 @@ export interface Listing {
   /** The ad status on each site it was found on. */
   ad_sources?: { site: string; status: AdStatus; checked_at?: string | null;
                   /** The rule of the last check ("listed by a scan", "Home.status", "410 + badge" …) and its method. */
-                  rule?: string | null; check?: string | null }[] | null;
+                  rule?: string | null; check?: string | null;
+                  /** When a scan first and last listed it on that site. */
+                  first_seen?: string | null; last_seen?: string | null }[] | null;
   /** Codes of what the listing is missing (backend domain/issues.py; computed per request). */
   issue_codes?: string[];
   /** The latest confirmation (scan or status check) of an open or unchecked source. */
