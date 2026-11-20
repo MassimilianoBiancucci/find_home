@@ -43,7 +43,7 @@ export function pulseHalo(map: MlMap, layer = 'listings-halo'): () => void {
     last = t;
     const w = (1 - Math.cos((t / 2800) * Math.PI * 2)) / 2;          // 0 → 1 → 0
     map.setPaintProperty(layer, 'circle-radius', haloRadius(0.85 + 0.45 * w) as any);
-    map.setPaintProperty(layer, 'circle-opacity', 0.55 - 0.35 * w);
+    map.setPaintProperty(layer, 'circle-opacity', 0.78 - 0.33 * w);
   };
   raf = requestAnimationFrame(tick);
   return () => cancelAnimationFrame(raf);
@@ -203,7 +203,7 @@ export class MapShell {
       layers: [
         // a soft light in the score colour under each house, slowly pulsing (pulseHalo): visible on any base map or tint
         { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
-          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.45, 'circle-blur': 0.7,
+          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.65, 'circle-blur': 0.6,
             'circle-pitch-alignment': 'map' } },
         { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
           layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-anchor': 'center',

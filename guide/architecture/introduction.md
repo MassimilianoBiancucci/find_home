@@ -376,7 +376,11 @@ the tab is hidden, still under reduced motion); layers that tint zones go below 
 **Listing filters** bubble keeps: the Candidates Filters bubble and its store
 ([`CandidateFiltersStore`](../../frontend/src/app/pages/candidate-filters.ts)), so a filter set on one page holds on the
 other, plus Hide closed. Hovering a house shows the Candidates hover card
-([`fh-listing-card`](../../frontend/src/app/components/listing-card.ts)) next to the pointer; clicking it pins the card
+([`fh-listing-card`](../../frontend/src/app/components/listing-card.ts): a header with the id, the title on one line, the
+issue count and the score; four figure tiles, rent, size, move-in and transport with services, coloured like the
+table; one row of badges, pets, floor, lift, balcony; then a two-column table whose values never wrap, the full text
+on hover: pets quote, ad status and when it was checked, contract, origin, seen, and best-for or the rejection reasons
+as chips) next to the pointer; clicking it pins the card
 in the Inspector with the photos, the score and Open listing. Leaving Explore puts every home back on the map.
 [`TransitLayersService`](../../frontend/src/app/pages/map/transit-layers.service.ts) draws one line layer per transit
 mode (data loaded when first shown; buses from zoom 12) and the stations as blips; the inspector shows a line's

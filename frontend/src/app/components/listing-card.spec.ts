@@ -18,9 +18,10 @@ describe('fh-listing-card', () => {
     const el = f.nativeElement as HTMLElement;
     expect(el.textContent).toContain('L-TEST');
     expect(el.textContent).toContain('Exempelgatan 1');
-    expect(el.querySelector('.fh-ltip-grid')).toBeTruthy();
+    expect(el.querySelector('.fh-lc-table')).toBeTruthy();
+    expect(el.querySelector('.fh-lc-tiles')?.children.length).toBe(4);
     f.componentRef.setInput('listing', null);
     f.detectChanges();
-    expect(el.querySelector('.fh-ltip-grid')).toBeNull();
+    expect(el.querySelector('.fh-lc-table')).toBeNull();
   });
 });
