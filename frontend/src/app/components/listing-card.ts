@@ -67,9 +67,13 @@ const REASON: Record<string, string> = {
         <div class="fh-lc-tile" [title]="mv?.title ?? (t.available_from ? '' : 'The ad gives no move-in date')"><span class="fh-lc-k">Move in</span>
           <b [style.color]="mv?.colour">{{ t.available_from ? (t.available_from | date: 'd MMM') : '?' }}</b>
           <small>{{ t.available_from ? (t.available_from | date: 'y') : moveInRaw(t) }}</small></div>
-        <div class="fh-lc-tile" title="From the exact address: transport and services, 0–100"><span class="fh-lc-k">Transport</span>
-          <b [style.color]="idx(t.house_transport)">{{ int(t.house_transport) || '–' }}@if (t.house_estimated) {<i class="fh-est-dot inline" title="estimate"></i>}</b>
-          <small>services <b [style.color]="idx(t.house_services)">{{ int(t.house_services) || '–' }}</b></small></div>
+        <div class="fh-lc-tile fh-lc-scores" title="Transport and services from the exact address, 0–100">
+          <span class="fh-lc-k">Access</span>
+          <span class="fh-lc-srow"><span>Transport</span>
+            <span class="fh-lc-sv"><b [style.color]="idx(t.house_transport)">{{ int(t.house_transport) || '–' }}</b><span class="fh-lc-led">@if (t.house_estimated) {<i class="fh-est-dot inline" title="estimate: minutes from the zone, not the address"></i>}</span></span></span>
+          <span class="fh-lc-srow"><span>Services</span>
+            <span class="fh-lc-sv"><b [style.color]="idx(t.house_services)">{{ int(t.house_services) || '–' }}</b><span class="fh-lc-led"></span></span></span>
+        </div>
       </div>
 
       <div class="fh-lc-badges">
