@@ -58,9 +58,7 @@ illustrative.
 
 ### Candidates
 
-![Candidates: a table of homes with score, transport and services indices, move-in, issues, rooms, size, rent, pets and contract; the filters bubble on the left.](docs/screenshots/candidates.webp)
-
-The triage table of every home that passes your hard filters.
+The triage table of every home that passes your hard filters ([the screenshot at the top](#top)).
 
 - **Score, transport and services** for each home, coloured from red to green; an orange dot marks a value that is
   partly estimated.
