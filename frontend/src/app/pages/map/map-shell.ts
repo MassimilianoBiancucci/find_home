@@ -23,11 +23,12 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
 /**
- * A house's size by its score: the best homes big, the weakest very small (scores run about 0.3–0.9; unscored 0.6×).
+ * A house's size by its score: the best homes big, the weakest very small, steeper in the middle so the differences
+ * show (scores run about 0.3–0.9: 0.2× at 0.3, 0.45× at 0.5, 0.95× at 0.7, 1.6× at 0.9; unscored 0.6×).
  * Scales both the house and its light.
  */
 const SCORE_SIZE = ['case', ['==', ['get', 'score'], null], 0.6,
-  ['interpolate', ['linear'], ['to-number', ['get', 'score'], 0], 0.3, 0.35, 0.6, 0.85, 0.9, 1.6]];
+  ['interpolate', ['linear'], ['to-number', ['get', 'score'], 0], 0.3, 0.2, 0.5, 0.45, 0.7, 0.95, 0.9, 1.6]];
 /** The light's radius by zoom and score, times `k` (the pulse): it reaches all round the house. */
 const haloRadius = (k: number) => ['interpolate', ['linear'], ['zoom'],
   9, ['*', 17 * k, SCORE_SIZE], 13, ['*', 23 * k, SCORE_SIZE], 16, ['*', 31 * k, SCORE_SIZE]];

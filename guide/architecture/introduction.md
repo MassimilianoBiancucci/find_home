@@ -392,7 +392,7 @@ buttons and an **Icon size** slider (0.6× to 1.8×, kept per browser) that scal
 the first time it is switched on.
 **Houses on the map** are a house shape in the score colour (lighter roof, white outline, dark rim, a door, a soft
 shadow: `installHouse()` in [`map-icons.ts`](../../frontend/src/app/components/map-icons.ts), image `house:<hex>`)
-centred on its spot, its size by the score (0.35× at 0.3 up to 1.6× at 0.9, unscored 0.6×; the best drawn on
+centred on its spot, its size by the score (0.2× at 0.3, 0.45× at 0.5, 0.95× at 0.7, 1.6× at 0.9, unscored 0.6×; the best drawn on
 top); a home still to look at (status `new`, its ad open: `GLOWS` in [`map-shell.ts`](../../frontend/src/app/pages/map/map-shell.ts)) sits inside a soft light of the same colour and scale (`listings-halo`) that reaches all round it and slowly pulses
 ([`pulseHalo()`](../../frontend/src/app/pages/map/map-shell.ts): a 2.8 s breath, about 12 redraws a second, paused while
 the tab is hidden, still under reduced motion); layers that tint zones go below the light; larger as you zoom in; rejected homes are red dots (the Rejected listings layer). In **Explore** the houses are the homes the
