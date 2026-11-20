@@ -20,6 +20,22 @@ export function minutesOf(t: string | undefined): number | null {
   return v >= 0 && v <= DAY_MIN ? v : null;
 }
 
+/** A piece of a window on the 24-hour bar, in percent of the day. A window over midnight is two pieces: to the
+ *  end of the day and from its start; the wider one carries the label. */
+export interface DaySegment { left: number; width: number; label: boolean; toMidnight?: boolean; fromMidnight?: boolean; }
+
+/** A window's pieces on the 24-hour bar; none when its times do not parse. "18:00"–"03:00" runs over midnight. */
+export function daySegments(from: string | undefined, to: string | undefined): DaySegment[] {
+  const a = minutesOf(from), b = minutesOf(to);
+  if (a == null || b == null) return [];
+  const pct = (m: number) => (m / DAY_MIN) * 100;
+  if (b >= a || b === 0) { const end = b >= a ? b : DAY_MIN; return [{ left: pct(a), width: Math.max(0.4, pct(end - a)), label: true }]; }
+  const late = { left: pct(a), width: Math.max(0.4, pct(DAY_MIN - a)), label: false, toMidnight: true };
+  const early = { left: 0, width: Math.max(0.4, pct(b)), label: false, fromMidnight: true };
+  (late.width >= early.width ? late : early).label = true;
+  return [early, late];
+}
+
 /**
  * Editor for config/locations.yaml: any number of points per category, each with its own trips
  * (direction, day types) and time windows (arrive_by / depart_at, weight, sampling step).
@@ -83,6 +99,9 @@ export function minutesOf(t: string | undefined): number | null {
     .fh-day-seg { position: absolute; top: 3px; bottom: 3px; min-width: 4px; border-radius: 4px; color: #fff; font-size: .68rem; font-weight: 700;
       display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; text-shadow: 0 1px 1px rgba(0,0,0,.35);
       background: linear-gradient(135deg, #ff6ad5 0%, #c43dff 50%, #6a5cff 100%); box-shadow: 0 0 8px -1px rgba(196, 61, 255, .8); }
+    /* a window over midnight: the pieces meet the bar's ends square, as if it carried on */
+    .fh-day-seg.on-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+    .fh-day-seg.on-left { border-top-left-radius: 0; border-bottom-left-radius: 0; }
     .fh-day-seg.dep { background: linear-gradient(135deg, #6ff3ff 0%, #19b8e6 50%, #2f6bff 100%); box-shadow: 0 0 8px -1px rgba(25, 184, 230, .8); }
     .fh-day-ticks { position: relative; height: 14px; font-size: .64rem; color: var(--bs-secondary-color); font-variant-numeric: tabular-nums; }
     .fh-day-ticks span { position: absolute; transform: translateX(-50%); }
@@ -197,10 +216,11 @@ export function minutesOf(t: string | undefined): number | null {
                 } @else {
                   <div class="fh-day" role="img" [attr.aria-label]="'Windows of trip ' + (j + 1)">
                     @for (w of t.windows ?? []; track $index) {
-                      @if (span(w); as s) {
-                        <span class="fh-day-seg" [class.dep]="w.type === 'depart_at'" [style.left.%]="s.left" [style.width.%]="s.width"
-                          [title]="(w.type === 'arrive_by' ? 'arrive by ' : 'depart at ') + w.from + '–' + w.to + ' · weight ' + (w.weight ?? 1)">
-                          {{ s.width > 7 ? w.from + '–' + w.to : '' }}</span>
+                      @for (s of segments(w); track $index) {
+                        <span class="fh-day-seg" [class.dep]="w.type === 'depart_at'" [class.on-right]="s.toMidnight" [class.on-left]="s.fromMidnight"
+                          [style.left.%]="s.left" [style.width.%]="s.width"
+                          [title]="(w.type === 'arrive_by' ? 'arrive by ' : 'depart at ') + w.from + '–' + w.to + (s.toMidnight || s.fromMidnight ? ' (over midnight)' : '') + ' · weight ' + (w.weight ?? 1)">
+                          {{ s.label && s.width > 7 ? w.from + '–' + w.to : '' }}</span>
                       }
                     }
                   </div>
@@ -299,12 +319,8 @@ export class LocationsPage implements OnInit {
   protected dirty(i: number): boolean {
     return i >= this.saved.length || JSON.stringify(this.clean(this.draft()[i])) !== JSON.stringify(this.clean(this.saved[i]));
   }
-  /** A window's place on the 24-hour bar, in percent; null when its times do not parse. */
-  protected span(w: Window): { left: number; width: number } | null {
-    const a = minutesOf(w.from), b = minutesOf(w.to);
-    if (a == null || b == null || b < a) return null;
-    return { left: (a / DAY_MIN) * 100, width: Math.max(0.4, ((b - a) / DAY_MIN) * 100) };
-  }
+  /** A window's pieces on the 24-hour bar. */
+  protected segments(w: Window): DaySegment[] { return daySegments(w.from, w.to); }
   protected goTo(i: number): void {
     document.getElementById(`pt-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     this.flashed.set(i);

@@ -76,7 +76,7 @@ it on narrow screens): [`fh-point-map`](../../frontend/src/app/components/point-
 its category colour inside a soft light, every other point a small blip with its name (click one to jump to it),
 framed to centre the point with all the others in view (⟲ returns there). **Place on map** then a click on the map
 sets the coordinates (the address is kept as typed). Each map is created when it first scrolls into view. Each trip
-draws its windows on a 24-hour bar (arrive by violet, depart at cyan). A card whose point differs from the saved file
+draws its windows on a 24-hour bar (arrive by violet, depart at cyan; a window over midnight, such as 18:00 → 03:00, is two pieces, to the end of the day and from its start: [`daySegments()`](../../frontend/src/app/pages/locations.ts)). A card whose point differs from the saved file
 shows **unsaved**, and Save point only then; Saved otherwise.
 
 **Geocoding** ([`providers/geocode.py`](../../backend/src/findhome/providers/geocode.py)) resolves points
