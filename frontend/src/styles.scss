@@ -891,7 +891,7 @@ a.fh-chipf { text-decoration: none; }
   box-shadow: 0 0 0 2px rgba(255, 212, 0, .25), 0 0 10px rgba(255, 212, 0, .6); line-height: 1.5;
   .fh-issue-n { font-weight: 800; }
   &.fh-issue-icon { padding: 0 7px; font-size: .95rem; } }
-.fh-tape { position: fixed; z-index: 2000; width: 320px; border-radius: 10px; padding: 4px; pointer-events: none; }
+.fh-tape { position: fixed; z-index: 2000; width: 320px; border-radius: 10px; padding: 4px; pointer-events: none; text-align: left; white-space: normal; }
 .fh-tape::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 4px;
   background: repeating-linear-gradient(45deg, #ffd400 0 10px, #111 10px 20px); background-size: 28px 28px;
   animation: fh-tape-move 1s linear infinite;
@@ -901,13 +901,15 @@ a.fh-chipf { text-decoration: none; }
   ul { margin: 0; padding-left: 1rem; } li + li { margin-top: 4px; }
   .fh-tape-title { font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: .68rem; margin-bottom: 4px; }
   .fh-tape-cls { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: #111; color: #ffd400; font-size: .64rem; font-weight: 700; }
+  .fh-tape-cls.attn { background: #f07b00; color: #fff; }
   .fh-tape-hint { color: #444; font-size: .72rem; } }
 @keyframes fh-tape-move { to { background-position: 28px 0; } }
 @media (prefers-reduced-motion: reduce) { .fh-tape::before { animation: none; } }
 .fh-issue-row { display: flex; gap: 10px; align-items: flex-start; padding: 5px 0; border-top: 1px dashed var(--bs-border-color);
   &:first-of-type { border-top: 0; } }
 .fh-issue-cls { margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: .66rem; font-weight: 700; background: #e9ecef; color: #495057;
-  &.check { background: #111; color: #ffd400; } }
+  &.check { background: #111; color: #ffd400; }
+  &.attn { background: #ff9f1a; color: #fff; } }
 
 // ── The listing id on Candidates: a bright pill (violet, the app's accent) that alone opens the home card ──
 .fh-id-badge { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; font-family: var(--bs-font-monospace);

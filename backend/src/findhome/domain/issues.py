@@ -2,7 +2,8 @@
 checked. Computed from the listing row on every request, never stored, so they are true after any scan, job or edit.
 
 Not issues by design: the ad status (its own pill and "hide closed", jobs.md § Ad status), pets (their own precedence
-and badge, pets.md), contract type and contract terms (an ordinary first-hand contract has none).
+and badge, pets.md), the contract type and its other terms. One contract fact is: a set end date (`contract_end`),
+class `attention` (nothing is missing, but you would have to move again).
 """
 from __future__ import annotations
 
@@ -10,7 +11,7 @@ import re
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-Cls = Literal["not_in_source", "check_extraction"]
+Cls = Literal["not_in_source", "check_extraction", "attention"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,14 @@ def listing_issues(L: dict[str, Any]) -> list[Issue]:
                              ("rooms_rok", "rooms_missing", "No room count")):
         if L.get(col) is None:
             out.append(Issue(code, label, "check_extraction", "Every ad on this site gives it: the parser missed it."))
+    if L.get("contract_end"):
+        end = L["contract_end"]
+        end = end.isoformat() if hasattr(end, "isoformat") else str(end)
+        terms = a.get("contract_terms") or {}
+        no_ext = "false" in str(terms.get("extension_raw") or "").lower()
+        out.append(Issue("contract_fixed_term", f"Fixed-term contract: ends {end}", "attention",
+                         "The contract ends on a set date: you would have to move again then"
+                         + (" (the ad says it cannot be extended)." if no_ext else ".")))
     if L.get("last_read_translated"):
         out.append(Issue("page_translated", "Last page read stopped: Chrome had translated it", "check_extraction",
                          "Turn off Chrome translation for Swedish, then run Complete details again."))

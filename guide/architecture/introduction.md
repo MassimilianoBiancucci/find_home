@@ -140,11 +140,15 @@ Settings edits whole YAML files in CodeMirror; Locations edits points through JS
 [`listing_issues()`](../../backend/src/findhome/domain/issues.py) computes them from the listing row on every request
 (never stored, so they are true after any scan, job or edit): `move_in_missing`, `photos_missing`,
 `floorplan_missing`, `description_missing`, `address_partial`, `coords_missing` / `coords_approximate`,
-`rent_missing` / `size_missing` / `rooms_missing` and `page_translated` (the last page read stopped on a translated
-page). Each has a class: `not_in_source` (the ad does not give it: its page was read, `details_checked_at`, or it
-gives words like "Nu") or `check_extraction` (its page was never read, or every ad has it), with a hint. List rows
-carry `issue_codes`, the listing its full `issues`. The ad status, pets and contract terms are not issues: they have
-their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
+`rent_missing` / `size_missing` / `rooms_missing`, `page_translated` (the last page read stopped on a translated
+page) and `contract_fixed_term` (the contract ends on a set date, `contract_end`). Each has a class: `not_in_source`
+(the ad does not give it: its page was read, `details_checked_at`, or it gives words like "Nu"), `check_extraction`
+(its page was never read, or every ad has it) or `attention` (nothing is missing, but it matters: the fixed term,
+an orange tag), with a hint. List rows carry `issue_codes`, the listing its full `issues`. The ad status, pets and
+the other contract terms are not issues: they have their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
+The Candidates **Contract** column shows only the type, with an orange dot on a fixed term; hovering it opens
+[`fh-contract-cell`](../../frontend/src/app/components/contract-cell.ts)'s tooltip: from → to and the length, and the
+terms the ad states (extension yes or no, guaranteed, notice) with its wording.
 
 **Candidates list.** [`candidates.ts`](../../frontend/src/app/pages/candidates.ts) is the triage table (keys in
 its header). The server applies the status, the search, the scope chips, **Hide rejected** (a red badge: filled

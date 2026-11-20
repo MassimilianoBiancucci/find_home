@@ -19,7 +19,7 @@ import { ISSUE_CLASS_LABEL, Issue } from '../issues';
         <div class="fh-tape-title">{{ issues().length }} issue{{ issues().length === 1 ? '' : 's' }}</div>
         <ul>
           @for (i of issues(); track i.code) {
-            <li><b>{{ i.label }}</b>@if (i.cls) { <span class="fh-tape-cls">{{ clsLabel[i.cls] }}</span> }
+            <li><b>{{ i.label }}</b>@if (i.cls) { <span class="fh-tape-cls" [class.attn]="i.cls === 'attention'">{{ clsLabel[i.cls] }}</span> }
               @if (i.hint) { <div class="fh-tape-hint">{{ i.hint }}</div> }</li>
           }
         </ul>

@@ -7,6 +7,7 @@ import { PetBadge } from '../components/pet-badge';
 import { AdStatusBadge } from '../components/ad-status-badge';
 import { IssueTip } from '../components/issue-tip';
 import { StaleTip } from '../components/stale-tip';
+import { ContractCell } from '../components/contract-cell';
 import { ListingCard } from '../components/listing-card';
 import { issuesOf } from '../issues';
 import { ScoreTip } from '../components/score-tip';
@@ -31,7 +32,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, StaleTip, CandidateColumns, ListingCard],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip, StaleTip, ContractCell, CandidateColumns, ListingCard],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -146,7 +147,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
                 @case ('rent') { <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td> }
                 @case ('per_m2') { <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td> }
                 @case ('pets') { <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td> }
-                @case ('contract') { <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td> }
+                @case ('contract') { <td class="small"><fh-contract-cell [listing]="r" /></td> }
                 @case ('ad_status') { <td class="text-nowrap">@for (a of r.ad_sources ?? []; track a.site) { <fh-ad-status class="me-1" [status]="a.status" [site]="sites.name(a.site)" [checkedAt]="a.checked_at" /> }</td> }
                 @case ('found_on') { <td class="text-nowrap">@for (s of r.found_on ?? []; track s) { <fh-site-logo class="me-1" [slug]="s" [title]="sites.name(s)" /> }</td> }
                 @case ('photos') { <td class="text-center small" [class.text-body-secondary]="!r.photo_urls?.length">{{ r.photo_urls?.length || '–' }}</td> }

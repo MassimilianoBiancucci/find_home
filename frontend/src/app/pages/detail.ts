@@ -103,7 +103,7 @@ import { TagsStore } from '../services/tags.store';
                       title="Read this listing's page again (the details job, for this listing only)">Complete details</button></header>
             @for (i of x.issues!; track i.code) {
               <div class="fh-issue-row"><span class="fh-issue-trigger" aria-hidden="true">⚠</span>
-                <div><b>{{ i.label }}</b> <span class="fh-issue-cls" [class.check]="i.cls === 'check_extraction'">{{ issueCls[i.cls] }}</span>
+                <div><b>{{ i.label }}</b> <span class="fh-issue-cls" [class.check]="i.cls === 'check_extraction'" [class.attn]="i.cls === 'attention'">{{ issueCls[i.cls] }}</span>
                   <div class="text-body-secondary small">{{ i.hint }}</div></div></div>
             }
           </section>

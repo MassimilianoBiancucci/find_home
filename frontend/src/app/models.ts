@@ -110,7 +110,7 @@ export interface ListingDetail {
   events: StatusEvent[];
   ad_status_events?: AdStatusEvent[];
   /** What the listing is missing, with the class and a hint (backend domain/issues.py). */
-  issues?: { code: string; label: string; cls: 'not_in_source' | 'check_extraction'; hint: string }[];
+  issues?: { code: string; label: string; cls: 'not_in_source' | 'check_extraction' | 'attention'; hint: string }[];
 }
 
 export type SiteStatus = 'unverified' | 'active' | 'broken' | 'disabled';
