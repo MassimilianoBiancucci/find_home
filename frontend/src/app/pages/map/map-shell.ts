@@ -4,7 +4,7 @@ import { forkJoin } from 'rxjs';
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
-import { blipExpr, installBlip, installObject, installPin } from '../../components/map-icons';
+import { blipExpr, installBlip, installHouse, installObject, installPin } from '../../components/map-icons';
 import { applyDarkWater } from './dark-style';
 import { MapLib, MapStateService } from './map-state.service';
 import { PoiLayersService } from './poi-layers.service';
@@ -20,6 +20,28 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
  * The shell owns the base layers (listings, your points, 3D buildings) and swaps the base style with the colour mode.
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
+/** The halo's radius by zoom, times `k` (the pulse). */
+const haloRadius = (k: number) => ['interpolate', ['linear'], ['zoom'], 9, 12 * k, 13, 18 * k, 16, 26 * k];
+
+/**
+ * The houses' light breathes: the halo grows and fades on a slow 2.8 s cycle, redrawn about 12 times a second and only
+ * while the tab is visible; none under prefers-reduced-motion. Returns the stop function.
+ */
+export function pulseHalo(map: MlMap, layer = 'listings-halo'): () => void {
+  if (typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return () => undefined;
+  let raf = 0, last = 0;
+  const tick = (t: number) => {
+    raf = requestAnimationFrame(tick);
+    if (t - last < 80 || document.hidden || !map.getLayer(layer)) return;
+    last = t;
+    const w = (1 - Math.cos((t / 2800) * Math.PI * 2)) / 2;          // 0 → 1 → 0
+    map.setPaintProperty(layer, 'circle-radius', haloRadius(0.85 + 0.45 * w) as any);
+    map.setPaintProperty(layer, 'circle-opacity', 0.55 - 0.35 * w);
+  };
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}
+
 /** A listing's score colour on the map (the same steps as its house icon). */
 const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
   ['step', ['to-number', ['get', 'score'], 0], '#e53e3e', 0.5, '#d69e2e', 0.75, '#1f9d55']];
@@ -135,7 +157,7 @@ export class MapShell {
           if (this.theme.theme() === 'dark') applyDarkWater(map);
           this.state.reapply();
         });
-        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); });
+        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); installHouse(map, e.id); });
         map.on('contextmenu', (e) => {
           e.preventDefault();
           const { lat, lng } = e.lngLat;
@@ -144,6 +166,8 @@ export class MapShell {
         });
         map.on('movestart', () => this.menu.close());
         this.addBaseLayers(map, pts, lst);
+        const stop = pulseHalo(map);
+        destroy.onDestroy(stop);
         this.poiLayers.install();
         this.transit.install();
         this.conn.installTint();
@@ -170,17 +194,15 @@ export class MapShell {
       id: 'listings',
       sources: { listings: { type: 'geojson', data: lst } },
       layers: [
-        // a glowing disc in the score colour with a white ring under each house: visible on any base map or zone tint
+        // a soft light in the score colour under each house, slowly pulsing (pulseHalo): visible on any base map or tint
         { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
-          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 9, 13, 14, 16, 20],
-            'circle-opacity': 0.35, 'circle-blur': 0.35, 'circle-stroke-color': '#ffffff',
-            'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1.2, 15, 2.2], 'circle-stroke-opacity': 0.9,
+          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.45, 'circle-blur': 0.85,
             'circle-pitch-alignment': 'map' } },
         { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
-          layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true,
-            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.95, 13, 1.25, 16, 1.6],
-            'icon-image': ['case', ['==', ['get', 'score'], null], 'blip:home:888888',
-              ['step', ['to-number', ['get', 'score'], 0], 'blip:home:e53e3e', 0.5, 'blip:home:d69e2e', 0.75, 'blip:home:1f9d55']] },
+          layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-anchor': 'bottom',
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.85, 13, 1.1, 16, 1.4],
+            'icon-image': ['case', ['==', ['get', 'score'], null], 'house:888888',
+              ['step', ['to-number', ['get', 'score'], 0], 'house:e53e3e', 0.5, 'house:d69e2e', 0.75, 'house:1f9d55']] },
         } as any,
       ],
     });

@@ -367,9 +367,11 @@ buildings and the heatmap never cover them. The Heatmap targets bubble has **All
 buttons and an **Icon size** slider (0.6× to 1.8×, kept per browser) that scales the icons and their glow.
 [`PoiLayersService`](../../frontend/src/app/pages/map/poi-layers.service.ts) adds one layer per POI category, loaded
 the first time it is switched on.
-**Houses on the map** are a house icon in the score colour over a glowing disc of the same colour with a white ring
-(`listings-halo`, so they show on any base map or zone tint; layers that tint zones go below it), larger as you zoom
-in; rejected homes are red dots (the Rejected listings layer). In **Explore** the houses are the homes the
+**Houses on the map** are a house shape in the score colour (lighter roof, white outline, dark rim, a door, a soft
+shadow: `installHouse()` in [`map-icons.ts`](../../frontend/src/app/components/map-icons.ts), image `house:<hex>`)
+standing on its spot over a soft light of the same colour (`listings-halo`) that slowly pulses
+([`pulseHalo()`](../../frontend/src/app/pages/map/map-shell.ts): a 2.8 s breath, about 12 redraws a second, paused while
+the tab is hidden, still under reduced motion); layers that tint zones go below the light; larger as you zoom in; rejected homes are red dots (the Rejected listings layer). In **Explore** the houses are the homes the
 **Listing filters** bubble keeps: the Candidates Filters bubble and its store
 ([`CandidateFiltersStore`](../../frontend/src/app/pages/candidate-filters.ts)), so a filter set on one page holds on the
 other, plus Hide closed. Hovering a house shows the Candidates hover card

@@ -111,6 +111,60 @@ export function blipUrl(glyph: string | null | undefined, color: string | null |
   return url;
 }
 
+// ── House markers ───────────────────────────────────────────
+/**
+ * A listing on the map as a house, not a badge: a pitched roof over a body, filled in the score colour (lighter roof,
+ * darker base), a white outline that reads on any base map, a dark rim, a door, and a soft shadow under it.
+ * Image id: `house:<hex>`. Drawn on a 64 × 64 canvas (32 css px at pixelRatio 2).
+ */
+export const HOUSE_PREFIX = 'house:';
+const HOUSE = 64;
+export function houseId(color: string): string { return `${HOUSE_PREFIX}${color.replace('#', '').toLowerCase()}`; }
+
+function drawHouse(color: string): HTMLCanvasElement | null {
+  if (typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = HOUSE;
+  const g = c.getContext('2d');
+  if (!g) return null;
+  const outline = (): void => {                      // roof apex, eaves, walls, floor
+    g.beginPath();
+    g.moveTo(32, 7); g.lineTo(57, 30); g.lineTo(50, 30); g.lineTo(50, 55); g.lineTo(14, 55); g.lineTo(14, 30); g.lineTo(7, 30);
+    g.closePath();
+  };
+  g.save();                                          // soft shadow under the house
+  g.shadowColor = 'rgba(0,0,0,.55)'; g.shadowBlur = 8; g.shadowOffsetY = 3;
+  outline(); g.fillStyle = color; g.fill();
+  g.restore();
+  const grad = g.createLinearGradient(0, 7, 0, 55);  // light from above
+  grad.addColorStop(0, shade(color, 0.35)); grad.addColorStop(0.45, color); grad.addColorStop(1, shade(color, -0.25));
+  outline(); g.fillStyle = grad; g.fill();
+  g.lineJoin = 'round';
+  g.lineWidth = 6; g.strokeStyle = 'rgba(10,10,16,.55)'; g.stroke();     // dark rim, then the white outline over it
+  g.lineWidth = 3.5; g.strokeStyle = '#ffffff'; g.stroke();
+  g.fillStyle = 'rgba(255,255,255,.92)';             // door and a window
+  g.beginPath(); g.roundRect(27, 39, 10, 16, 2); g.fill();
+  g.beginPath(); g.roundRect(18, 34, 6, 6, 1.5); g.fill();
+  g.beginPath(); g.roundRect(40, 34, 6, 6, 1.5); g.fill();
+  return c;
+}
+
+export function installHouse(map: MlMap, id: string): void {
+  if (!id.startsWith(HOUSE_PREFIX) || map.hasImage(id)) return;
+  const canvas = drawHouse(`#${id.slice(HOUSE_PREFIX.length)}`);
+  const ctx = canvas?.getContext('2d');
+  if (!canvas || !ctx) return;
+  map.addImage(id, ctx.getImageData(0, 0, canvas.width, canvas.height), { pixelRatio: 2 });
+}
+
+const houseUrls = new Map<string, string>();
+/** Data URL of a house marker for legends ('' without canvas). */
+export function houseUrl(color: string): string {
+  const id = houseId(color);
+  if (!houseUrls.has(id)) houseUrls.set(id, drawHouse(`#${id.slice(HOUSE_PREFIX.length)}`)?.toDataURL() ?? '');
+  return houseUrls.get(id)!;
+}
+
 // ── 3D pins ─────────────────────────────────────────────────
 /**
  * A small standing pin for heatmap targets: a glossy shaded badge (radial light from the top left, dark rim, specular

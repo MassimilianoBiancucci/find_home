@@ -5,7 +5,7 @@ import { ScoreTip } from '../../components/score-tip';
 import { GalleryComponent } from '../../components/gallery';
 import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
-import { blipUrl } from '../../components/map-icons';
+import { blipUrl, houseUrl } from '../../components/map-icons';
 import { MapStateService } from './map-state.service';
 import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
@@ -72,10 +72,10 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
   </ng-template>
 
   <ng-template #legendTpl>
-    <div class="fh-row"><img [src]="icon('home', '#1f9d55')" width="20" alt="" /> listing, score ≥ .75</div>
-    <div class="fh-row"><img [src]="icon('home', '#d69e2e')" width="20" alt="" /> score ≥ .5</div>
-    <div class="fh-row"><img [src]="icon('home', '#e53e3e')" width="20" alt="" /> lower</div>
-    <div class="fh-row"><img [src]="icon('home', '#888888')" width="20" alt="" /> unscored</div>
+    <div class="fh-row"><img [src]="house('#1f9d55')" width="22" alt="" /> listing, score ≥ .75</div>
+    <div class="fh-row"><img [src]="house('#d69e2e')" width="22" alt="" /> score ≥ .5</div>
+    <div class="fh-row"><img [src]="house('#e53e3e')" width="22" alt="" /> lower</div>
+    <div class="fh-row"><img [src]="house('#888888')" width="22" alt="" /> unscored</div>
     <div class="small text-body-secondary mt-1">Hover a house for its card; click it to pin the card in the Inspector.</div>
     <div class="small text-body-secondary mt-1">Your points use their category icon and colour (Locations). Dashed lines: straight line to the nearest place you care about.</div>
   </ng-template>
@@ -179,7 +179,7 @@ export class ExploreMode {
   private panelTpl = viewChild.required<TemplateRef<unknown>>('panelTpl');
   protected sel = computed(() => this.state.selection());
   protected toggles: LayerToggle[] = [
-    { id: 'listings', label: 'Listings', icon: blipUrl('home', '#1f9d55') },
+    { id: 'listings', label: 'Listings', icon: houseUrl('#1f9d55') },
     { id: 'listings-rejected', label: 'Rejected listings', icon: blipUrl('dot', '#e53e3e') },
     { id: 'points', label: 'Your points', icon: blipUrl('pin', '#990ae3') },
   ];
@@ -225,6 +225,7 @@ export class ExploreMode {
   }
 
   protected icon(glyph: string | null | undefined, color: string | null | undefined): string { return blipUrl(glyph, color); }
+  protected house = houseUrl;
   private loadPhotos(id: string): void {
     const hit = this.photoCache.get(id);
     if (hit) { this.photos.set(hit); return; }
