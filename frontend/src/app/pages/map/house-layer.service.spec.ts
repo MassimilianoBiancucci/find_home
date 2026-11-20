@@ -36,6 +36,9 @@ describe('house layers', () => {
     // services when the switch is on; a walk-only service trip never (its walk is already on the map)
     expect(transitFeatures(t, { services: true }).features.map((f: any) => f.properties.trip)).toEqual(['a', 'a', 'b', 'service:grocery']);
     expect(transitFeatures(t, { only: 'b' }).features.length).toBe(1);
+    // the Routes tab: one kind only (a walk-only service trip still never)
+    expect(transitFeatures(t, { kind: 'service' }).features.map((f: any) => f.properties.trip)).toEqual(['service:grocery']);
+    expect(transitFeatures(t, { kind: 'point' }).features.map((f: any) => f.properties.trip)).toEqual(['a', 'a', 'b']);
     expect(transitFeatures(null).features).toEqual([]);
   });
 

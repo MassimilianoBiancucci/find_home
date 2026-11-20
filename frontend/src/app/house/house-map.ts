@@ -79,11 +79,7 @@ export function houseMapFeatures(loc: HouseLocation): { pois: FC; walks: FC; lab
             <i class="fh-hline" [style.background]="m.color"></i>{{ m.label }}</button>
         }
         @if (routes()) {
-          <span class="ms-auto form-check form-switch small mb-0">
-            <input class="form-check-input" type="checkbox" role="switch" id="fh-hm-svc" [checked]="travel.showServices()"
-              (change)="travel.showServices.set($any($event.target).checked)" />
-            <label class="form-check-label" for="fh-hm-svc">services' transit</label>
-          </span>
+          <span class="ms-auto small text-body-secondary" title="Routes: the tab chooses whose routes are drawn">routes: {{ travel.showServices() ? 'nearby services' : 'your points' }}</span>
         }
       </div>
     }
@@ -251,7 +247,7 @@ export class HouseMap {
       'hm-here': fc([{ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: {} }]),
       'hm-pois': keep(f.pois), 'hm-walks': keep(f.walks),
       'hm-labels': fc(f.labels.features.filter((x, i) => !hidden.has(f.walks.features[i]?.properties.set))),
-      'hm-transit': transitFeatures(this.routes(), { services: this.travel.showServices() }),
+      'hm-transit': transitFeatures(this.routes(), this.travel.draw()),
       'hm-points': fc(this.points().map((p) => ({ ...p, properties: { ...p.properties, name: p.properties.label, label: 'Your point' } }))),
     };
     for (const [id, d] of Object.entries(data)) {
@@ -314,7 +310,7 @@ export class HouseMap {
     const map = this.map;
     if (!map) return;
     const pts: number[][] = [[this.lon(), this.lat()], ...this.points().map((p) => p.geometry.coordinates)];
-    for (const f of transitFeatures(this.routes(), { services: this.travel.showServices() }).features) pts.push(...(f.geometry as any).coordinates);
+    for (const f of transitFeatures(this.routes(), this.travel.draw()).features) pts.push(...(f.geometry as any).coordinates);
     const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
     map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 60, maxZoom: 15, duration: 900 });
   }

@@ -11,16 +11,8 @@ export type RouteView = 'walk' | 'transit' | 'both';
 const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 const ACCENT = '#b45cf0';
 const BUILDING_LAYERS = ['zone-3d-buildings', 'fh-3d-buildings'];
-/** House layers, bottom to top; kept above the zone layers, which load after them. */
-export const HOUSE_LAYERS = ['house-building-3d', 'house-glow', 'house-transit-line', 'house-walk-casing', 'house-walk-line',
-  'house-walk-label', 'house-transit-shade', 'house-transit-glow', 'house-transit-hi', 'house-transit-core', 'house-pin'];
-
-/** The house layers that need moving so they are the topmost layers, in HOUSE_LAYERS order ([] when already so). */
-export function layersToRaise(order: string[]): string[] {
-  const present = HOUSE_LAYERS.filter((id) => order.includes(id));
-  const tail = order.slice(order.length - present.length);
-  return tail.join() === present.join() ? [] : present;
-}
+/** House layers and their ordering: layer-order.ts (MapStateService keeps them on top). */
+export { HOUSE_LAYERS, layersToRaise } from './layer-order';
 
 /** Walking paths from the house: one line per set in its category colour, labelled with tone-coloured minutes. */
 export function walkFeatures(loc: HouseLocation): { lines: GeoCollection; labels: GeoCollection } {
@@ -40,8 +32,10 @@ export function walkFeatures(loc: HouseLocation): { lines: GeoCollection; labels
 export interface TransitDraw {
   /** Only this trip (point_id), e.g. the zone view's point filter. */
   only?: string | null;
-  /** Draw the services' routes too (the house page's switch); your points' routes are always drawn. */
+  /** Draw the services' routes too; your points' routes are drawn unless `kind` says otherwise. */
   services?: boolean;
+  /** Only the trips of this kind (the Routes tab): your points' ('point') or the nearby services' ('service'). */
+  kind?: HouseTrip['kind'];
 }
 
 /** Trips whose every leg is a walk (too near for transit): the walking path to the target is already on the map. */
@@ -56,7 +50,8 @@ export function transitFeatures(t: TransitResult | null, opts: TransitDraw = {})
   const feats: any[] = [];
   for (const trip of t?.trips ?? []) {
     if (opts.only && trip.point_id !== opts.only) continue;
-    if (trip.kind === 'service' && (!opts.services || walkOnly(trip))) continue;
+    if (opts.kind && trip.kind !== opts.kind) continue;
+    if (trip.kind === 'service' && ((!opts.services && opts.kind !== 'service') || walkOnly(trip))) continue;
     for (const leg of trip.legs) {
       const walk = leg.mode === 'walk';
       const coords = leg.path?.length ? leg.path : walk ? [] : [[leg.from.lon, leg.from.lat], [leg.to.lon, leg.to.lat]];
@@ -114,7 +109,6 @@ export class HouseLayerService {
   private transit: TransitResult | null = null;
   private popup: Popup | null = null;
   private bound = false;
-  private raiser: (() => void) | null = null;
 
   constructor() {
     // the hovered route (on this map or in the Transit routes bubble) on top, glowing
@@ -139,7 +133,7 @@ export class HouseLayerService {
     const map = this.state.map(), loc = this.loc;
     if (!map || !loc) return;
     const pts: number[][] = [[loc.lon, loc.lat], ...points];
-    for (const f of transitFeatures(this.transit, { services: this.travel.showServices() }).features) pts.push(...(f.geometry as any).coordinates);
+    for (const f of transitFeatures(this.transit, this.travel.draw()).features) pts.push(...(f.geometry as any).coordinates);
     const lons = pts.map((p) => p[0]), lats = pts.map((p) => p[1]);
     map.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]],
       { padding: 80, maxZoom: 15, pitch: 45, duration: 1200 });
@@ -148,9 +142,6 @@ export class HouseLayerService {
   setOnlyPoint(id: string | null): void { this.onlyPoint.set(id); this.update(); }
 
   clear(): void {
-    const map = this.state.map();
-    if (map && this.raiser) map.off('styledata', this.raiser);
-    this.raiser = null;
     this.popup?.remove();
     this.state.removeGroup('house');
     this.state.removeGroup('house-building');
@@ -190,16 +181,6 @@ export class HouseLayerService {
     });
     const map = this.state.map();
     if (map && !this.bound) { this.bindHover(map); this.bound = true; }
-    if (map && !this.raiser) {
-      this.raiser = () => this.raise(map);
-      map.on('styledata', this.raiser);
-    }
-  }
-
-  /** Keep the house layers on top: the zone's heatmap, 3D buildings and pins are added after them. */
-  private raise(map: MlMap): void {
-    const order = (map.getStyle()?.layers ?? []).map((l) => l.id);
-    for (const id of layersToRaise(order)) if (map.getLayer(id)) map.moveLayer(id);
   }
 
   private update(): void {
@@ -209,7 +190,7 @@ export class HouseLayerService {
     this.state.setData('house-walk', r === 'transit' ? EMPTY : walks.lines);
     this.state.setData('house-walk-label', r === 'transit' ? EMPTY : walks.labels);
     this.state.setData('house-transit', r === 'walk' ? EMPTY
-      : transitFeatures(this.transit, { only: this.onlyPoint(), services: this.travel.showServices() }));
+      : transitFeatures(this.transit, { only: this.onlyPoint(), ...this.travel.draw() }));
   }
 
   /** Find the building footprint under the address once the tiles are drawn; fall back to a small extruded box. */

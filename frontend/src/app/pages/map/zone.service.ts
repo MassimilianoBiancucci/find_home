@@ -266,6 +266,7 @@ export class ZoneService {
     this.state.setData('zone-targets', fc);
     const map = this.state.map();
     for (const id of ['zone-targets-halo', 'zone-targets-pin']) if (map?.getLayer(id)) map.moveLayer(id);   // above everything added since
+    this.state.raiseTop();                                                                                   // the homes above them
   }
 
   setIconScale(v: number): void {

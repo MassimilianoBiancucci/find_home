@@ -551,7 +551,7 @@ flowchart TD
   listing's own commute when computed, else the estimate) against the zone and as "better than N % of zones".
 
 `POST /api/listings/{id}/transit` ([`transit()`](../../backend/src/findhome/api/routers/house.py#L175)) is the only call that uses ResRobot. It is triggered
-by the two buttons of the Transit routes bubble: `which=points` for your points
+by the two buttons of the Routes card (one per tab): `which=points` for your points
 ([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L135)), `which=services` for the nearest target of each service set, reached on a
 weekday at `house.services_depart` (`all`, the default, does both). Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L163) and are cached in `routing_cache` per ~100 m
 cell, like the house page's. With `dry=true` it returns only the number of calls not yet cached

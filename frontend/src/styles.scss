@@ -388,6 +388,14 @@ pre.fh-pre {
   border: 1px solid var(--bs-border-color); color: var(--bs-secondary-color);
   &.yes { color: var(--fh-good); border-color: color-mix(in srgb, var(--fh-good) 45%, transparent); background: rgba(31, 157, 85, 0.1); }
   &.no { color: var(--fh-bad); border-color: color-mix(in srgb, var(--fh-bad) 40%, transparent); } }
+// The listing's description, folded to a one-line peek until opened.
+.fh-desc-tg { display: flex; align-items: baseline; gap: 6px; width: 100%; margin-top: 10px; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid var(--bs-border-color); background: transparent; color: var(--bs-emphasis-color); font-size: .8rem; font-weight: 600;
+  text-align: left; cursor: pointer; transition: border-color .15s, background .15s;
+  i { font-style: normal; font-size: .7rem; color: var(--fh-violet); }
+  &:hover { border-color: color-mix(in srgb, var(--fh-violet) 55%, transparent); background: var(--fh-violet-soft); } }
+.fh-desc-peek { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400;
+  color: var(--bs-secondary-color); }
 .fh-desc-text { margin: 10px 0 0; padding: 8px 12px; border-left: 3px solid var(--fh-violet-soft); border-radius: 0 8px 8px 0;
   background: var(--bs-body-bg); font-size: 0.84rem; color: var(--bs-secondary-color); white-space: pre-line; }
 /* the candidates list: 0-100 indices, and its hover card */

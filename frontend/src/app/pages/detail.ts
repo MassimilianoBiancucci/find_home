@@ -11,7 +11,7 @@ import { IssueTip } from '../components/issue-tip';
 import { ISSUE_CLASS_LABEL } from '../issues';
 import { SiteLogo } from '../components/site-logo';
 import { ScoreTip } from '../components/score-tip';
-import { HouseHome, HouseTransit, HouseTravel, HouseZone } from '../house/house-bubbles';
+import { HouseHome, HouseRoutes, HouseZone } from '../house/house-bubbles';
 import { HouseTravelStore } from '../house/house-travel.store';
 import { ZoneMinimap } from '../components/zone-minimap';
 import { ValueScaleStore, valueOf } from '../value-scale';
@@ -24,7 +24,7 @@ import { TagsStore } from '../services/tags.store';
 
 @Component({
   selector: 'fh-detail',
-  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseTravel, HouseTransit, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge, IssueTip],
+  imports: [FormsModule, RouterLink, DatePipe, GalleryComponent, InfoButton, HouseHome, HouseZone, HouseRoutes, HouseMap, ScoreTip, ZoneMinimap, PetBadge, SiteLogo, AdStatusBadge, IssueTip],
   template: `
   <nav class="fh-detail-nav" aria-label="Candidates">
     @let n = nav();
@@ -87,7 +87,13 @@ import { TagsStore } from '../services/tags.store';
               <span class="fh-feat" [class.yes]="f.v === true" [class.no]="f.v === false">{{ f.v === true ? '✓' : f.v === false ? '✕' : '?' }} {{ f.label }}</span>
             }
           </div>
-          @if (L.description_excerpt) { <p class="fh-desc-text">{{ L.description_excerpt }}</p> }
+          @if (L.description_excerpt) {
+            <button type="button" class="fh-desc-tg" [attr.aria-expanded]="descOpen()" (click)="descOpen.set(!descOpen())"
+              [title]="descOpen() ? 'Fold the description away' : 'Show the description from the ad'">
+              <i aria-hidden="true">{{ descOpen() ? '▾' : '▸' }}</i> Description
+              @if (!descOpen()) { <span class="fh-desc-peek">{{ L.description_excerpt }}</span> }</button>
+            @if (descOpen()) { <p class="fh-desc-text">{{ L.description_excerpt }}</p> }
+          }
         </section>
 
         @if (x.issues?.length) {
@@ -133,7 +139,6 @@ import { TagsStore } from '../services/tags.store';
             <div class="col-xl-6"><fh-house-home [loc]="l" [transit]="travel.results()[l.listing.short_id] ?? null" /></div>
             <div class="col-xl-6"><fh-house-zone [loc]="l" /></div>
           </div>
-          <fh-house-travel [loc]="l" [collapsed]="true" /><fh-house-transit [loc]="l" [collapsed]="true" />
         } @else if (locError() && !outside()) {
           <div class="fh-hcard"><div class="fh-hnote">House analysis not available: {{ locError() }}</div></div>
         } @else if (!locError()) {
@@ -267,6 +272,8 @@ import { TagsStore } from '../services/tags.store';
           }
         </section>
 
+        @if (loc(); as l) { <fh-house-routes [loc]="l" /> }
+
         <section class="fh-hcard" [class.collapsed]="!digestOpen()">
           <header><h2><button type="button" class="fh-hcard-tg" [attr.aria-expanded]="digestOpen()" (click)="digestOpen.set(!digestOpen())">Digest for agents</button></h2>
             <button type="button" class="fh-chipf ms-auto" (click)="copy()" title="Copy the digest to paste it to an agent">copy</button></header>
@@ -372,6 +379,8 @@ export class DetailPage {
   protected scoreOpen = signal(false);
   /** The agent digest folds to its header (copy still works). */
   protected digestOpen = signal(false);
+  /** The ad's description: folded to one line until opened (kept while moving between homes). */
+  protected descOpen = signal(false);
   protected polarityTone = (p: string) => (p === 'like' ? 't-yes' : p === 'dislike' ? 't-no' : 't-unknown');
   protected tags = inject(TagsStore);
   protected sites = inject(SitesStore);
