@@ -270,7 +270,7 @@ same badges.
 **House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) shows a ⚠ next to the id
 when the listing has issues (the same tape tooltip), loads the listing and its
 house analysis (`GET /api/listings/{id}/location`) side by side. Its main column, top to bottom: the photo band;
-the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, ✓ / ✕ / ?
+the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, as many per row as fit, each value sized to its tile and its own length so nothing is cut with "…" (`--len` and container units in `.fh-fact-v`), a fixed term's end in orange under the contract type, ✓ / ✕ / ?
 chips for lift and balcony, the ad's text folded to a one-line peek until **Description** is clicked); **Issues** (one row per issue with its class and hint, and **Complete
 details**, which runs the details job on this listing only: the agent one for browser sites, the in-app one for
 Bostadsförmedlingen); **Contract and conditions** (contract terms with the ad's wording on hover, requirements,

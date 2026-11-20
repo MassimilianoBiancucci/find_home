@@ -377,12 +377,19 @@ pre.fh-pre {
 .fh-detail-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
   .fh-detail-pos { flex: 1; text-align: center; font-size: 0.78rem; color: var(--bs-secondary-color); } }
 /* the listing page: key facts as labelled bubbles */
-.fh-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 6px; }
-.fh-fact { position: relative; border-radius: 10px; padding: 6px 10px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
-  border-top: 3px solid var(--c, var(--fh-violet-soft));
-  .fh-fact-l { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color); }
-  .fh-fact-v { display: block; font-size: 1.05rem; font-weight: 700; line-height: 1.2; color: var(--c, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .fh-fact-n { display: block; font-size: 0.72rem; color: var(--bs-secondary-color); } }
+// The key facts of a listing: as many tiles per row as fit (all seven on a wide card). Each value's size follows its
+// tile's width and its own length (--len, characters): short values stay large, a long one ("15 Dec 2026",
+// "second-hand") shrinks just enough to fit, down to a readable minimum, never cut with "…".
+.fh-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }
+.fh-fact { position: relative; min-width: 0; border-radius: 10px; padding: 6px 9px; background: var(--bs-body-bg); border: 1px solid var(--bs-border-color);
+  border-top: 3px solid var(--c, var(--fh-violet-soft)); container-type: inline-size;
+  .fh-fact-l { display: block; font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--bs-secondary-color);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fh-fact-v { display: block; font-size: clamp(0.7rem, calc(100cqi / (var(--len, 6) * 0.64)), 1.05rem); font-weight: 700; line-height: 1.2;
+    color: var(--c, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fh-fact-n { display: block; font-size: clamp(0.6rem, calc(100cqi / (var(--len, 10) * 0.6)), 0.72rem); color: var(--bs-secondary-color);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fh-fact-n.fh-fact-end { color: #ff9f1a; font-weight: 600; } }
 .fh-feats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .fh-feat { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px; border-radius: 999px; font-size: 0.76rem;
   border: 1px solid var(--bs-border-color); color: var(--bs-secondary-color);

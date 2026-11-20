@@ -66,21 +66,26 @@ import { TagsStore } from '../services/tags.store';
           @let rr = values.rate(L, 'rent_sek'); @let rm = values.rate(L, 'rent_per_m2');
           @let ro = values.rate(L, 'rooms_rok'); @let rs = values.rate(L, 'size_m2');
           <div class="fh-facts">
+            @let vRent = kr(L.rent_sek); @let vM2 = kr(perM2(L)); @let vRooms = num(L.rooms_rok) + ' rok'; @let vSize = num(L.size_m2, ' m²');
+            @let vFloor = '' + (L.floor ?? '?'); @let vType = L.contract_type ? L.contract_type.replace('_', '-') : '?';
+            @let vEnd = L.contract_end ? '→ ' + (L.contract_end | date: 'd MMM y') : '';
+            @let vMove = L.available_from ? (L.available_from | date: 'd MMM y') ?? '?' : '?';
             <div class="fh-fact" [style.--c]="rr?.colour" [title]="rr?.title ?? ''"><span class="fh-fact-l">Rent</span>
-              <span class="fh-fact-v">{{ kr(L.rent_sek) }}</span><span class="fh-fact-n">per month</span></div>
+              <span class="fh-fact-v" [style.--len]="vRent.length">{{ vRent }}</span><span class="fh-fact-n">per month</span></div>
             <div class="fh-fact" [style.--c]="rm?.colour" [title]="rm?.title ?? ''"><span class="fh-fact-l">Per m²</span>
-              <span class="fh-fact-v">{{ kr(perM2(L)) }}</span><span class="fh-fact-n">per month</span></div>
+              <span class="fh-fact-v" [style.--len]="vM2.length">{{ vM2 }}</span><span class="fh-fact-n">per month</span></div>
             <div class="fh-fact" [style.--c]="ro?.colour" [title]="ro?.title ?? ''"><span class="fh-fact-l">Rooms</span>
-              <span class="fh-fact-v">{{ num(L.rooms_rok) }} rok</span><span class="fh-fact-n">{{ L.has_sovalkov ? '+ sovalkov' : '\u00a0' }}</span></div>
+              <span class="fh-fact-v" [style.--len]="vRooms.length">{{ vRooms }}</span><span class="fh-fact-n">{{ L.has_sovalkov ? '+ sovalkov' : '\u00a0' }}</span></div>
             <div class="fh-fact" [style.--c]="rs?.colour" [title]="rs?.title ?? ''"><span class="fh-fact-l">Size</span>
-              <span class="fh-fact-v">{{ num(L.size_m2, ' m²') }}</span><span class="fh-fact-n">&nbsp;</span></div>
+              <span class="fh-fact-v" [style.--len]="vSize.length">{{ vSize }}</span><span class="fh-fact-n">&nbsp;</span></div>
             <div class="fh-fact"><span class="fh-fact-l">Floor</span>
-              <span class="fh-fact-v">{{ L.floor ?? '?' }}</span><span class="fh-fact-n">{{ L.build_year ? 'built ' + L.build_year : '\u00a0' }}</span></div>
-            <div class="fh-fact"><span class="fh-fact-l">Contract</span>
-              <span class="fh-fact-v">{{ L.contract_type ? L.contract_type.replace('_', '-') : '?' }}</span><span class="fh-fact-n">{{ L.contract_end ? 'until ' + L.contract_end : '\u00a0' }}</span></div>
+              <span class="fh-fact-v" [style.--len]="vFloor.length">{{ vFloor }}</span><span class="fh-fact-n">{{ L.build_year ? 'built ' + L.build_year : '\u00a0' }}</span></div>
+            <div class="fh-fact" [title]="L.contract_end ? 'Fixed term, until ' + (L.contract_end | date: 'd MMMM y') : ''"><span class="fh-fact-l">Contract</span>
+              <span class="fh-fact-v" [style.--len]="vType.length">{{ vType }}</span>
+              <span class="fh-fact-n" [class.fh-fact-end]="!!vEnd" [style.--len]="vEnd.length">{{ vEnd || '\u00a0' }}</span></div>
             @let mv = values.moveIn(L);
             <div class="fh-fact" [style.--c]="mv?.colour" [title]="mv?.title ?? ''"><span class="fh-fact-l">Move in</span>
-              <span class="fh-fact-v">{{ L.available_from ? (L.available_from | date: 'd MMM y') : '?' }}</span><span class="fh-fact-n">&nbsp;</span></div>
+              <span class="fh-fact-v" [style.--len]="vMove.length">{{ vMove }}</span><span class="fh-fact-n">&nbsp;</span></div>
           </div>
           <div class="fh-feats">
             @for (f of features(L); track f.label) {
