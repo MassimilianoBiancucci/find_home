@@ -17,7 +17,8 @@ import { ApiService, apiError } from '../services/api.service';
 import { CandidateOrderStore } from '../services/candidate-order.store';
 import { LayoutService } from '../services/layout.service';
 import { CandidateFilters, CandidateFiltersStore, SortKey, applyAll, sortRows } from './candidate-filters';
-import { CandidateColumns, ColumnsStore } from './candidate-columns';
+import { CandidateColumns, ColumnsStore, lastCheck } from './candidate-columns';
+import { AD_STATUS_LABEL } from '../components/ad-status-badge';
 import { SitesStore } from '../services/sites.store';
 import { TagsStore } from '../services/tags.store';
 
@@ -298,6 +299,15 @@ export class CandidatesPage implements OnInit, OnDestroy {
       case 'move_in_raw': return out(a['move_in_raw'] ?? '–');
       case 'deposit': return out(r.deposit_sek == null ? '–' : this.kr(r.deposit_sek));
       case 'ad_checked': return out(day(r.ad_checked_at), r.ad_checked_at ? new Date(r.ad_checked_at).toLocaleString('sv-SE') : 'never confirmed');
+      case 'status_check': {
+        const c = lastCheck(r);
+        if (!c) return out('never', 'The ad status was never checked: the next scan or status job will');
+        const how = (s: NonNullable<Listing['ad_sources']>[number]) => s.check === 'status_check.js' ? 'status job'
+          : s.check === 'detail_extract.js' ? 'details job' : s.rule?.startsWith('listed') || s.rule?.includes('feed') || s.rule?.includes('search') ? 'scan' : 'check';
+        const title = (r.ad_sources ?? []).map((s) => `${this.sites.name(s.site)}: ${AD_STATUS_LABEL[s.status] ?? s.status}`
+          + (s.checked_at ? ` · ${new Date(s.checked_at).toLocaleString('sv-SE')} · ${how(s)}${s.rule ? ` (${s.rule})` : ''}` : ' · never checked')).join('\n');
+        return out(`${day(c.checked_at)} · ${AD_STATUS_LABEL[c.status] ?? c.status}`, title, r.ad_stale ? 'var(--fh-mid)' : null);
+      }
       case 'first_seen': return out(day(r.first_seen_at));
       case 'last_changed': return out(day(r.last_changed_at));
       case 'plan': return out(r.floorplan_urls?.length || (a['floorplans'] ?? []).length ? '✓' : '–');

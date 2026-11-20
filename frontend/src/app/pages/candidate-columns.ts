@@ -73,6 +73,8 @@ export const COLUMNS: ColumnDef[] = [
     tip: 'Whether you can still apply, on each site the home was found on. Click to sort (open first).' },
   { key: 'ad_checked', label: 'Confirmed', group: 'ad', sort: (l) => l.ad_checked_at ?? null, first: -1,
     tip: 'When a scan or a status check last confirmed the ad is open. Click to sort.' },
+  { key: 'status_check', label: 'Last check', group: 'ad', first: -1, sort: (l) => lastCheck(l)?.checked_at ?? null,
+    tip: 'When the ad status was last checked, on any site, by a scan or the status job, and what it found. Amber: still open but not confirmed recently. Click to sort.' },
   { key: 'found_on', label: 'Found on', group: 'ad', sort: (l) => (l.found_on ?? []).join(',') || null, first: 1 },
   { key: 'first_seen', label: 'First seen', group: 'ad', sort: (l) => l.first_seen_at ?? null, first: -1 },
   { key: 'last_changed', label: 'Changed', group: 'ad', sort: (l) => l.last_changed_at ?? null, first: -1 },
@@ -89,6 +91,12 @@ export const COLUMNS: ColumnDef[] = [
   { key: 'zone', label: 'Zone', group: 'score', sort: (l) => l.zone_name ?? null, first: 1 },
 ];
 export const COLUMN = new Map(COLUMNS.map((c) => [c.key, c]));
+
+/** The most recent ad status check over a home's sources (scan or status job), or null when never checked. */
+export function lastCheck(l: Listing): NonNullable<Listing['ad_sources']>[number] | null {
+  return (l.ad_sources ?? []).filter((s) => s.checked_at)
+    .sort((a, b) => (b.checked_at! > a.checked_at! ? 1 : -1))[0] ?? null;
+}
 /** Today's layout: the default view, restored by Reset. */
 export const DEFAULT_COLUMNS = COLUMNS.filter((c) => c.group === 'main').map((c) => c.key);
 

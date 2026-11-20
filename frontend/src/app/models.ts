@@ -37,7 +37,9 @@ export interface Listing {
   /** False when none of its sources is open any more (applications closed, let, removed, not found). */
   ad_open?: boolean;
   /** The ad status on each site it was found on. */
-  ad_sources?: { site: string; status: AdStatus; checked_at?: string | null }[] | null;
+  ad_sources?: { site: string; status: AdStatus; checked_at?: string | null;
+                  /** The rule of the last check ("listed by a scan", "Home.status", "410 + badge" …) and its method. */
+                  rule?: string | null; check?: string | null }[] | null;
   /** Codes of what the listing is missing (backend domain/issues.py; computed per request). */
   issue_codes?: string[];
   /** The latest confirmation (scan or status check) of an open or unchecked source. */

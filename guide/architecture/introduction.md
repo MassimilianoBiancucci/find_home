@@ -162,7 +162,8 @@ without the value stay last. The default is score, high first.
 The **Columns** bubble ([`fh-candidate-columns`](../../frontend/src/app/pages/candidate-columns.ts), under Filters)
 chooses the columns and their order: the default ones, plus building and flat (floor, lift, balcony, built, furnished,
 alcove), contract and dates (contract from / to, guaranteed and notice months, short-term, Bostadsförmedlingen's apply
-by, the ad's move-in wording, deposit), ad and data (ad status per site, last confirmed, found on, first seen,
+by, the ad's move-in wording, deposit), ad and data (ad status per site, last confirmed, **last check** — when and how the status was last checked on any site,
+by a scan or the status job, with each site's rule on hover —, found on, first seen,
 changed, photos, plan) and score parts (each preference group, 0–100, and the zone). Every column sorts (`COLUMNS`
 gives each one its sort value). The shown columns are autosaved, and named views saved, in the app database
 (`ui_settings`, [`020_ui_settings.sql`](../../backend/migrations/020_ui_settings.sql),
