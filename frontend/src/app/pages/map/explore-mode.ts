@@ -7,7 +7,6 @@ import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
 import { blipUrl, houseUrl } from '../../components/map-icons';
 import { MapStateService } from './map-state.service';
-import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
 import { ListingCard as ListingCardView } from '../../components/listing-card';
 import { ValueScaleStore } from '../../value-scale';
@@ -16,61 +15,16 @@ import { CandidateFilters, CandidateFiltersStore, applyAll } from '../candidate-
 import { ExploreColour, ExploreFilters, ExploreHeatService, ExploreSettings } from './explore-heat';
 import { ZoneFillService } from './zone-fill.service';
 
-export interface LayerToggle { id: string; label: string; icon?: string; }
 /** What the listing panel shows from the fetched listing: photos and the score breakdown. */
 type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'> & { score: ListingDetail['score'] };
 
-/** Explore mode: the listing filters shared with Candidates drive the house markers; layers, legend, heatmaps; a house's
+/** Explore mode: the listing filters shared with Candidates drive the house markers; legend, heatmaps (the layers are
+ *  the shell's drawer under the map); a house's
  *  card on hover, pinned in the Inspector on click. */
 @Component({
   selector: 'fh-explore-mode',
   imports: [GalleryComponent, ScoreTip, ExploreColour, ExploreFilters, ExploreSettings, ListingCardView, CandidateFilters],
   template: `
-  <ng-template #layersTpl>
-    @for (t of toggles; track t.id) {
-      <label class="fh-row">
-        <input type="checkbox" class="form-check-input" [checked]="state.isVisible(t.id)" (change)="state.setVisible(t.id, !state.isVisible(t.id))" />
-        @if (t.icon) { <img [src]="t.icon" width="20" height="20" alt="" /> }
-        <span class="fh-grow">{{ t.label }}</span>
-      </label>
-    }
-    <div class="fh-section mt-2">Places</div>
-    @for (c of poi.categories(); track c.key) {
-      <label class="fh-row" [class.text-body-secondary]="!c.fetched" [title]="c.fetched ? '' : 'not fetched yet: findhome geo fetch poi'">
-        <input type="checkbox" class="form-check-input" [checked]="poi.isOn(c.key)" [disabled]="!c.fetched" (change)="poi.toggle(c.key)" />
-        <img [src]="icon(c.icon, c.color)" width="20" height="20" alt="" />
-        <span class="fh-grow">{{ c.label }}</span>
-      </label>
-    }
-    @if (poi.error()) { <div class="small text-danger">{{ poi.error() }}</div> }
-    <div class="fh-section mt-2">Transit</div>
-    @if (transit.meta(); as m) {
-      @if (!m.built) { <div class="small text-body-secondary">Not built yet: <code>findhome geo fetch transit</code></div> }
-      @else {
-        @for (t of m.modes; track t.mode) {
-          <label class="fh-row">
-            <input type="checkbox" class="form-check-input" [checked]="transit.isOn('transit-' + t.mode)" (change)="transit.toggle('transit-' + t.mode)" />
-            <span class="fh-line" [style.background]="t.color"></span>
-            <span class="fh-grow">{{ t.label }} <span class="text-body-secondary small">{{ t.count }}</span></span>
-          </label>
-        }
-        <label class="fh-row">
-          <input type="checkbox" class="form-check-input" [checked]="transit.isOn('transit-stations')" (change)="transit.toggle('transit-stations')" />
-          <img [src]="icon('metro', '#0089ca')" width="20" height="20" alt="" />
-          <span class="fh-grow">Stations <span class="text-body-secondary small">{{ m.stations }}</span></span>
-        </label>
-        <div class="small text-body-secondary">Source: {{ m.source === 'gtfs' ? 'SL GTFS (Trafiklab)' : 'OpenStreetMap routes' }}</div>
-      }
-    }
-    @if (transit.error()) { <div class="small text-danger">{{ transit.error() }}</div> }
-    <div class="fh-section mt-2">Commute</div>
-    <label class="fh-row" title="Zones tinted by weighted commute minutes (Connectivity mode); hover a zone for its numbers">
-      <input type="checkbox" class="form-check-input" [checked]="state.isVisible('connectivity-tint', false)" (change)="state.setVisible('connectivity-tint', !state.isVisible('connectivity-tint', false))" />
-      <span class="fh-line" style="background:linear-gradient(90deg,#1f9d55,#d6c94a,#b0303a)"></span>
-      <span class="fh-grow">Zone commute tint</span>
-    </label>
-  </ng-template>
-
   <ng-template #legendTpl>
     <div class="fh-row"><img [src]="house('#1f9d55')" width="22" alt="" /> listing, score ≥ .75</div>
     <div class="fh-row"><img [src]="house('#d69e2e')" width="22" alt="" /> score ≥ .5</div>
@@ -87,7 +41,7 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
         <span class="fh-rej-dot"></span>{{ fs.hideClosed() ? 'Closed hidden' : 'Hide closed' }}</button>
     </div>
     <fh-candidate-filters [count]="shown()" />
-    <div class="small text-body-secondary mt-1">The same filters as the Candidates list: set them here or there. Rejected homes are a layer (Layers).</div>
+    <div class="small text-body-secondary mt-1">The same filters as the Candidates list: set them here or there. Rejected homes are a layer (Layers, under the map).</div>
   </ng-template>
   <ng-template #colourTpl><fh-explore-colour /></ng-template>
   <ng-template #filtersTpl><fh-explore-filters /></ng-template>
@@ -142,7 +96,6 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
     <fh-listing-card [listing]="hover()?.row" />
   </div>`,
   styles: [`
-    .fh-line { display: inline-block; width: 18px; height: 4px; border-radius: 2px; box-shadow: 0 0 0 1px #0006; }
     .fh-ref { display: inline-block; min-width: 22px; padding: 0 5px; border-radius: 4px; color: #fff; font-weight: 700; font-size: .78rem;
       text-align: center; text-shadow: 0 1px 1px #0008; }
     .fh-stops { font-size: .82rem; padding-left: 1.4rem; margin: 0; columns: 2; }
@@ -150,7 +103,6 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
 })
 export class ExploreMode {
   protected state = inject(MapStateService);
-  protected poi = inject(PoiLayersService);
   protected transit = inject(TransitLayersService);
   private api = inject(ApiService);
   protected line = signal<TransitLine | null>(null);
@@ -168,7 +120,6 @@ export class ExploreMode {
   private hoverTimer: ReturnType<typeof setTimeout> | null = null;
   private layout = inject(LayoutService);
   private router = inject(Router);
-  private layersTpl = viewChild.required<TemplateRef<unknown>>('layersTpl');
   private legendTpl = viewChild.required<TemplateRef<unknown>>('legendTpl');
   private listFiltersTpl = viewChild.required<TemplateRef<unknown>>('listFiltersTpl');
   private colourTpl = viewChild.required<TemplateRef<unknown>>('colourTpl');
@@ -178,11 +129,6 @@ export class ExploreMode {
   private fill = inject(ZoneFillService);
   private panelTpl = viewChild.required<TemplateRef<unknown>>('panelTpl');
   protected sel = computed(() => this.state.selection());
-  protected toggles: LayerToggle[] = [
-    { id: 'listings', label: 'Listings', icon: houseUrl('#1f9d55') },
-    { id: 'listings-rejected', label: 'Rejected listings', icon: blipUrl('dot', '#e53e3e') },
-    { id: 'points', label: 'Your points', icon: blipUrl('pin', '#990ae3') },
-  ];
 
   constructor() {
     const destroy = inject(DestroyRef);
@@ -198,7 +144,6 @@ export class ExploreMode {
     });
     afterNextRender(() => this.layout.register(destroy, [
       { id: 'candidate-filters', title: 'Listing filters', tpl: this.listFiltersTpl() },
-      { id: 'map-layers', title: 'Layers', tpl: this.layersTpl() },
       { id: 'explore-colour', title: 'Colour zones by', tpl: this.colourTpl() },
       { id: 'explore-filters', title: 'Heatmap listing filters', tpl: this.filtersTpl() },
       { id: 'explore-heat-settings', title: 'Heatmap settings', tpl: this.heatSettingsTpl() },

@@ -12,12 +12,14 @@ import { TransitLayersService } from './transit-layers.service';
 import { ConnectivityService } from './connectivity.service';
 import { ContextMenuService } from './context-menu.service';
 import { MapContextMenu } from './map-context-menu';
+import { LayersDrawer } from './layers-drawer';
 
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
 
 /**
  * Map page: one MapLibre instance (MapStateService) shared by the modes under /map (child routes).
- * The shell owns the base layers (listings, your points, 3D buildings) and swaps the base style with the colour mode.
+ * The shell owns the base layers (listings, your points, 3D buildings) and their Layers drawer at the bottom of the map,
+ * and swaps the base style with the colour mode.
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
 /**
@@ -55,7 +57,7 @@ const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
 
 @Component({
   selector: 'fh-map-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MapContextMenu],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MapContextMenu, LayersDrawer],
   template: `
   <div class="fh-map-shell">
     <div class="fh-map-bar">
@@ -72,6 +74,7 @@ const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
     <div class="fh-map-wrap">
       <div #mapEl class="fh-map"></div>
       <fh-map-context-menu />
+      <fh-layers-drawer />
       @if (conn.hover(); as h) {
         <div class="fh-hover">
           <b>{{ h.name }}</b>@if (h.estimate) {<sup title="straight-line estimate">~</sup>}

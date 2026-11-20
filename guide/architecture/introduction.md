@@ -181,7 +181,7 @@ stay in and the label shows ≤ / +. Homes without the value stay in unless you 
 steps (rent bars of 1 000 kr); a short one, one bar per value (rooms). Hovering a bar shows its values and how many
 homes it holds ([`showTip()`](../../frontend/src/app/pages/candidate-filters.ts#L366)).
 
-Under the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets**,
+Above the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets**,
 **Contract** and **Issues** (one chip per issue, and "No issues") ([`CAT_FIELDS`](../../frontend/src/app/pages/candidate-filters.ts#L55)). Chosen chips of one group are
 alternatives (any of them); groups and sliders combine. A chip is outlined until chosen, then filled with its
 colour and glowing, like the Hide rejected badge; its count is the homes it would keep with the other filters. After Hide rejected changes, every chart opens
@@ -347,7 +347,11 @@ and keys behind the value.
 The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one MapLibre instance owned by
 `MapShell` and shared through [`MapStateService`](../../frontend/src/app/pages/map/map-state.service.ts) with
 the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`, `/map/zone`). Modes add named layer
-groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The base style is
+groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The shell's **Layers
+drawer** ([`layers-drawer.ts`](../../frontend/src/app/pages/map/layers-drawer.ts)), folded to a glowing pill at the bottom
+of the map that counts the layers on, shows in every mode: one row of toggle chips per group (Map: listings, rejected,
+your points, commute tint; Places; Transit, with the lines and stations), each in its layer's colour and filled while
+shown. Open or folded is remembered in the browser (`fh-map-layers-open`). The base style is
 `map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
 the style and re-applies every group. A style that cannot load falls back to a blank background. In dark mode
 [`dark-style.ts`](../../frontend/src/app/pages/map/dark-style.ts) recolours the style's water layers after each style
