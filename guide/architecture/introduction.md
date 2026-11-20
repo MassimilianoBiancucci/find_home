@@ -488,7 +488,7 @@ stateDiagram-v2
 | picker: outline, hover, click | [`installPicker()`](../../frontend/src/app/pages/map/zone.service.ts#L49) |
 | load facts and lines, then heatmap and targets | [`select()`](../../frontend/src/app/pages/map/zone.service.ts#L83) |
 | neon outline (three blurred lines), dimmed outside, 3D buildings at distance 0 from the zone | [`drawFocus()`](../../frontend/src/app/pages/map/zone.service.ts#L167) |
-| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L201) |
+| streets coloured by minutes (`zone.yaml` `bins_min`), grey beyond the cutoff, under the 3D buildings (a building in front hides the streets behind it, which show faintly through its 0.72 opacity, so the depth reads) | [`drawHeat()`](../../frontend/src/app/pages/map/zone.service.ts#L201) |
 | camera saved on the first focus, `flyTo` with tilt and bearing | [`flyTo()`](../../frontend/src/app/pages/map/zone.service.ts#L261) |
 
 The right panel shows, in order:

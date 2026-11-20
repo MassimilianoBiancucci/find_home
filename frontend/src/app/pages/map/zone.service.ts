@@ -224,16 +224,21 @@ export class ZoneService {
         return src ? [{
           id: 'zone-3d-buildings', source: src, 'source-layer': 'building', type: 'fill-extrusion', minzoom: 13,
           filter: ['<=', ['distance', f.outline], 0],
-          paint: { 'fill-extrusion-color': this.theme.theme() === 'dark' ? '#5a5f7a' : '#b9b3c9', 'fill-extrusion-opacity': 0.8,
+          paint: { 'fill-extrusion-color': this.theme.theme() === 'dark' ? '#5a5f7a' : '#b9b3c9', 'fill-extrusion-opacity': 0.72,
             'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 10], 'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0] },
         } as any] : [];
       },
     });
   }
 
+  /**
+   * The heatmap's street lines lie on the ground under the 3D buildings (the group goes below them): a building in
+   * front hides the streets behind it, which still show faintly through its slight transparency, so the depth reads.
+   * Without 3D buildings (a style without a vector source) they go under the targets.
+   */
   private drawHeat(h: ZoneHeatmap): void {
     this.state.addGroup({
-      id: 'zone-heat', below: 'zone-targets',
+      id: 'zone-heat', below: this.state.map()?.getLayer('zone-3d-buildings') ? 'zone-3d' : 'zone-targets',
       sources: { 'zone-heat': { type: 'geojson', data: EMPTY as any } },
       layers: [{ id: 'zone-heat-line', type: 'line', source: 'zone-heat',
         layout: { 'line-cap': 'round', 'line-join': 'round' },
