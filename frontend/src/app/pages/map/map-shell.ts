@@ -54,11 +54,14 @@ export function pulseHalo(map: MlMap, layer = 'listings-halo'): () => void {
 /** A listing that no hard filter rejects (drawn as a house; the rejected ones are red dots). */
 const SCORED = ['==', ['coalesce', ['length', ['coalesce', ['get', 'rejected_by'], ['literal', []]]], 0], 0];
 
+/** Only the homes still to look at glow: status "new" (until you change it) and the ad still open. */
+const GLOWS = ['all', ['==', ['get', 'status'], 'new'], ['!=', ['get', 'ad_open'], false]];
+
 /** The listing layers' filters, leaving out the focused home (the zone view draws it itself). */
 export function listingFilters(focus: string | null): Record<string, unknown> {
   const notFocus = focus ? [['!=', ['get', 'short_id'], focus]] : [];
-  const all = (f: unknown) => (notFocus.length ? ['all', f, ...notFocus] : f);
-  return { 'listings-halo': all(SCORED), listings: all(SCORED), 'listings-rejected': all(['!', SCORED]) };
+  const all = (...f: unknown[]) => (f.length + notFocus.length > 1 ? ['all', ...f, ...notFocus] : f[0]);
+  return { 'listings-halo': all(SCORED, GLOWS), listings: all(SCORED), 'listings-rejected': all(['!', SCORED]) };
 }
 
 /** A listing's score colour on the map (the same steps as its house icon). */
@@ -241,8 +244,9 @@ export class MapShell {
       id: 'listings',
       sources: { listings: { type: 'geojson', data: lst } },
       layers: [
-        // a soft light in the score colour under each house, slowly pulsing (pulseHalo): visible on any base map or tint
-        { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
+        // a soft light in the score colour under each house still to look at (status new, ad open), slowly pulsing
+        // (pulseHalo): visible on any base map or tint
+        { id: 'listings-halo', type: 'circle', source: 'listings', filter: listingFilters(null)['listings-halo'] as any,
           paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.65, 'circle-blur': 0.6,
             'circle-pitch-alignment': 'map' } },
         { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,

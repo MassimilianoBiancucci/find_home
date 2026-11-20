@@ -46,7 +46,7 @@ import { TagsStore } from '../services/tags.store';
       <fh-pet-badge prefix="pets " [status]="x.listing.pet_status" [source]="x.listing.pet_source" [evidence]="x.listing.pet_evidence" />
       @if (x.listing.origin_site) { <fh-site-logo [slug]="x.listing.origin_site" [withName]="true" [title]="'First published on ' + sites.name(x.listing.origin_site)" /> }
       <select class="form-select form-select-sm fh-status-select" title="Status" aria-label="Status" [ngModel]="x.listing.status" (ngModelChange)="setStatus($event)">
-        @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
+        @for (s of tags.statuses(); track s) { <option [value]="s">{{ tags.statusLabel(s) }}</option> }
       </select>
       @if (x.listing.canonical_url) { <a class="fh-btn-glow" [href]="x.listing.canonical_url" target="_blank" rel="noopener">Open on site ↗</a> }
     }

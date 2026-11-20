@@ -36,7 +36,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <h1>Candidates</h1>
     <select class="form-select form-select-sm w-auto" [(ngModel)]="status" (ngModelChange)="load()">
       <option value="">all statuses</option>
-      @for (s of tags.statuses(); track s) { <option [value]="s">{{ s }}</option> }
+      @for (s of tags.statuses(); track s) { <option [value]="s">{{ tags.statusLabel(s) }}</option> }
     </select>
     <input #search class="form-control form-control-sm w-auto" placeholder="search (/)" [(ngModel)]="q" (keyup.enter)="load()" />
     <button type="button" class="fh-rej-toggle" [class.on]="fs.hideRejected()" [attr.aria-pressed]="fs.hideRejected()" (click)="toggleRejected()"
@@ -135,7 +135,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
                 </td> }
                 @case ('transport') { <td class="fh-idx" [style.color]="idx(r.house_transport)" [title]="houseTitle(r, 'transport')">{{ int(r.house_transport) }}@if (r.house_estimated) { <i class="fh-est-dot inline"></i> }</td> }
                 @case ('services') { <td class="fh-idx" [style.color]="idx(r.house_services)" [title]="houseTitle(r, 'services')">{{ int(r.house_services) }}</td> }
-                @case ('status') { <td>{{ r.status }}</td> }
+                @case ('status') { <td>{{ tags.statusLabel(r.status) }}</td> }
                 @case ('area') { <td>@if (r.origin_site) { <fh-site-logo class="me-1" [slug]="r.origin_site" [title]="originTip(r)" /> }{{ r.area }} <span class="text-body-secondary small">{{ r.address_raw }}</span></td> }
                 @case ('move_in') { <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
                   {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td> }

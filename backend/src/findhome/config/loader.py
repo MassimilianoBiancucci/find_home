@@ -39,8 +39,9 @@ CONFIG_FILES: dict[str, type[m._Base]] = {
     "pet_rules": m.PetRules,
 }
 # files whose content changes scores; their canonical JSON makes the config hash
-SCORING_FILES = ("profile", "locations", "time_model", "poi", "tags", "search_area")
-# ("pet_rules" changes pet statuses at ingest, not scores: it is not part of the hash)
+SCORING_FILES = ("profile", "locations", "time_model", "poi", "search_area")
+# ("pet_rules" changes pet statuses at ingest, not scores; "tags" holds the lifecycle statuses and feedback tags, which
+#  no score reads: neither is part of the hash, so editing them keeps the scores)
 
 
 class ConfigError(Exception):

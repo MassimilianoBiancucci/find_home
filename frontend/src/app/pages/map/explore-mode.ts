@@ -30,6 +30,7 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
     <div class="fh-row"><img [src]="house('#d69e2e')" width="22" alt="" /> score ≥ .5</div>
     <div class="fh-row"><img [src]="house('#e53e3e')" width="22" alt="" /> lower</div>
     <div class="fh-row"><img [src]="house('#888888')" width="22" alt="" /> unscored</div>
+    <div class="small text-body-secondary mt-1">Glowing: still <b>new</b> (until you change its status) with the ad open; the others have no light.</div>
     <div class="small text-body-secondary mt-1">Hover a house for its card; click it to pin the card in the Inspector.</div>
     <div class="small text-body-secondary mt-1">Your points use their category icon and colour (Locations). Dashed lines: straight line to the nearest place you care about.</div>
   </ng-template>
@@ -235,7 +236,7 @@ export class ExploreMode {
 export function toGeo(rows: Listing[]): { type: 'FeatureCollection'; features: unknown[] } {
   return { type: 'FeatureCollection', features: rows.filter((r) => r.lat != null && r.lon != null).map((r) => ({
     type: 'Feature', geometry: { type: 'Point', coordinates: [r.lon, r.lat] },
-    properties: { short_id: r.short_id, status: r.status, rent_sek: r.rent_sek, rooms_rok: r.rooms_rok, size_m2: r.size_m2,
+    properties: { short_id: r.short_id, status: r.status, ad_open: r.ad_open ?? true, rent_sek: r.rent_sek, rooms_rok: r.rooms_rok, size_m2: r.size_m2,
       pet_status: r.pet_status, area: r.area, score: r.score ?? null, rejected_by: r.rejected_by ?? [] },
   })) };
 }
