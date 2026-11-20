@@ -933,3 +933,48 @@ a.fh-chipf { text-decoration: none; }
   .fh-cols-view-x { padding: 1px 6px; opacity: .6; &:hover { opacity: 1; } }
   &.sel { background: linear-gradient(135deg, #c86bff, #990ae3); box-shadow: 0 0 10px rgba(153, 10, 227, .5);
     button { color: #fff; } } }
+// the listing card pinned in the Explore Inspector (the hover card, fixed in place)
+.fh-ltip-pinned { padding: 10px; border-radius: 10px; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
+  box-shadow: 0 0 0 2px var(--fh-violet-soft), 0 6px 18px -8px rgba(153, 10, 227, .5); font-size: .82rem; }
+
+// ── fh-listing-card: header, figure tiles, badges, a two-column table whose values never wrap ──
+.fh-lc-head { display: flex; align-items: center; gap: 7px; margin: 8px 0 2px; }
+.fh-lc-id { flex: none; padding: 0 7px; border-radius: 999px; font: 700 .7rem var(--bs-font-monospace); color: #fff;
+  background: linear-gradient(135deg, #c86bff, #990ae3 60%, #6a1fd1); }
+.fh-lc-title { flex: 1; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fh-lc-score { flex: none; min-width: 38px; padding: 1px 7px; border-radius: 999px; text-align: center; font-weight: 800;
+  font-size: .78rem; color: #fff; text-shadow: 0 1px 1px rgba(0, 0, 0, .3); box-shadow: 0 0 10px -2px currentColor;
+  &.bad { background: #e53e3e; } }
+.fh-lc-sub { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; min-height: 0; }
+.fh-lc-photo { flex: none; width: 64px; height: 46px; object-fit: cover; border-radius: 6px; }
+.fh-lc-where { min-width: 0; flex: 1; }
+.fh-lc-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fh-lc-dim { color: var(--bs-secondary-color); }
+.fh-lc-tiles { display: grid; grid-template-columns: 1fr 1fr 1fr 1.3fr; gap: 4px; margin-bottom: 6px; }
+.fh-lc-tile { display: flex; flex-direction: column; min-width: 0; padding: 4px 6px; border-radius: 8px; line-height: 1.2;
+  background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color-translucent);
+  b { font-size: .86rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  small { font-size: .7rem; color: var(--bs-secondary-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    b { font-size: .7rem; } } }
+.fh-lc-k { font-size: .64rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--bs-secondary-color); }
+.fh-lc-badges { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 6px; }
+.fh-lc-chip { display: inline-flex; align-items: center; padding: 0 7px; border-radius: 999px; font-size: .7rem; font-weight: 700;
+  border: 1.5px solid var(--bs-border-color); white-space: nowrap; line-height: 1.5;
+  &.yes { border-color: #1f9d55; color: #1f9d55; }
+  &.warn { border-color: #d6a800; color: #111; background: linear-gradient(135deg, #fff27a, #ffd400); } }
+.fh-lc-table { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 3px 8px; align-items: center;
+  border-top: 1px dashed var(--bs-border-color); padding-top: 5px; }
+.fh-lc-v { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  .fh-lc-chip { margin-right: 4px; } }
+.fh-lc-quote { font-style: italic; color: var(--bs-secondary-color); }
+.fh-lc-chip.bad { border-color: #e53e3e; color: #e53e3e; }
+.fh-lc-v.fh-lc-wrap { white-space: normal; display: flex; flex-wrap: wrap; gap: 3px; .fh-lc-chip { margin: 0; } }
+// the Scores tile: a header, then total, transport and services as equal rows (label left, value right)
+.fh-lc-scores { gap: 0; }
+.fh-lc-srow { display: flex; justify-content: space-between; align-items: baseline; gap: 4px; font-size: .72rem; line-height: 1.3;
+  color: var(--bs-secondary-color);
+  b { font-size: .86rem; color: var(--bs-body-color); white-space: nowrap; } }
+// a value with a fixed slot for the estimate LED on its right, so the numbers line up with or without it
+.fh-lc-sv { display: inline-flex; align-items: center; b { min-width: 1.4em; text-align: right; } }
+.fh-lc-led { display: inline-flex; align-items: center; justify-content: center; width: 9px; margin-left: 2px;
+  .fh-est-dot { margin: 0; position: static; } }

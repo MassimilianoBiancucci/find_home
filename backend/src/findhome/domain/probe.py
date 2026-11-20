@@ -1,6 +1,6 @@
-"""Test point (probe): what a spot on the map offers. Area score, nearest POIs per category with walking minutes
-(one OpenRouteService matrix call, cached per pair in routing_cache; straight-line estimate as fallback) and a
-transit itinerary to each of your points (ResRobot, cached per ~100 m origin cell)."""
+"""What a spot offers, for the house page: nearest POIs per category with walking minutes (one OpenRouteService
+matrix call, cached per pair in routing_cache; straight-line estimate as fallback) and a transit itinerary to each of
+your points (ResRobot, cached per ~100 m origin cell). The map's test points that first used it are gone."""
 from __future__ import annotations
 
 import logging
@@ -15,7 +15,6 @@ from shapely.geometry import Point
 from findhome.config.loader import ConfigBundle
 from findhome.config.timegrid import Slot, grid_slots, window_slots
 from findhome.domain.commute import reference_date
-from findhome.geo.area import area_eval, compiled_for
 from findhome.geo.crs import point_metric
 from findhome.geo.store import load_poi
 from findhome.providers.base import LatLon
@@ -205,9 +204,9 @@ async def trips_to(conn, registry, bundle: ConfigBundle, origin: LatLon, dests: 
 
 async def point_trips(conn, registry, bundle: ConfigBundle, origin: LatLon, point_coords: dict[str, LatLon],
                       today=None) -> list[dict]:
-    """The test point's trips to each of your points (first trip, middle slot of its first window)."""
+    """Trips to each of your points (first trip, middle slot of its first window)."""
     trips = await trips_to(conn, registry, bundle, origin, point_destinations(bundle, point_coords), today)
-    for t in trips:                                     # the test point's payload names the slot kind "kind"
+    for t in trips:                                     # the payload names the slot kind "kind"
         t["kind"] = t.pop("when_is")
     return trips
 
@@ -246,14 +245,3 @@ def dress_legs(legs: list[dict], bundle: ConfigBundle, streets: bool = True) -> 
             leg["on_track"] = bool(path)
             if path:
                 leg["path"] = path
-
-
-async def probe(conn, registry, bundle: ConfigBundle, lat: float, lon: float, point_coords: dict[str, LatLon],
-                with_trips: bool = True) -> dict[str, Any]:
-    origin = LatLon(lat, lon)
-    area = compiled_for(bundle.raw.get("search_area"))
-    res = area_eval(area, lat, lon)
-    area_out = {"defined": area.defined, **res.as_dict()} if area.defined else {"defined": False, "zone": res.zone}
-    pois = await nearest_pois(conn, registry, bundle, origin)
-    trips = await point_trips(conn, registry, bundle, origin, point_coords) if with_trips else []
-    return {"lat": lat, "lon": lon, "area": area_out, "pois": pois, "trips": trips}

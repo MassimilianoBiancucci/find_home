@@ -34,7 +34,7 @@ Sweden-wide journey planner on official timetables (SL included).
   coordinate origins (`searchForArrival`, `originCoordLat/Long`). See `guide/issues/issues.md`.
 - Timetable-based: gives scheduled times, not historical delays. Reliability by hour comes from sampling slots;
   a realtime delay collector (SL GTFS-RT via Trafiklab) is in `tasks/BACKLOG.md`.
-- The map's test point also asks ResRobot for one itinerary per point (`passlist=1`: legs with stops and
+- The house page also asks ResRobot for one itinerary per point (`passlist=1`: legs with stops and
   coordinates), cached per ~100 m origin cell.
 - The Connectivity map mode asks ResRobot for every zone × point × window (~2,100 requests for the 263 zones,
   about 8% of the Bronze monthly quota, ~47 minutes at 45/min), capped by `connectivity.max_calls_per_run`,
@@ -70,7 +70,7 @@ one request per category (Overpass usage policy: scheduled region-wide fetches, 
 back-off.
 
 ## OpenRouteService (walking minutes)
-The map's test point asks for real walking minutes to the nearest places with one ORS **matrix** request per click
+The house page asks for real walking minutes to the nearest places with one ORS **matrix** request per click
 (`routing.ors`, `ORS_API_KEY`; free key at openrouteservice.org: matrix 500/day, directions 2,000/day, 40/min).
 Every origin/destination pair is cached in `routing_cache` for `cache.routing_ttl_days`. Without a key, or when
 ORS fails, minutes are straight-line estimates (×1.3 detour) marked `~` in the inspector. ORS is also first in

@@ -187,6 +187,21 @@ interface Tip { key: FilterKey; x: number; y: number; edge: 'l' | 'r' | null; he
     <span><b>{{ count() }}</b> of {{ store.base().length }} homes</span>
     @if (store.active()) { <button type="button" class="btn btn-link btn-sm p-0 ms-auto" (click)="store.clear()">reset {{ store.active() }} filter{{ store.active() === 1 ? '' : 's' }}</button> }
   </div>
+  @for (g of cats(); track g.c.key) {
+    <div class="fh-cg" [class.on]="g.on">
+      <div class="fh-rf-head"><span class="fh-rf-label">{{ g.c.label }}</span>
+        @if (g.on) { <button type="button" class="fh-rf-x ms-auto" title="Clear this filter" [attr.aria-label]="'Clear ' + g.c.label" (click)="clearCat(g.c.key)">✕</button> }</div>
+      <div class="fh-chips">
+        @for (ch of g.chips; track ch.v) {
+          <button type="button" [class]="'fh-chipf ' + chipTone(g.c.key, ch.v)" [class.sel]="ch.sel" [class.zero]="!ch.n"
+            [attr.aria-pressed]="ch.sel" (click)="store.toggleCat(g.c.key, ch.v)"
+            [title]="(ch.sel ? 'Remove ' : 'Keep only homes with ') + chipLabel(g.c.key, ch.v) + ' (' + ch.n + ' with the other filters)'">
+            @if (g.c.key === 'site') { <fh-site-logo [slug]="ch.v" /> } @else { <i class="fh-chipf-dot"></i> }
+            <span class="fh-chipf-t">{{ chipLabel(g.c.key, ch.v) }}</span><span class="fh-chipf-n">{{ ch.n }}</span></button>
+        }
+      </div>
+    </div>
+  }
   @for (v of views(); track v.f.key) {
     <div class="fh-rf" [class.on]="v.on" [class.show]="store.pulse()" [class.flat]="!v.dom || v.dom[0] === v.dom[1]">
       <div class="fh-rf-head">
@@ -222,21 +237,6 @@ interface Tip { key: FilterKey; x: number; y: number; edge: 'l' | 'r' | null; he
           }
         </div>
       }
-    </div>
-  }
-  @for (g of cats(); track g.c.key) {
-    <div class="fh-cg" [class.on]="g.on">
-      <div class="fh-rf-head"><span class="fh-rf-label">{{ g.c.label }}</span>
-        @if (g.on) { <button type="button" class="fh-rf-x ms-auto" title="Clear this filter" [attr.aria-label]="'Clear ' + g.c.label" (click)="clearCat(g.c.key)">✕</button> }</div>
-      <div class="fh-chips">
-        @for (ch of g.chips; track ch.v) {
-          <button type="button" [class]="'fh-chipf ' + chipTone(g.c.key, ch.v)" [class.sel]="ch.sel" [class.zero]="!ch.n"
-            [attr.aria-pressed]="ch.sel" (click)="store.toggleCat(g.c.key, ch.v)"
-            [title]="(ch.sel ? 'Remove ' : 'Keep only homes with ') + chipLabel(g.c.key, ch.v) + ' (' + ch.n + ' with the other filters)'">
-            @if (g.c.key === 'site') { <fh-site-logo [slug]="ch.v" /> } @else { <i class="fh-chipf-dot"></i> }
-            <span class="fh-chipf-t">{{ chipLabel(g.c.key, ch.v) }}</span><span class="fh-chipf-n">{{ ch.n }}</span></button>
-        }
-      </div>
     </div>
   }`,
   styles: [`
@@ -299,8 +299,9 @@ interface Tip { key: FilterKey; x: number; y: number; edge: 'l' | 'r' | null; he
     .fh-rf-tip b { font-weight: 700; } .fh-rf-tip span { color: #e2c9ff; }
     @keyframes fh-rf-pop { from { opacity: 0; margin-top: 4px; } to { opacity: 1; margin-top: 0; } }
 
-    /* category chips: the bright badge look, outlined until chosen, then filled and glowing */
-    .fh-cg { padding: 6px 0 4px; border-top: 1px dashed var(--bs-border-color); margin-top: 4px; }
+    /* category chips first (website, pets, contract, issues), then the sliders: the bright badge look, outlined until
+       chosen, then filled and glowing */
+    .fh-cg { padding: 4px 0 6px; border-bottom: 1px dashed var(--bs-border-color); margin-bottom: 4px; }
     /* the chips themselves (.fh-chips, .fh-chipf) are global: styles.scss */
 
     @media (prefers-reduced-motion: reduce) {

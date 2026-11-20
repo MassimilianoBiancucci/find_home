@@ -4,26 +4,60 @@ import { forkJoin } from 'rxjs';
 import type { Map as MlMap, StyleSpecification } from 'maplibre-gl';
 import { ApiService, apiError } from '../../services/api.service';
 import { ThemeService } from '../../services/theme.service';
-import { blipExpr, installBlip, installObject, installPin } from '../../components/map-icons';
+import { blipExpr, installBlip, installHouse, installObject, installPin } from '../../components/map-icons';
 import { applyDarkWater } from './dark-style';
 import { MapLib, MapStateService } from './map-state.service';
-import { ProbeService } from './probe.service';
 import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
 import { ConnectivityService } from './connectivity.service';
 import { ContextMenuService } from './context-menu.service';
 import { MapContextMenu } from './map-context-menu';
+import { LayersDrawer } from './layers-drawer';
 
 const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#2a2a30' } }] };
 
 /**
  * Map page: one MapLibre instance (MapStateService) shared by the modes under /map (child routes).
- * The shell owns the base layers (listings, your points, 3D buildings) and swaps the base style with the colour mode.
+ * The shell owns the base layers (listings, your points, 3D buildings) and their Layers drawer at the bottom of the map,
+ * and swaps the base style with the colour mode.
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
+/**
+ * A house's size by its score: the best homes big, the weakest very small (scores run about 0.3–0.9; unscored 0.6×).
+ * Scales both the house and its light.
+ */
+const SCORE_SIZE = ['case', ['==', ['get', 'score'], null], 0.6,
+  ['interpolate', ['linear'], ['to-number', ['get', 'score'], 0], 0.3, 0.35, 0.6, 0.85, 0.9, 1.6]];
+/** The light's radius by zoom and score, times `k` (the pulse): it reaches all round the house. */
+const haloRadius = (k: number) => ['interpolate', ['linear'], ['zoom'],
+  9, ['*', 17 * k, SCORE_SIZE], 13, ['*', 23 * k, SCORE_SIZE], 16, ['*', 31 * k, SCORE_SIZE]];
+
+/**
+ * The houses' light breathes: the halo grows and fades on a slow 2.8 s cycle, redrawn about 12 times a second and only
+ * while the tab is visible; none under prefers-reduced-motion. Returns the stop function.
+ */
+export function pulseHalo(map: MlMap, layer = 'listings-halo'): () => void {
+  if (typeof window === 'undefined' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return () => undefined;
+  let raf = 0, last = 0;
+  const tick = (t: number) => {
+    raf = requestAnimationFrame(tick);
+    if (t - last < 80 || document.hidden || !map.getLayer(layer)) return;
+    last = t;
+    const w = (1 - Math.cos((t / 2800) * Math.PI * 2)) / 2;          // 0 → 1 → 0
+    map.setPaintProperty(layer, 'circle-radius', haloRadius(0.85 + 0.45 * w) as any);
+    map.setPaintProperty(layer, 'circle-opacity', 0.78 - 0.33 * w);
+  };
+  raf = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(raf);
+}
+
+/** A listing's score colour on the map (the same steps as its house icon). */
+const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
+  ['step', ['to-number', ['get', 'score'], 0], '#e53e3e', 0.5, '#d69e2e', 0.75, '#1f9d55']];
+
 @Component({
   selector: 'fh-map-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, MapContextMenu],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, MapContextMenu, LayersDrawer],
   template: `
   <div class="fh-map-shell">
     <div class="fh-map-bar">
@@ -34,15 +68,12 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
         <a routerLink="zone" routerLinkActive="on">Zone</a>
       </div>
       <button class="btn btn-sm btn-outline-secondary" (click)="toggle3d()">{{ tilted() ? '2D' : '3D tilt' }}</button>
-      <button class="btn btn-sm" [class.btn-primary]="probe.picking()" [class.btn-outline-primary]="!probe.picking()"
-        title="Click the map to drop a test point (or right-click → Set test point here)" (click)="probe.picking.set(!probe.picking())">
-        {{ probe.picking() ? 'Click the map…' : 'Test point' }}</button>
-      @if (state.testPoint()) { <button class="btn btn-sm btn-link p-0" (click)="probe.clear()">clear test point</button> }
       @if (missing().length) { <span class="small text-warning" title="Set an address or coords in Locations">no coords: {{ missing().join(', ') }}</span> }
       @if (error()) { <span class="small text-danger">{{ error() }}</span> }
     </div>
+    <div class="fh-map-col">
     <div class="fh-map-wrap">
-      <div #mapEl class="fh-map" [class.picking]="probe.picking()"></div>
+      <div #mapEl class="fh-map"></div>
       <fh-map-context-menu />
       @if (conn.hover(); as h) {
         <div class="fh-hover">
@@ -52,6 +83,8 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
         </div>
       }
     </div>
+    <fh-layers-drawer />
+    </div>
     <router-outlet />
   </div>`,
   styles: [`
@@ -60,20 +93,19 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
     .fh-modes { display: inline-flex; border: 1px solid var(--bs-border-color); border-radius: 999px; padding: 2px; background: var(--fh-sub);
       a { padding: 3px 14px; border-radius: 999px; text-decoration: none; color: var(--bs-secondary-color); font-size: .85rem; font-weight: 500;
         &.on { background: var(--fh-accent-fill); color: var(--fh-on-accent); box-shadow: 0 0 0 1px var(--fh-violet); } } }
-    .fh-map-wrap { flex: 1; min-height: 320px; position: relative; display: flex; }
-    .fh-map { flex: 1; min-height: 320px; border-radius: 8px; border: 1px solid var(--bs-border-color); overflow: hidden; }
+    .fh-map-col { flex: 1; min-height: 320px; display: flex; flex-direction: column; }
+    .fh-map-wrap { flex: 1; min-height: 200px; position: relative; display: flex; }
+    .fh-map { flex: 1; min-height: 200px; border-radius: 8px; border: 1px solid var(--bs-border-color); overflow: hidden; }
     .fh-hover { position: absolute; left: 10px; top: 10px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; max-width: 70%;
       padding: 5px 10px; border-radius: 8px; font-size: .8rem; background: rgba(20, 20, 24, .86); color: #f2f2f7;
       border: 1px solid rgba(192, 132, 252, .5); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); pointer-events: none;
       .w { color: #d8b4fe; font-weight: 600; } }
-    .fh-map.picking { cursor: crosshair; }
   `],
 })
 export class MapShell {
   private api = inject(ApiService);
   private theme = inject(ThemeService);
   protected state = inject(MapStateService);
-  protected probe = inject(ProbeService);
   private poiLayers = inject(PoiLayersService);
   private transit = inject(TransitLayersService);
   protected conn = inject(ConnectivityService);
@@ -89,7 +121,6 @@ export class MapShell {
     const destroy = inject(DestroyRef);
     afterNextRender(() => void this.init(destroy));
     this.menu.register(destroy, [
-      { id: 'test-point', order: 10, label: () => 'Set test point here', run: (c) => this.probe.set(c.lat, c.lon) },
       { id: 'zone-view', order: 20, label: (c) => (c.zone ? `Open zone view: ${c.zone.name}` : 'Open zone view'),
         enabled: (c) => !!c.zone, run: (c) => void this.router.navigate(['/map/zone', c.zone!.id]) },
     ]);
@@ -97,6 +128,21 @@ export class MapShell {
       const mode = this.theme.theme();
       untracked(() => this.applyStyle(mode));
     });
+  }
+
+  /**
+   * Fits the map to its box and draws it in the same frame, so it never flashes blank while the box animates. While
+   * the Layers sheet moves, the map keeps its bottom edge: what sat just above the old edge stays there, the content
+   * slides with the sheet.
+   */
+  private resize(map: MlMap): void {
+    const canvas = map.getCanvas(), oldH = canvas.clientHeight, w = canvas.clientWidth;
+    const newH = this.el().nativeElement.clientHeight;
+    const anchor = performance.now() < this.state.anchorBottomUntil && oldH > 0 && newH > 0 && oldH !== newH;
+    const centre = anchor ? map.unproject([w / 2, oldH - newH / 2]) : null;
+    map.resize();
+    if (centre) map.jumpTo({ center: centre });
+    map.redraw();
   }
 
   private styleUrl(mode: string): string | undefined {
@@ -128,7 +174,7 @@ export class MapShell {
         destroy.onDestroy(() => { this.state.detach(); map.remove(); });
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), 'top-right');
         map.addControl(new ml.ScaleControl({ unit: 'metric' }), 'bottom-left');
-        new ResizeObserver(() => map.resize()).observe(this.el().nativeElement);
+        new ResizeObserver(() => this.resize(map)).observe(this.el().nativeElement);
         map.on('error', () => {
           if (this.state.ready() || this.styleFailed) return;
           this.styleFailed = true;
@@ -139,12 +185,7 @@ export class MapShell {
           if (this.theme.theme() === 'dark') applyDarkWater(map);
           this.state.reapply();
         });
-        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); });
-        map.on('click', (e) => {
-          if (!this.probe.picking()) return;
-          this.probe.picking.set(false);
-          this.probe.set(e.lngLat.lat, e.lngLat.lng);
-        });
+        map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); installHouse(map, e.id); });
         map.on('contextmenu', (e) => {
           e.preventDefault();
           const { lat, lng } = e.lngLat;
@@ -153,7 +194,8 @@ export class MapShell {
         });
         map.on('movestart', () => this.menu.close());
         this.addBaseLayers(map, pts, lst);
-        this.probe.install();
+        const stop = pulseHalo(map);
+        destroy.onDestroy(stop);
         this.poiLayers.install();
         this.transit.install();
         this.conn.installTint();
@@ -179,17 +221,26 @@ export class MapShell {
     this.state.addGroup({
       id: 'listings',
       sources: { listings: { type: 'geojson', data: lst } },
-      layers: [{
-        id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
-        layout: { 'icon-allow-overlap': true, 'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.7, 15, 1.05],
-          'icon-image': ['case', ['==', ['get', 'score'], null], 'blip:home:888888',
-            ['step', ['to-number', ['get', 'score'], 0], 'blip:home:e53e3e', 0.5, 'blip:home:d69e2e', 0.75, 'blip:home:1f9d55']] },
-      } as any],
+      layers: [
+        // a soft light in the score colour under each house, slowly pulsing (pulseHalo): visible on any base map or tint
+        { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
+          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.65, 'circle-blur': 0.6,
+            'circle-pitch-alignment': 'map' } },
+        { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
+          layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-anchor': 'center',
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, ['*', 0.85, SCORE_SIZE], 13, ['*', 1.1, SCORE_SIZE],
+              16, ['*', 1.4, SCORE_SIZE]],
+            'symbol-sort-key': ['coalesce', ['to-number', ['get', 'score']], 0],     // the best homes drawn on top
+            'icon-image': ['case', ['==', ['get', 'score'], null], 'house:888888',
+              ['step', ['to-number', ['get', 'score'], 0], 'house:e53e3e', 0.5, 'house:d69e2e', 0.75, 'house:1f9d55']] },
+        } as any,
+      ],
     });
     this.state.addGroup({
-      id: 'listings-rejected',
+      id: 'listings-rejected', below: 'listings',        // the red dots under the houses
       layers: [{ id: 'listings-rejected', type: 'circle', source: 'listings', filter: ['!', scored] as any,
-        paint: { 'circle-radius': 5, 'circle-color': '#e53e3e', 'circle-opacity': 0.4 } }],
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 15, 7], 'circle-color': '#e53e3e', 'circle-opacity': 0.7,
+          'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.8 } }],
     });
     if (this.state.visible()['listings-rejected'] === undefined) this.state.setVisible('listings-rejected', false);
     this.state.addGroup({
@@ -210,8 +261,10 @@ export class MapShell {
       this.state.selection.set({ kind, props: { ...f.properties, lat, lon } });
     };
     map.on('click', 'listings', select('listing'));
+    map.on('click', 'listings-halo', select('listing'));
+    map.on('click', 'listings-rejected', select('listing'));
     map.on('click', 'points-mark', select('point'));
-    for (const id of ['listings', 'points-mark']) {
+    for (const id of ['listings', 'listings-halo', 'listings-rejected', 'points-mark']) {
       map.on('mouseenter', id, () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', id, () => (map.getCanvas().style.cursor = ''));
     }

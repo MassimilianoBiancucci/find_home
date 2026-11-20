@@ -38,7 +38,8 @@ Each request gets one connection, committed when the request succeeds.
 real flat, rent and buy columns), `listing_sources` (one row per site item, with its own content hash),
 `listing_status_events`, `feedback`, `evaluations`, `scores` and `commute_results` (both keyed by `config_hash`),
 the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`, `scan_runs`, `agent_runs`.
-[`002_probes.sql`](../../backend/migrations/002_probes.sql) adds `probes` (alpha: saved test points);
+[`002_probes.sql`](../../backend/migrations/002_probes.sql) adds `probes` (the saved test points of a removed map
+feature; unused);
 [`003_zone_commute.sql`](../../backend/migrations/003_zone_commute.sql) adds `zone_commute` (the Connectivity matrix);
 [`004_connectivity_status.sql`](../../backend/migrations/004_connectivity_status.sql) adds its route status and
 `provider_failure` (zone points a provider cannot route).
@@ -180,7 +181,7 @@ stay in and the label shows ≤ / +. Homes without the value stay in unless you 
 steps (rent bars of 1 000 kr); a short one, one bar per value (rooms). Hovering a bar shows its values and how many
 homes it holds ([`showTip()`](../../frontend/src/app/pages/candidate-filters.ts#L366)).
 
-Under the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets**,
+Above the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets**,
 **Contract** and **Issues** (one chip per issue, and "No issues") ([`CAT_FIELDS`](../../frontend/src/app/pages/candidate-filters.ts#L55)). Chosen chips of one group are
 alternatives (any of them); groups and sliders combine. A chip is outlined until chosen, then filled with its
 colour and glowing, like the Hide rejected badge; its count is the homes it would keep with the other filters. After Hide rejected changes, every chart opens
@@ -346,7 +347,17 @@ and keys behind the value.
 The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one MapLibre instance owned by
 `MapShell` and shared through [`MapStateService`](../../frontend/src/app/pages/map/map-state.service.ts) with
 the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`, `/map/zone`). Modes add named layer
-groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The base style is
+groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The shell's **Layers
+sheet** ([`layers-drawer.ts`](../../frontend/src/app/pages/map/layers-drawer.ts)) shows in every mode: one row of
+toggle chips per group (Map: listings, rejected, your points, commute tint; Places; Transit, with the lines and
+stations), each in its layer's colour and filled while shown. A glowing **Layers** pill over the map's bottom edge
+(counting the layers on) opens it: the sheet, as wide as the map, rounded and a small gap below it, slides up and the
+map's bottom edge with it, while the pill fades out; a click on the map, the fold button or Escape slides both back
+and the pill fades in. The sheet sits under the map in the page flow and grows from 0 (`grid-template-rows` 0fr → 1fr),
+so the map shrinks rather than being covered; `MapShell.resize()` redraws in the same frame (no blank canvas while
+the box animates) and, while the sheet moves (`MapStateService.anchorBottomUntil`), keeps the map's bottom edge in
+place, so the content slides with the sheet and closing returns to the same view. Open or folded is remembered in
+the browser (`fh-map-layers-open`). The base style is
 `map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
 the style and re-applies every group. A style that cannot load falls back to a blank background. In dark mode
 [`dark-style.ts`](../../frontend/src/app/pages/map/dark-style.ts) recolours the style's water layers after each style
@@ -365,11 +376,22 @@ stand upright when the map is tilted (`icon-pitch-alignment: viewport`), and are
 buildings and the heatmap never cover them. The Heatmap targets bubble has **All targets** and **Rail + bus**
 buttons and an **Icon size** slider (0.6× to 1.8×, kept per browser) that scales the icons and their glow.
 [`PoiLayersService`](../../frontend/src/app/pages/map/poi-layers.service.ts) adds one layer per POI category, loaded
-the first time it is switched on. The **test point** (right-click → Set test point here, or the Test point button) lives in
-[`ProbeService`](../../frontend/src/app/pages/map/probe.service.ts): it survives mode switches, calls
-`/api/probe`, and draws the pin, straight lines to the nearest places and the legs of the selected itinerary;
-[`probe-panel.ts`](../../frontend/src/app/pages/map/probe-panel.ts) shows it in the inspector of every mode, plus
-the alpha saved test points and their side-by-side compare.
+the first time it is switched on.
+**Houses on the map** are a house shape in the score colour (lighter roof, white outline, dark rim, a door, a soft
+shadow: `installHouse()` in [`map-icons.ts`](../../frontend/src/app/components/map-icons.ts), image `house:<hex>`)
+centred on its spot, its size by the score (0.35× at 0.3 up to 1.6× at 0.9, unscored 0.6×; the best drawn on
+top), inside a soft light of the same colour and scale (`listings-halo`) that reaches all round it and slowly pulses
+([`pulseHalo()`](../../frontend/src/app/pages/map/map-shell.ts): a 2.8 s breath, about 12 redraws a second, paused while
+the tab is hidden, still under reduced motion); layers that tint zones go below the light; larger as you zoom in; rejected homes are red dots (the Rejected listings layer). In **Explore** the houses are the homes the
+**Listing filters** bubble keeps: the Candidates Filters bubble and its store
+([`CandidateFiltersStore`](../../frontend/src/app/pages/candidate-filters.ts)), so a filter set on one page holds on the
+other, plus Hide closed. Hovering a house shows the Candidates hover card
+([`fh-listing-card`](../../frontend/src/app/components/listing-card.ts): a header with the id, the title on one line, the
+issue count and the score; four figure tiles, rent, size, move-in and Access (transport and services as two equal rows, the
+numbers right-aligned with a fixed slot for the estimate LED), coloured like the table; one row of badges, pets, floor, lift, balcony; then a two-column table whose values never wrap, the full text
+on hover: pets quote, ad status and when it was checked, contract, origin, seen, and best-for or the rejection reasons
+as chips) next to the pointer; clicking it pins the card
+in the Inspector with the photos, the score and Open listing. Leaving Explore puts every home back on the map.
 [`TransitLayersService`](../../frontend/src/app/pages/map/transit-layers.service.ts) draws one line layer per transit
 mode (data loaded when first shown; buses from zoom 12) and the stations as blips; the inspector shows a line's
 stations in order or the lines serving a station.
@@ -380,8 +402,7 @@ is on), or by the transport index percentile (average or one time window). Its M
 (Refresh, Retry failed, Update stale); [`connectivity-dialogs.ts`](../../frontend/src/app/pages/map/connectivity-dialogs.ts)
 holds the pause decision dialog and the route list (filter by status, point, zone; a row flies to the zone). Explore
 can show a light tint of
-the same colours; hovering a zone shows its minutes over the map; the test point shows its zone's matrix value
-next to its own itinerary.
+the same colours; hovering a zone shows its minutes over the map.
 
 **Explore heatmaps.** Explore's **Colour zones by** bubble
 ([`explore-heat.ts`](../../frontend/src/app/pages/map/explore-heat.ts)) colours every zone by one value:
@@ -495,7 +516,7 @@ same `HouseTravelStore` as the house page) above the zone panel, with a Walk / T
 
 The map's **right-click menu** ([`ContextMenuService`](../../frontend/src/app/pages/map/context-menu.service.ts#L16),
 [`map-context-menu.ts`](../../frontend/src/app/pages/map/map-context-menu.ts)) opens at the click and shows the zone under it
-(`GET /api/zone/at`). The shell registers "Set test point here" and "Open zone view"; modes can
+(`GET /api/zone/at`). The shell registers "Open zone view"; modes can
 [`register()`](../../frontend/src/app/pages/map/context-menu.service.ts#L21) more entries while they are active.
 
 ## Main flows
@@ -542,7 +563,7 @@ flowchart LR
 | Jobs | [`api/routers/jobs.py`](../../backend/src/findhome/api/routers/jobs.py) |
 | Map GeoJSON | [`api/routers/map.py`](../../backend/src/findhome/api/routers/map.py) |
 | Zones, search area, brush | [`api/routers/geo.py`](../../backend/src/findhome/api/routers/geo.py) |
-| POIs, test point, saved test points | [`api/routers/probe.py`](../../backend/src/findhome/api/routers/probe.py) |
+| POIs on the map | [`api/routers/probe.py`](../../backend/src/findhome/api/routers/probe.py) |
 | Connectivity matrix and refresh | [`api/routers/connectivity.py`](../../backend/src/findhome/api/routers/connectivity.py) |
 | Zone analysis: facts, targets, heatmaps | [`api/routers/zone.py`](../../backend/src/findhome/api/routers/zone.py), [`zone/`](../../backend/src/findhome/zone/analysis.py) |
 | SQL | [`db/repo.py`](../../backend/src/findhome/db/repo.py) |

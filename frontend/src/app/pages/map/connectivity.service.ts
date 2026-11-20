@@ -25,7 +25,7 @@ const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
 
 export interface ZoneHover { name: string; district: string; values: { label: string; minutes: number | null }[]; weighted: number | null; estimate: boolean; }
 
-/** Zone × point commute matrix for the Connectivity mode, the Explore tint and the test point. */
+/** Zone × point commute matrix for the Connectivity mode, and the Explore tint. */
 @Injectable({ providedIn: 'root' })
 export class ConnectivityService {
   private api = inject(ApiService);

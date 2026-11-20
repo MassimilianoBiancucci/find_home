@@ -1,84 +1,48 @@
 import { Component, DestroyRef, TemplateRef, afterNextRender, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
-import { DecimalPipe } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Listing, ListingDetail, TransitLine } from '../../models';
 import { ScoreTip } from '../../components/score-tip';
 import { GalleryComponent } from '../../components/gallery';
 import { ApiService } from '../../services/api.service';
 import { LayoutService } from '../../services/layout.service';
-import { blipUrl } from '../../components/map-icons';
+import { blipUrl, houseUrl } from '../../components/map-icons';
 import { MapStateService } from './map-state.service';
-import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
-import { ProbeService } from './probe.service';
-import { ProbePanel, SavedProbesList } from './probe-panel';
+import { ListingCard as ListingCardView } from '../../components/listing-card';
+import { ValueScaleStore } from '../../value-scale';
+import { SitesStore } from '../../services/sites.store';
+import { CandidateFilters, CandidateFiltersStore, applyAll } from '../candidate-filters';
 import { ExploreColour, ExploreFilters, ExploreHeatService, ExploreSettings } from './explore-heat';
 import { ZoneFillService } from './zone-fill.service';
 
-export interface LayerToggle { id: string; label: string; icon?: string; }
 /** What the listing panel shows from the fetched listing: photos and the score breakdown. */
 type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_url'> & { score: ListingDetail['score'] };
 
-/** Explore mode: layers on/off (base + POI categories), legend, inspector for the clicked item and the test point. */
+/** Explore mode: the listing filters shared with Candidates drive the house markers; legend, heatmaps (the layers are
+ *  the shell's drawer under the map); a house's
+ *  card on hover, pinned in the Inspector on click. */
 @Component({
   selector: 'fh-explore-mode',
-  imports: [DecimalPipe, ProbePanel, SavedProbesList, GalleryComponent, ScoreTip, ExploreColour, ExploreFilters, ExploreSettings],
+  imports: [GalleryComponent, ScoreTip, ExploreColour, ExploreFilters, ExploreSettings, ListingCardView, CandidateFilters],
   template: `
-  <ng-template #layersTpl>
-    @for (t of toggles; track t.id) {
-      <label class="fh-row">
-        <input type="checkbox" class="form-check-input" [checked]="state.isVisible(t.id)" (change)="state.setVisible(t.id, !state.isVisible(t.id))" />
-        @if (t.icon) { <img [src]="t.icon" width="20" height="20" alt="" /> }
-        <span class="fh-grow">{{ t.label }}</span>
-      </label>
-    }
-    <div class="fh-section mt-2">Places</div>
-    @for (c of poi.categories(); track c.key) {
-      <label class="fh-row" [class.text-body-secondary]="!c.fetched" [title]="c.fetched ? '' : 'not fetched yet: findhome geo fetch poi'">
-        <input type="checkbox" class="form-check-input" [checked]="poi.isOn(c.key)" [disabled]="!c.fetched" (change)="poi.toggle(c.key)" />
-        <img [src]="icon(c.icon, c.color)" width="20" height="20" alt="" />
-        <span class="fh-grow">{{ c.label }}</span>
-      </label>
-    }
-    @if (poi.error()) { <div class="small text-danger">{{ poi.error() }}</div> }
-    <div class="fh-section mt-2">Transit</div>
-    @if (transit.meta(); as m) {
-      @if (!m.built) { <div class="small text-body-secondary">Not built yet: <code>findhome geo fetch transit</code></div> }
-      @else {
-        @for (t of m.modes; track t.mode) {
-          <label class="fh-row">
-            <input type="checkbox" class="form-check-input" [checked]="transit.isOn('transit-' + t.mode)" (change)="transit.toggle('transit-' + t.mode)" />
-            <span class="fh-line" [style.background]="t.color"></span>
-            <span class="fh-grow">{{ t.label }} <span class="text-body-secondary small">{{ t.count }}</span></span>
-          </label>
-        }
-        <label class="fh-row">
-          <input type="checkbox" class="form-check-input" [checked]="transit.isOn('transit-stations')" (change)="transit.toggle('transit-stations')" />
-          <img [src]="icon('metro', '#0089ca')" width="20" height="20" alt="" />
-          <span class="fh-grow">Stations <span class="text-body-secondary small">{{ m.stations }}</span></span>
-        </label>
-        <div class="small text-body-secondary">Source: {{ m.source === 'gtfs' ? 'SL GTFS (Trafiklab)' : 'OpenStreetMap routes' }}</div>
-      }
-    }
-    @if (transit.error()) { <div class="small text-danger">{{ transit.error() }}</div> }
-    <div class="fh-section mt-2">Commute</div>
-    <label class="fh-row" title="Zones tinted by weighted commute minutes (Connectivity mode); hover a zone for its numbers">
-      <input type="checkbox" class="form-check-input" [checked]="state.isVisible('connectivity-tint', false)" (change)="state.setVisible('connectivity-tint', !state.isVisible('connectivity-tint', false))" />
-      <span class="fh-line" style="background:linear-gradient(90deg,#1f9d55,#d6c94a,#b0303a)"></span>
-      <span class="fh-grow">Zone commute tint</span>
-    </label>
-  </ng-template>
-
   <ng-template #legendTpl>
-    <div class="fh-row"><img [src]="icon('home', '#1f9d55')" width="20" alt="" /> listing, score ≥ .75</div>
-    <div class="fh-row"><img [src]="icon('home', '#d69e2e')" width="20" alt="" /> score ≥ .5</div>
-    <div class="fh-row"><img [src]="icon('home', '#e53e3e')" width="20" alt="" /> lower</div>
-    <div class="fh-row"><img [src]="icon('home', '#888888')" width="20" alt="" /> unscored</div>
-    <div class="fh-row"><img [src]="icon('target', '#b45cf0')" width="20" alt="" /> test point (right-click the map)</div>
+    <div class="fh-row"><img [src]="house('#1f9d55')" width="22" alt="" /> listing, score ≥ .75</div>
+    <div class="fh-row"><img [src]="house('#d69e2e')" width="22" alt="" /> score ≥ .5</div>
+    <div class="fh-row"><img [src]="house('#e53e3e')" width="22" alt="" /> lower</div>
+    <div class="fh-row"><img [src]="house('#888888')" width="22" alt="" /> unscored</div>
+    <div class="small text-body-secondary mt-1">Hover a house for its card; click it to pin the card in the Inspector.</div>
     <div class="small text-body-secondary mt-1">Your points use their category icon and colour (Locations). Dashed lines: straight line to the nearest place you care about.</div>
   </ng-template>
 
-  <ng-template #savedTpl><fh-saved-probes /></ng-template>
+  <ng-template #listFiltersTpl>
+    <div class="d-flex flex-wrap gap-1 mb-2">
+      <button type="button" class="fh-rej-toggle fh-closed-toggle" [class.on]="fs.hideClosed()" (click)="fs.hideClosed.update((v) => !v); loadRows()"
+        [title]="fs.hideClosed() ? 'Homes whose ad is closed on every site are hidden: click to show them' : 'Closed ads are shown: click to hide them'">
+        <span class="fh-rej-dot"></span>{{ fs.hideClosed() ? 'Closed hidden' : 'Hide closed' }}</button>
+    </div>
+    <fh-candidate-filters [count]="shown()" />
+    <div class="small text-body-secondary mt-1">The same filters as the Candidates list: set them here or there. Rejected homes are a layer (Layers, under the map).</div>
+  </ng-template>
   <ng-template #colourTpl><fh-explore-colour /></ng-template>
   <ng-template #filtersTpl><fh-explore-filters /></ng-template>
   <ng-template #heatSettingsTpl><fh-explore-settings /></ng-template>
@@ -87,20 +51,13 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
     @switch (sel()?.kind) {
       @case ('listing') {
         @let p = sel()!.props;
-        <h6 class="mb-1">{{ p['short_id'] }} · {{ p['area'] ?? '' }}</h6>
-        @if (photos(); as ph) { <fh-gallery [compact]="true" [photos]="ph.photo_urls" [plans]="ph.floorplan_urls" [link]="ph.canonical_url" /> }
-        <dl class="fh-kv">
-          <dt>Rent</dt><dd>{{ p['rent_sek'] ?? '?' }} kr</dd>
-          <dt>Rooms</dt><dd>{{ p['rooms_rok'] ?? '?' }} rok</dd>
-          <dt>Size</dt><dd>{{ p['size_m2'] ?? '?' }} m²</dd>
-          <dt>Score</dt><dd>@if (photos(); as ph) { <fh-score-tip [total]="ph.score?.total ?? p['score']" [breakdown]="ph.score?.breakdown" [rejected]="ph.score?.rejected_by" /> }
-            @else { {{ p['score'] == null ? '–' : (p['score'] | number: '1.2-2') }} }</dd>
-          <dt>Pets</dt><dd>{{ p['pet_status'] }}</dd>
-          <dt>Status</dt><dd>{{ p['status'] }}</dd>
-        </dl>
+        <div class="fh-ltip-pinned"><fh-listing-card [listing]="rowOf(p['short_id'])" /></div>
+        @if (photos(); as ph) { <fh-gallery class="mt-2 d-block" [compact]="true" [photos]="ph.photo_urls" [plans]="ph.floorplan_urls" [link]="ph.canonical_url" />
+          <div class="mt-2"><span class="small text-body-secondary me-1">Score</span>
+            <fh-score-tip [total]="ph.score?.total ?? p['score']" [breakdown]="ph.score?.breakdown" [rejected]="ph.score?.rejected_by" /></div> }
         <div class="d-flex gap-2 mt-2">
-          <button class="btn btn-sm btn-primary" (click)="open(p['short_id'])">Open listing</button>
-          <button class="btn btn-sm btn-outline-secondary" (click)="probeAt(p['lat'], p['lon'])">Test point here</button>
+          <button class="fh-btn-glow" (click)="open(p['short_id'])">Open listing</button>
+          <button class="fh-btn-ghost" (click)="state.selection.set(null)">Unpin</button>
         </div>
       }
       @case ('point') {
@@ -123,7 +80,6 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
             <div class="d-flex flex-wrap gap-1 align-items-center small mb-1"><span class="text-body-secondary me-1">{{ entry.label }}</span>
               @for (r of entry.refs; track r) { <span class="fh-ref" [style.background]="entry.color">{{ r }}</span> }</div>
           }
-          <button class="btn btn-sm btn-outline-secondary mt-2" (click)="probeAt(f.lngLat[1], f.lngLat[0])">Test point here</button>
         } @else if (f.kind === 'feature') {
           <h6 class="mb-1"><img [src]="icon(f.props['icon'], f.props['color'])" width="20" class="me-1" alt="" />{{ f.props['name'] ?? f.props['category_label'] }}</h6>
           <dl class="fh-kv">
@@ -131,15 +87,15 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
             @if (f.props['brand']) { <dt>Brand</dt><dd>{{ f.props['brand'] }}</dd> }
             @if (f.props['opening_hours']) { <dt>Hours</dt><dd>{{ f.props['opening_hours'] }}</dd> }
           </dl>
-          <button class="btn btn-sm btn-outline-secondary mt-2" (click)="probeAt(f.lngLat[1], f.lngLat[0])">Test point here</button>
         }
       }
     }
-    @if (sel()) { <hr class="my-3" /> }
-    <fh-probe-panel />
-  </ng-template>`,
+    @if (!sel()) { <div class="small text-body-secondary">Hover a house for its card, click it to pin it here. Click a station, a line or a place for its details.</div> }
+  </ng-template>
+  <div class="fh-ltip" [class.off]="!hover()" [style.top.px]="hover()?.top ?? -1000" [style.left.px]="hover()?.left ?? -1000">
+    <fh-listing-card [listing]="hover()?.row" />
+  </div>`,
   styles: [`
-    .fh-line { display: inline-block; width: 18px; height: 4px; border-radius: 2px; box-shadow: 0 0 0 1px #0006; }
     .fh-ref { display: inline-block; min-width: 22px; padding: 0 5px; border-radius: 4px; color: #fff; font-weight: 700; font-size: .78rem;
       text-align: center; text-shadow: 0 1px 1px #0008; }
     .fh-stops { font-size: .82rem; padding-left: 1.4rem; margin: 0; columns: 2; }
@@ -147,19 +103,25 @@ type ListingCard = Pick<Listing, 'photo_urls' | 'floorplan_urls' | 'canonical_ur
 })
 export class ExploreMode {
   protected state = inject(MapStateService);
-  protected poi = inject(PoiLayersService);
   protected transit = inject(TransitLayersService);
   private api = inject(ApiService);
   protected line = signal<TransitLine | null>(null);
   /** Photos of the selected listing: the map features do not carry them, so they are fetched once per listing. */
   protected photos = signal<ListingCard | null>(null);
   private photoCache = new Map<string, ListingCard>();
-  private probe = inject(ProbeService);
+  protected fs = inject(CandidateFiltersStore);
+  /** The homes as the Candidates list loads them (lat/lon, score, rejected_by …), by short id, for the cards. */
+  private rows = signal<Listing[]>([]);
+  private byId = computed(() => new Map(this.rows().map((r) => [r.short_id, r])));
+  /** The homes the shared filters keep: the markers. */
+  private kept = computed(() => applyAll(this.rows(), this.fs.filters(), this.fs.cats()));
+  protected shown = computed(() => this.kept().filter((r) => !r.rejected_by?.length).length);
+  protected hover = signal<{ row: Listing; top: number; left: number } | null>(null);
+  private hoverTimer: ReturnType<typeof setTimeout> | null = null;
   private layout = inject(LayoutService);
   private router = inject(Router);
-  private layersTpl = viewChild.required<TemplateRef<unknown>>('layersTpl');
   private legendTpl = viewChild.required<TemplateRef<unknown>>('legendTpl');
-  private savedTpl = viewChild.required<TemplateRef<unknown>>('savedTpl');
+  private listFiltersTpl = viewChild.required<TemplateRef<unknown>>('listFiltersTpl');
   private colourTpl = viewChild.required<TemplateRef<unknown>>('colourTpl');
   private filtersTpl = viewChild.required<TemplateRef<unknown>>('filtersTpl');
   private heatSettingsTpl = viewChild.required<TemplateRef<unknown>>('heatSettingsTpl');
@@ -167,11 +129,6 @@ export class ExploreMode {
   private fill = inject(ZoneFillService);
   private panelTpl = viewChild.required<TemplateRef<unknown>>('panelTpl');
   protected sel = computed(() => this.state.selection());
-  protected toggles: LayerToggle[] = [
-    { id: 'listings', label: 'Listings', icon: blipUrl('home', '#1f9d55') },
-    { id: 'listings-rejected', label: 'Rejected listings', icon: blipUrl('dot', '#e53e3e') },
-    { id: 'points', label: 'Your points', icon: blipUrl('pin', '#990ae3') },
-  ];
 
   constructor() {
     const destroy = inject(DestroyRef);
@@ -186,21 +143,34 @@ export class ExploreMode {
       });
     });
     afterNextRender(() => this.layout.register(destroy, [
+      { id: 'candidate-filters', title: 'Listing filters', tpl: this.listFiltersTpl() },
       { id: 'explore-colour', title: 'Colour zones by', tpl: this.colourTpl() },
-      { id: 'map-layers', title: 'Layers', tpl: this.layersTpl() },
-      { id: 'explore-filters', title: 'Listing filters', tpl: this.filtersTpl() },
+      { id: 'explore-filters', title: 'Heatmap listing filters', tpl: this.filtersTpl() },
       { id: 'explore-heat-settings', title: 'Heatmap settings', tpl: this.heatSettingsTpl() },
       { id: 'map-legend', title: 'Legend', tpl: this.legendTpl() },
-      { id: 'map-saved-probes', title: 'Test points (alpha)', tpl: this.savedTpl() },
     ], { title: 'Inspector', tpl: this.panelTpl() }));
     // the zone heatmap: redraw after a style reload, drop it when leaving Explore
     effect(() => { if (this.state.styleReady() && this.heat.view()) untracked(() => this.heat.draw()); });
     destroy.onDestroy(() => this.fill.clear());
+    // the markers: the homes the shared filters keep, redrawn on every filter change and after a style reload
+    effect(() => {
+      const kept = this.kept();
+      if (this.state.styleReady()) untracked(() => this.state.setData('listings', toGeo(kept)));
+    });
+    this.loadRows();
+    inject(ValueScaleStore).load();                 // the card's value colours
+    inject(SitesStore).load();
+    effect(() => { const map = this.state.map(); if (map) untracked(() => this.bindHover(map)); });
+    destroy.onDestroy(() => {
+      this.unbind?.();
+      this.api.mapListings().subscribe({ next: (g) => this.state.setData('listings', g), error: () => {} });   // the other modes show every home
+    });
     const view = inject(ActivatedRoute).snapshot.queryParamMap.get('view');
     if (view && view !== this.heat.view()) this.heat.setView(view);
   }
 
   protected icon(glyph: string | null | undefined, color: string | null | undefined): string { return blipUrl(glyph, color); }
+  protected house = houseUrl;
   private loadPhotos(id: string): void {
     const hit = this.photoCache.get(id);
     if (hit) { this.photos.set(hit); return; }
@@ -214,7 +184,37 @@ export class ExploreMode {
     });
   }
   protected open(id: string): void { this.router.navigate(['/candidates', id]); }
-  protected probeAt(lat: number, lon: number): void { this.probe.set(lat, lon); }
+  /** The homes the Candidates list would load (rejected ones too: they are their own layer), closed per the toggle. */
+  loadRows(): void {
+    this.api.listings({ closed: this.fs.hideClosed() ? 'exclude' : 'include' }).subscribe({
+      next: (r) => { this.rows.set(r.items); this.fs.base.set(r.items.filter((l) => !l.rejected_by?.length)); },
+      error: () => {},
+    });
+  }
+  protected rowOf(id: string): Listing | null { return this.byId().get(id) ?? null; }
+
+  private unbind: (() => void) | null = null;
+  /** Hovering a house shows its card next to the pointer (the Candidates hover card). */
+  private bindHover(map: import('maplibre-gl').Map): void {
+    this.unbind?.();
+    const move = (e: any) => {
+      const id = e.features?.[0]?.properties?.['short_id'];
+      const row = id ? this.byId().get(id) : null;
+      if (!row) return;
+      if (this.hover()?.row.short_id === row.short_id) return;
+      if (this.hoverTimer) clearTimeout(this.hoverTimer);
+      const x = e.originalEvent.clientX, y = e.originalEvent.clientY;
+      this.hoverTimer = setTimeout(() => {
+        const w = 380, h = 470, vw = window.innerWidth, vh = window.innerHeight;
+        this.hover.set({ row, left: x + 24 + w < vw ? x + 24 : Math.max(8, x - w - 24), top: Math.max(8, Math.min(y - 60, vh - h - 8)) });
+      }, 120);
+    };
+    const leave = () => { if (this.hoverTimer) clearTimeout(this.hoverTimer); this.hoverTimer = null; this.hover.set(null); };
+    const layers = ['listings', 'listings-halo', 'listings-rejected'];
+    for (const l of layers) { map.on('mousemove', l, move); map.on('mouseleave', l, leave); }
+    map.on('click', leave);
+    this.unbind = () => { for (const l of layers) { map.off('mousemove', l, move); map.off('mouseleave', l, leave); } map.off('click', leave); leave(); };
+  }
   protected stationLines(lines: Record<string, string[]>): { mode: string; label: string; color: string; refs: string[] }[] {
     const modes = this.transit.meta()?.modes ?? [];
     return Object.entries(lines ?? {}).map(([mode, refs]) => {
@@ -222,4 +222,13 @@ export class ExploreMode {
       return { mode, label: m?.label ?? mode, color: m?.color ?? '#8a8aa0', refs };
     });
   }
+}
+
+/** Listing rows as the map's listing features (the properties the marker layers read). */
+export function toGeo(rows: Listing[]): { type: 'FeatureCollection'; features: unknown[] } {
+  return { type: 'FeatureCollection', features: rows.filter((r) => r.lat != null && r.lon != null).map((r) => ({
+    type: 'Feature', geometry: { type: 'Point', coordinates: [r.lon, r.lat] },
+    properties: { short_id: r.short_id, status: r.status, rent_sek: r.rent_sek, rooms_rok: r.rooms_rok, size_m2: r.size_m2,
+      pet_status: r.pet_status, area: r.area, score: r.score ?? null, rejected_by: r.rejected_by ?? [] },
+  })) };
 }

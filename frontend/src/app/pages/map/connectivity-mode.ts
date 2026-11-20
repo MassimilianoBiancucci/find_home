@@ -7,13 +7,12 @@ import { LayoutService } from '../../services/layout.service';
 import { ConnectivityDecision, ConnectivityRoutesDialog } from './connectivity-dialogs';
 import { ConnectivityService, IDX_RAMP, RAMP, SCOPE_LABELS, STATUS_COLOURS } from './connectivity.service';
 import { MapStateService } from './map-state.service';
-import { ProbePanel } from './probe-panel';
 import { InfoButton } from '../../components/info';
 
 /** Connectivity mode: zones coloured by commute minutes to your points (one point or the weighted mix). */
 @Component({
   selector: 'fh-connectivity-mode',
-  imports: [DecimalPipe, RouterLink, ProbePanel, ConnectivityDecision, ConnectivityRoutesDialog, InfoButton],
+  imports: [DecimalPipe, RouterLink, ConnectivityDecision, ConnectivityRoutesDialog, InfoButton],
   template: `
   <ng-template #viewTpl>
     @if (conn.matrix(); as m) {
@@ -106,9 +105,7 @@ import { InfoButton } from '../../components/info';
             @else { <b>{{ r.minutes == null ? '–' : (r.minutes | number: '1.0-0') + '′' }}</b>@if (r.estimate) {<sup>~</sup>} }</div>
         }
       }
-      <hr class="my-3" />
     } @else { <div class="small text-body-secondary mb-3">Click a zone for its minutes per point and time window.</div> }
-    <fh-probe-panel />
   </ng-template>
   <fh-connectivity-decision />
   <fh-connectivity-routes />`,

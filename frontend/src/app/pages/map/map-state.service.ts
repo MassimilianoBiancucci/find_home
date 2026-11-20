@@ -20,7 +20,7 @@ export type Selection =
 
 const VIS_KEY = 'fh-map-visible';
 
-/** One MapLibre instance shared by the map modes, plus the state they share (visibility, selection, test point). */
+/** One MapLibre instance shared by the map modes, plus the state they share (visibility, selection). */
 @Injectable({ providedIn: 'root' })
 export class MapStateService {
   ml?: MapLib;
@@ -28,11 +28,13 @@ export class MapStateService {
   readonly styleReady = signal(0);                  // bumps after each style (re)load + groups re-applied
   readonly settings = signal<MapSettings | null>(null);
   readonly selection = signal<Selection | null>(null);
-  readonly testPoint = signal<{ lat: number; lon: number } | null>(null);
   readonly visible = signal<Record<string, boolean>>(this.readVisible());
   private groups = new Map<string, LayerGroup>();
   private data = new Map<string, unknown>();
   private loaded = false;                           // map.isStyleLoaded() is false while tiles load, so track the style ourselves
+  /** Until this time (ms, performance.now) a change of the map's height keeps its bottom edge in place, so the map
+   *  slides up and down with the Layers sheet under it instead of re-centring (set by the sheet as it moves). */
+  anchorBottomUntil = 0;
 
   /** True once the current style has loaded and groups can be added. */
   ready(): boolean { return this.loaded && this.map() !== null; }
@@ -96,6 +98,7 @@ export class MapStateService {
       map.addSource(id, stored && (spec as any).type === 'geojson' ? { ...(spec as any), data: stored } : spec);
     }
     const before = g.below ? this.firstLayerOf(map, g.below) : undefined;
+    if (g.below && !this.groups.has(g.below)) console.warn(`map group '${g.id}': below '${g.below}' is not a group id; drawn on top`);
     const vis = this.isVisible(g.id) ? 'visible' : 'none';
     for (const l of this.layersOf(g, map)) {
       if (map.getLayer(l.id)) continue;

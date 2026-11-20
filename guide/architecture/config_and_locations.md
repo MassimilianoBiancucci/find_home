@@ -112,7 +112,7 @@ min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (
 [`google.py`](../../backend/src/findhome/providers/google.py) (Routes API, minimal field mask),
 [`ors.py`](../../backend/src/findhome/providers/ors.py) (OpenRouteService walking: directions and matrix).
 
-## Points of interest and the test point
+## Points of interest
 
 [`poi.yaml`](../../config/poi.yaml) lists categories with OSM tags (`key=value`, `a|b` alternatives, `key~regex`,
 `key!=value`, `&` for conditions on one element; grammar in
@@ -123,12 +123,11 @@ min wait for transit), [`osm.py`](../../backend/src/findhome/providers/osm.py) (
 [`geo/store.py`](../../backend/src/findhome/geo/store.py) `load_poi` keeps an STRtree per category in
 EPSG:3006. POIs reach the score through the house analysis and the `services` group (see Scoring).
 
-The **test point** ([`domain/probe.py`](../../backend/src/findhome/domain/probe.py), `POST /api/probe`) answers
-for any spot: the area result, the 3 nearest places per category by walking minutes (5 straight-line candidates
-per category, one ORS matrix call for all of them, each pair cached in `routing_cache`, haversine × detour as
-fallback) and one ResRobot itinerary per enabled point (first trip, its first day type, the middle slot of its
-first window), cached by ~100 m origin cell. Saved, named test points (`probes` table, `/api/probes`) are an
-**alpha** feature; nothing else depends on them.
+[`domain/probe.py`](../../backend/src/findhome/domain/probe.py) gives the house page the nearest places per category by
+walking minutes (5 straight-line candidates per category, one ORS matrix call for all of them, each pair cached in
+`routing_cache`, haversine × detour as fallback) and one ResRobot itinerary per enabled point (first trip, its first
+day type, the middle slot of its first window), cached by ~100 m origin cell. The map's test points that first used it
+were removed (2026-11-20); the `probes` table of their saved points is kept but no longer used.
 
 ## Transit network
 
@@ -544,7 +543,7 @@ flowchart TD
 by the two buttons of the Transit routes bubble: `which=points` for your points
 ([`point_destinations()`](../../backend/src/findhome/domain/probe.py#L135)), `which=services` for the nearest target of each service set, reached on a
 weekday at `house.services_depart` (`all`, the default, does both). Itineraries go through [`trips_to()`](../../backend/src/findhome/domain/probe.py#L163) and are cached in `routing_cache` per ~100 m
-cell, like the test point's. With `dry=true` it returns only the number of calls not yet cached
+cell, like the house page's. With `dry=true` it returns only the number of calls not yet cached
 ([`uncached_trips()`](../../backend/src/findhome/domain/probe.py#L157)). `findhome listings location --all` warms the cache for every listing.
 
 ### Listing statistics per zone

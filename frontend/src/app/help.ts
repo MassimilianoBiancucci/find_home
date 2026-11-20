@@ -52,9 +52,6 @@ export const HELP: Record<string, HelpEntry> = {
     config: ['config/poi.yaml (service categories)', 'config/locations.yaml (your points)'],
   },
   'bubble.map-legend': { title: 'Legend', short: 'What the symbols and colours on the map mean.' },
-  'bubble.map-saved-probes': {
-    title: 'Test points', short: 'Saved test points: spots you analysed with "Test point here" (services nearby, transit to your points).',
-  },
   'bubble.conn-view': {
     title: 'View', short: 'What colours the zones: travel minutes to one of your points, the weighted mix of all points, or the transport index.',
     config: ['config/locations.yaml (points and trips)', 'config/time_model.yaml (time windows)'],
@@ -115,7 +112,7 @@ export const HELP: Record<string, HelpEntry> = {
   },
 
   // ── Right panels ──────────────────────────────────────────────────────────────────────
-  'panel.Inspector': { title: 'Inspector', short: 'Details of what you clicked on the map, and the test point analysis.' },
+  'panel.Inspector': { title: 'Inspector', short: 'Details of what you clicked on the map. In Explore, a clicked house pins its card here (the same card as on hovering).' },
   'panel.Connectivity': { title: 'Connectivity', short: 'The selected zone\'s travel minutes to each of your points, per window, with the route status.' },
   'panel.Zone': { title: 'Zone', short: 'The selected zone\'s indices, walking access to stops and services, lines and nearby zones.' },
   'panel.Area': { title: 'Area', short: 'How the selected place scores against your search area.' },
