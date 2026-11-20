@@ -8,7 +8,7 @@ import {
   RunsTimeline, ScanRunDetail, AreaResult, AreaState, CommuteRow, ConfigFile, ConfigStatus, ConnectivityJob, ConnectivityMatrix, ConnectivityMinutes,
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, HouseLocation, Listing, ListingDetail, TransitResult, ZoneStats,
-  PoiCategory, ProbeResult, SavedProbe, Site, TransitLine, TransitMeta, ZoneCommute,
+  PoiCategory, Site, TransitLine, TransitMeta, ZoneCommute,
   IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef, CancelResult } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
@@ -120,11 +120,6 @@ export class ApiService {
 
   poiCategories() { return this.http.get<PoiCategory[]>('/api/geo/poi/categories'); }
   poi(categories: string[]) { return this.http.get<GeoCollection>('/api/geo/poi', { params: { categories: categories.join(',') } }); }
-  probe(lat: number, lon: number, trips = true) { return this.http.post<ProbeResult>('/api/probe', { lat, lon, trips }); }
-  savedProbes() { return this.http.get<SavedProbe[]>('/api/probes'); }
-  saveProbe(body: { name: string; lat: number; lon: number; note?: string }) { return this.http.post<SavedProbe>('/api/probes', body); }
-  renameProbe(id: string, name: string) { return this.http.patch<SavedProbe>(`/api/probes/${id}`, { name }); }
-  deleteProbe(id: string) { return this.http.delete<void>(`/api/probes/${id}`); }
 
   transitMeta() { return this.http.get<TransitMeta>('/api/geo/transit'); }
   transitLayer(name: string) { return this.http.get<GeoCollection>(`/api/geo/transit/${name}`); }

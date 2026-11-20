@@ -54,7 +54,7 @@ free and that upgrading a key is free.
 ### Which key do I need?
 
 **One key: ResRobot v2.1.** The app calls only its route planner (`/v2.1/trip`, used for commute times and the
-test point's itineraries). Trafiklab states that one ResRobot v2.1 key covers all four of its endpoints (route
+house page's itineraries). Trafiklab states that one ResRobot v2.1 key covers all four of its endpoints (route
 planner, stop lookup, nearby stops, timetables), so you never need more than one ResRobot key.
 
 Trafiklab asks for three different things when you set up a project. Only the second one is a choice about the key.
@@ -152,7 +152,7 @@ active yet.
 
 ## OpenRouteService (`ORS_API_KEY`)
 
-Optional. Gives real walking minutes (the map's test point and commute runs, `routing.ors`) and address suggestions
+Optional. Gives real walking minutes (the house page and commute runs, `routing.ors`) and address suggestions
 while you type in Locations (Nominatim forbids autocomplete). Without it, walking minutes are straight-line
 estimates (×1.3 detour) marked `~` and suggestions come from Photon.
 

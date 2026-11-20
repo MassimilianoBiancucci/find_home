@@ -7,7 +7,6 @@ import { ThemeService } from '../../services/theme.service';
 import { blipExpr, installBlip, installObject, installPin } from '../../components/map-icons';
 import { applyDarkWater } from './dark-style';
 import { MapLib, MapStateService } from './map-state.service';
-import { ProbeService } from './probe.service';
 import { PoiLayersService } from './poi-layers.service';
 import { TransitLayersService } from './transit-layers.service';
 import { ConnectivityService } from './connectivity.service';
@@ -21,6 +20,10 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
  * The shell owns the base layers (listings, your points, 3D buildings) and swaps the base style with the colour mode.
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
+/** A listing's score colour on the map (the same steps as its house icon). */
+const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
+  ['step', ['to-number', ['get', 'score'], 0], '#e53e3e', 0.5, '#d69e2e', 0.75, '#1f9d55']];
+
 @Component({
   selector: 'fh-map-shell',
   imports: [RouterOutlet, RouterLink, RouterLinkActive, MapContextMenu],
@@ -34,15 +37,11 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
         <a routerLink="zone" routerLinkActive="on">Zone</a>
       </div>
       <button class="btn btn-sm btn-outline-secondary" (click)="toggle3d()">{{ tilted() ? '2D' : '3D tilt' }}</button>
-      <button class="btn btn-sm" [class.btn-primary]="probe.picking()" [class.btn-outline-primary]="!probe.picking()"
-        title="Click the map to drop a test point (or right-click → Set test point here)" (click)="probe.picking.set(!probe.picking())">
-        {{ probe.picking() ? 'Click the map…' : 'Test point' }}</button>
-      @if (state.testPoint()) { <button class="btn btn-sm btn-link p-0" (click)="probe.clear()">clear test point</button> }
       @if (missing().length) { <span class="small text-warning" title="Set an address or coords in Locations">no coords: {{ missing().join(', ') }}</span> }
       @if (error()) { <span class="small text-danger">{{ error() }}</span> }
     </div>
     <div class="fh-map-wrap">
-      <div #mapEl class="fh-map" [class.picking]="probe.picking()"></div>
+      <div #mapEl class="fh-map"></div>
       <fh-map-context-menu />
       @if (conn.hover(); as h) {
         <div class="fh-hover">
@@ -66,14 +65,12 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
       padding: 5px 10px; border-radius: 8px; font-size: .8rem; background: rgba(20, 20, 24, .86); color: #f2f2f7;
       border: 1px solid rgba(192, 132, 252, .5); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); pointer-events: none;
       .w { color: #d8b4fe; font-weight: 600; } }
-    .fh-map.picking { cursor: crosshair; }
   `],
 })
 export class MapShell {
   private api = inject(ApiService);
   private theme = inject(ThemeService);
   protected state = inject(MapStateService);
-  protected probe = inject(ProbeService);
   private poiLayers = inject(PoiLayersService);
   private transit = inject(TransitLayersService);
   protected conn = inject(ConnectivityService);
@@ -89,7 +86,6 @@ export class MapShell {
     const destroy = inject(DestroyRef);
     afterNextRender(() => void this.init(destroy));
     this.menu.register(destroy, [
-      { id: 'test-point', order: 10, label: () => 'Set test point here', run: (c) => this.probe.set(c.lat, c.lon) },
       { id: 'zone-view', order: 20, label: (c) => (c.zone ? `Open zone view: ${c.zone.name}` : 'Open zone view'),
         enabled: (c) => !!c.zone, run: (c) => void this.router.navigate(['/map/zone', c.zone!.id]) },
     ]);
@@ -140,11 +136,6 @@ export class MapShell {
           this.state.reapply();
         });
         map.on('styleimagemissing', (e) => { installBlip(map, e.id); installPin(map, e.id); installObject(map, e.id); });
-        map.on('click', (e) => {
-          if (!this.probe.picking()) return;
-          this.probe.picking.set(false);
-          this.probe.set(e.lngLat.lat, e.lngLat.lng);
-        });
         map.on('contextmenu', (e) => {
           e.preventDefault();
           const { lat, lng } = e.lngLat;
@@ -153,7 +144,6 @@ export class MapShell {
         });
         map.on('movestart', () => this.menu.close());
         this.addBaseLayers(map, pts, lst);
-        this.probe.install();
         this.poiLayers.install();
         this.transit.install();
         this.conn.installTint();
@@ -179,17 +169,26 @@ export class MapShell {
     this.state.addGroup({
       id: 'listings',
       sources: { listings: { type: 'geojson', data: lst } },
-      layers: [{
-        id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
-        layout: { 'icon-allow-overlap': true, 'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.7, 15, 1.05],
-          'icon-image': ['case', ['==', ['get', 'score'], null], 'blip:home:888888',
-            ['step', ['to-number', ['get', 'score'], 0], 'blip:home:e53e3e', 0.5, 'blip:home:d69e2e', 0.75, 'blip:home:1f9d55']] },
-      } as any],
+      layers: [
+        // a glowing disc in the score colour with a white ring under each house: visible on any base map or zone tint
+        { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
+          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 9, 13, 14, 16, 20],
+            'circle-opacity': 0.35, 'circle-blur': 0.35, 'circle-stroke-color': '#ffffff',
+            'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 9, 1.2, 15, 2.2], 'circle-stroke-opacity': 0.9,
+            'circle-pitch-alignment': 'map' } },
+        { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
+          layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true,
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.95, 13, 1.25, 16, 1.6],
+            'icon-image': ['case', ['==', ['get', 'score'], null], 'blip:home:888888',
+              ['step', ['to-number', ['get', 'score'], 0], 'blip:home:e53e3e', 0.5, 'blip:home:d69e2e', 0.75, 'blip:home:1f9d55']] },
+        } as any,
+      ],
     });
     this.state.addGroup({
       id: 'listings-rejected',
       layers: [{ id: 'listings-rejected', type: 'circle', source: 'listings', filter: ['!', scored] as any,
-        paint: { 'circle-radius': 5, 'circle-color': '#e53e3e', 'circle-opacity': 0.4 } }],
+        paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 15, 7], 'circle-color': '#e53e3e', 'circle-opacity': 0.7,
+          'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.8 } }],
     });
     if (this.state.visible()['listings-rejected'] === undefined) this.state.setVisible('listings-rejected', false);
     this.state.addGroup({
@@ -210,8 +209,10 @@ export class MapShell {
       this.state.selection.set({ kind, props: { ...f.properties, lat, lon } });
     };
     map.on('click', 'listings', select('listing'));
+    map.on('click', 'listings-halo', select('listing'));
+    map.on('click', 'listings-rejected', select('listing'));
     map.on('click', 'points-mark', select('point'));
-    for (const id of ['listings', 'points-mark']) {
+    for (const id of ['listings', 'listings-halo', 'listings-rejected', 'points-mark']) {
       map.on('mouseenter', id, () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', id, () => (map.getCanvas().style.cursor = ''));
     }

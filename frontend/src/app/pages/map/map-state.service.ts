@@ -20,7 +20,7 @@ export type Selection =
 
 const VIS_KEY = 'fh-map-visible';
 
-/** One MapLibre instance shared by the map modes, plus the state they share (visibility, selection, test point). */
+/** One MapLibre instance shared by the map modes, plus the state they share (visibility, selection). */
 @Injectable({ providedIn: 'root' })
 export class MapStateService {
   ml?: MapLib;
@@ -28,7 +28,6 @@ export class MapStateService {
   readonly styleReady = signal(0);                  // bumps after each style (re)load + groups re-applied
   readonly settings = signal<MapSettings | null>(null);
   readonly selection = signal<Selection | null>(null);
-  readonly testPoint = signal<{ lat: number; lon: number } | null>(null);
   readonly visible = signal<Record<string, boolean>>(this.readVisible());
   private groups = new Map<string, LayerGroup>();
   private data = new Map<string, unknown>();

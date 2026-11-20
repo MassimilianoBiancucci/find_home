@@ -10,7 +10,6 @@ import { LayoutService } from '../../services/layout.service';
 import { ZoneGeoStore } from '../../services/zone-geo.store';
 import { DEFAULT_REACH, ReachSplit, reachLabel, reachMinutes, reachSplit } from './area-reach';
 import { MapStateService } from './map-state.service';
-import { ProbePanel } from './probe-panel';
 
 type Tool = 'pan' | 'zones' | 'reach' | 'brush' | 'erase' | 'lasso' | 'circle' | 'polygon';
 interface ZoneNode { id: string; name: string; km2: number; }
@@ -29,7 +28,7 @@ const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
  */
 @Component({
   selector: 'fh-area-mode',
-  imports: [FormsModule, DecimalPipe, NgTemplateOutlet, ProbePanel],
+  imports: [FormsModule, DecimalPipe, NgTemplateOutlet],
   styles: [`
     .fh-tools { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
     .fh-tool { font-size: .78rem; padding: 4px 2px; border-radius: 6px; border: 1px solid var(--bs-border-color); background: transparent;
@@ -206,8 +205,6 @@ const EMPTY: GeoCollection = { type: 'FeatureCollection', features: [] };
         }
       }
     } @else { <div class="small text-body-secondary mt-3">Click a listing to see how the saved area scores it.</div> }
-    <hr class="my-3" />
-    <fh-probe-panel />
   </ng-template>`,
 })
 export class AreaMode {
@@ -512,7 +509,7 @@ export class AreaMode {
   private setupMap(): void {
     const map = this.state.map()!;
     this.state.addGroup({
-      id: 'area-zones', below: 'listings',
+      id: 'area-zones', below: 'listings-halo',
       sources: { 'area-zones': { type: 'geojson', data: EMPTY as any, promoteId: 'zone_id' } },
       layers: (style) => [
         { id: 'area-zones-fill', type: 'fill', source: 'area-zones',
@@ -525,7 +522,7 @@ export class AreaMode {
       ],
     });
     this.state.addGroup({
-      id: 'area-shapes', below: 'listings',
+      id: 'area-shapes', below: 'listings-halo',
       sources: { 'area-shapes': { type: 'geojson', data: EMPTY as any } },
       layers: [
         { id: 'area-shapes-fill', type: 'fill', source: 'area-shapes',
@@ -536,7 +533,7 @@ export class AreaMode {
       ],
     });
     this.state.addGroup({
-      id: 'area-outline', below: 'listings',
+      id: 'area-outline', below: 'listings-halo',
       sources: { 'area-outline': { type: 'geojson', data: EMPTY as any } },
       layers: [{ id: 'area-outline', type: 'line', source: 'area-outline', paint: { 'line-color': '#ffffff', 'line-width': 2, 'line-opacity': 0.9 } }],
     });

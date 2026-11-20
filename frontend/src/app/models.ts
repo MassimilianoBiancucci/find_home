@@ -289,14 +289,6 @@ export interface ProbeTrip {
   minutes: number | null; depart?: string | null; arrive?: string | null; transfers?: number | null; legs: ProbeLeg[];
   est: boolean; cached?: boolean; error?: string;
 }
-export interface ProbeResult {
-  lat: number; lon: number;
-  area: Partial<AreaResult> & { defined: boolean };
-  pois: { categories: { category: string; label: string; icon: string | null; color: string | null; max_walk_min: number | null;
-    within: boolean; items: PoiHit[] }[]; not_fetched: string[]; walk_error: string | null };
-  trips: ProbeTrip[];
-}
-export interface SavedProbe { id: string; name: string; lat: number; lon: number; note: string | null; created_at: string; }
 export interface TransitMode { mode: string; label: string; color: string; count: number; }
 export interface TransitMeta { built: boolean; source?: 'gtfs' | 'osm'; built_at?: string; stations?: number; modes: TransitMode[]; }
 export interface TransitLine { mode: string; ref: string; colour: string | null; length_km: number; stations: string[]; }

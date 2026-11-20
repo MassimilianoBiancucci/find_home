@@ -933,3 +933,6 @@ a.fh-chipf { text-decoration: none; }
   .fh-cols-view-x { padding: 1px 6px; opacity: .6; &:hover { opacity: 1; } }
   &.sel { background: linear-gradient(135deg, #c86bff, #990ae3); box-shadow: 0 0 10px rgba(153, 10, 227, .5);
     button { color: #fff; } } }
+// the listing card pinned in the Explore Inspector (the hover card, fixed in place)
+.fh-ltip-pinned { padding: 10px; border-radius: 10px; border: 1px solid var(--bs-border-color); background: var(--bs-body-bg);
+  box-shadow: 0 0 0 2px var(--fh-violet-soft), 0 6px 18px -8px rgba(153, 10, 227, .5); font-size: .82rem; }
