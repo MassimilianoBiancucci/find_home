@@ -83,7 +83,7 @@ def test_value_scale_keeps_listings_in_the_running_and_reads_the_targets():
     assert f["rent_sek"]["limit"] == 12000 and f["rent_sek"]["ideal"] == 9000           # 0.75 × max, as the cost group
     assert f["size_m2"]["ideal"] == 50 and f["rooms_rok"]["limit"] == 2
     assert f["rent_per_m2"]["values"] == [200.0, 200.0]
-    assert s["move_in"] == {"from": None, "to": None}
+    assert s["move_in"] == {"from": None, "to": None, "slack_days": None}
 
 
 def test_value_scale_carries_the_move_in_window():
@@ -92,8 +92,8 @@ def test_value_scale_carries_the_move_in_window():
     from findhome.domain.value_scale import value_scale
 
     prof = KindProfile.model_validate({"enabled": True, "hard_filters": {"move_in_from": dt.date(2030, 3, 1), "move_in_to": "2030-06-30"}})
-    assert value_scale([], prof)["move_in"] == {"from": "2030-03-01", "to": "2030-06-30"}
-    assert value_scale([], None)["move_in"] == {"from": None, "to": None}
+    assert value_scale([], prof)["move_in"] == {"from": "2030-03-01", "to": "2030-06-30", "slack_days": None}
+    assert value_scale([], None)["move_in"] == {"from": None, "to": None, "slack_days": None}
 
 
 def test_transport_and_services_groups_hold_the_commute_and_flag_estimates(tmp_repo):
@@ -109,3 +109,23 @@ def test_transport_and_services_groups_hold_the_commute_and_flag_estimates(tmp_r
     assert bd["commute"]["score"] is None and "transport" in bd["commute"]["why"]           # not counted twice
     no_reach = score_listing(b, L, commute, {**loc, "reach": None, "estimated": False})["breakdown"]
     assert no_reach["commute"]["score"] is not None and "estimated" not in no_reach["transport"]
+
+
+def test_move_in_slack_edges():
+    hf = {"move_in_from": "2027-01-01", "move_in_to": "2027-06-01", "move_in_from_slack_days": 30}
+    fails = lambda d: hard_filter_failures(hf, {"available_from": d}, [])    # noqa: E731
+    assert fails("2026-12-02") == []                       # exactly from − 30 days
+    assert fails("2026-12-01") == ["move_in_from_slack"]   # one day earlier
+    assert fails(None) == []                               # unknown passes (an issue, not a rejection)
+    assert hard_filter_failures({**hf, "move_in_from_slack_days": None}, {"available_from": "2020-01-01"}, []) == []
+
+
+def test_space_blends_rooms_when_an_ideal_is_set():
+    from findhome.domain.scoring import _space
+
+    p, hf = {"ideal_size_m2": 55, "ideal_rooms_rok": 2}, {"min_size_m2": 40, "min_rooms_rok": 1}
+    assert round(_space(p, hf, {"size_m2": 50, "rooms_rok": 1})[0], 2) == 0.47
+    assert round(_space(p, hf, {"size_m2": 50, "rooms_rok": 2})[0], 2) == 0.77
+    assert round(_space(p, hf, {"size_m2": 55, "rooms_rok": 2})[0], 2) == 1.0
+    assert round(_space(p, hf, {"size_m2": 50, "rooms_rok": None})[0], 2) == 0.67    # unknown rooms: size only
+    assert round(_space({"ideal_size_m2": 55}, hf, {"size_m2": 50, "rooms_rok": 1})[0], 2) == 0.67

@@ -38,11 +38,14 @@ def targets(prof: KindProfile | None) -> dict[str, dict[str, Any]]:
     }
 
 
-def move_in(prof: KindProfile | None) -> dict[str, str | None]:
-    """Your move-in window as ISO dates (None when not set): after `to` is a hard-filter rejection."""
+def move_in(prof: KindProfile | None) -> dict[str, Any]:
+    """Your move-in window as ISO dates (None when not set): after `to` is a hard-filter rejection, and so is a date
+    more than `slack_days` before `from` (move_in_from_slack_days)."""
     hf = prof.hard_filters if prof else {}
     iso = lambda v: None if v in (None, "") else str(v)[:10]          # YAML may give a date object
-    return {"from": iso(hf.get("move_in_from")), "to": iso(hf.get("move_in_to"))}
+    slack = hf.get("move_in_from_slack_days")
+    return {"from": iso(hf.get("move_in_from")), "to": iso(hf.get("move_in_to")),
+            "slack_days": int(slack) if slack is not None else None}
 
 
 def in_running(row: dict[str, Any]) -> bool:

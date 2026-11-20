@@ -297,6 +297,11 @@
             "max_pages": {
               "type": "integer",
               "minimum": 1
+            },
+            "page_size": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "cards per result page: a page with fewer is the last"
             }
           },
           "additionalProperties": false
@@ -304,10 +309,19 @@
         "details": {
           "type": "object",
           "additionalProperties": false,
-          "description": "Optional detail-page enrichment for NEW listings (needs a site scanner.py with enrich())",
+          "description": "Optional listing-page reads in the scan (needs a site scanner.py with enrich()): NEW listings only, or with only_passing every listing that passes the hard filters and lacks a page read",
           "properties": {
             "enabled": {
               "type": "boolean"
+            },
+            "only_passing": {
+              "type": "boolean",
+              "description": "Read the page of every listing that passes the hard filters and is new, has no page read, or one older than refresh_days"
+            },
+            "refresh_days": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "With only_passing: read a listing's page again after this many days (default 30)"
             },
             "max_per_run": {
               "type": "integer",
@@ -325,6 +339,27 @@
               "number",
               "boolean"
             ]
+          }
+        },
+        "url_filter_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "When filter_map params go into the search URL. The volume rule: read everything a site lists while it fits the page cap and filter in the database; send URL filters only when the unfiltered set is over the cap. Pet and date filters are never sent (scanning/filters.py).",
+          "properties": {
+            "mode": {
+              "enum": [
+                "never",
+                "when_over_cap"
+              ]
+            },
+            "expected_total_unfiltered": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "the site's count without URL filters, when measured"
+            },
+            "measured": {
+              "type": "string"
+            }
           }
         }
       },
@@ -382,6 +417,54 @@
           "items": {
             "type": "string"
           }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ad_status": {
+      "type": "object",
+      "description": "How the site says an ad is closed (applications over, let, removed, gone). Scripted sites: feed and page rules read by the app; browser sites: the rules live in sites/<slug>/status_check.js.",
+      "properties": {
+        "feed_complete_min": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "a full feed with fewer ads is treated as broken and closes nothing"
+        },
+        "feed_missing_status": {
+          "enum": [
+            "applications_closed",
+            "removed",
+            "not_found"
+          ],
+          "description": "status of an open or unknown source missing from a complete feed"
+        },
+        "removed_url": {
+          "type": "string",
+          "description": "a final URL containing this text means the ad was removed"
+        },
+        "box_selector": {
+          "type": "string",
+          "description": "CSS selector of the page's status text"
+        },
+        "box": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": [
+              "open",
+              "applications_closed",
+              "rented",
+              "removed",
+              "not_found"
+            ]
+          },
+          "description": "status text prefix → status (Swedish, as on the page)"
+        },
+        "check_script": {
+          "type": "string",
+          "description": "browser sites: the status script the agent runs (status_check.js)"
+        },
+        "note": {
+          "type": "string"
         }
       },
       "additionalProperties": false

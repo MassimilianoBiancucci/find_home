@@ -8,6 +8,18 @@
 #  The agent CLI must be installed and logged in on this machine.
 #  Verify the exact flags of your CLI version before first use.
 # ─────────────────────────────────────────────────────────────
+# Estimated $ per million tokens, used only for a run that ends without a result event (cancelled, timed out,
+# orphaned); the result event's own cost always wins. List prices of the Claude API (2026-11), cache writes at
+# 1.25× (5 min) and 2× (1 h) input. Haiku 5.5: prompts up to 100K tokens; its cache read is 0.1× input (not listed).
+prices:
+  claude-opus-5-5:   {input: 4.0, output: 20.0, cache_read: 0.20, cache_write_5m: 5.0, cache_write_1h: 8.0}
+  claude-sonnet-5-5: {input: 2.0, output: 10.0, cache_read: 0.10, cache_write_5m: 2.5, cache_write_1h: 4.0}
+  claude-haiku-5-5:  {input: 0.10, output: 0.50, cache_read: 0.01, cache_write_5m: 0.125, cache_write_1h: 0.20}
+# How long an ad's status (open, let, removed …) stays trusted: a source whose status a scan or a status check last
+# confirmed more than this many days ago is stale. The status job's default subset takes stale sources, and the
+# Candidates list marks their rows with a clock icon.
+ad_status:
+  stale_after_days: 7
 profiles:
   pet_agent_check:
     label: Browser agent - check pet policies (job)
@@ -35,16 +47,88 @@ profiles:
     max_turns: 10
     turns_per: {param: n, turns: 5}
     args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
            "--output-format", "stream-json", "--verbose"]
     launchers: [cli, vscode]
     timeout_min: 40
     env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
+  listing_details:
+    label: Browser agent - read listing pages (details job)
+    kind: job
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/listing_details.md exactly,
+      with job_run={job_run} n={n} run={run_id} api={api}.
+    params:
+      job_run: {type: job_run, required: true}
+      n: {type: int, min: 1, max: 60, default: 30}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: sonnet, label: Model}
+    allowed_tools:
+      - Read
+      - Write(./runs/details/**)
+      - Edit(./runs/details/**)
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__get_page_text
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Bash(scripts/findhome jobs next:*)
+      - Bash(scripts/findhome jobs submit:*)
+      - Bash(scripts/findhome jobs post-detail:*)
+    max_turns: 12
+    turns_per: {param: n, turns: 6}
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 60
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
+  listing_status:
+    label: Browser agent - check whether ads are still open (status job)
+    kind: job
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/listing_status.md exactly,
+      with job_run={job_run} n={n} run={run_id} api={api}.
+    params:
+      job_run: {type: job_run, required: true}
+      n: {type: int, min: 1, max: 80, default: 40}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: sonnet, label: Model}
+    allowed_tools:
+      - Read
+      - Write(./runs/status/**)
+      - Edit(./runs/status/**)
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Bash(scripts/findhome jobs next:*)
+      - Bash(scripts/findhome jobs post-detail:*)
+    max_turns: 12
+    turns_per: {param: n, turns: 4}
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 60
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   claude_scan:
     label: Claude Code - scan for new listings
     kind: scan
     command: claude
-    args: ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
+    args: ["-p", "{prompt}", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--output-format", "stream-json", "--verbose"]
     prompt_file: .agents/skills/find-home/prompts/run_scan.md
     timeout_min: 45
     env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
@@ -52,7 +136,9 @@ profiles:
     label: Claude Code - evaluate new listings
     kind: evaluate
     command: claude
-    args: ["-p", "{prompt}", "--output-format", "stream-json", "--verbose"]
+    args: ["-p", "{prompt}", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--output-format", "stream-json", "--verbose"]
     prompt_file: .agents/skills/find-home/prompts/run_evaluate.md
     timeout_min: 30
     env_passthrough: [PATH, HOME, ANTHROPIC_API_KEY]
@@ -69,7 +155,7 @@ profiles:
     command: claude
     prompt: >-
       Use the find-home skill: follow .agents/skills/find-home/prompts/browser_scan_site.md exactly,
-      with site={site} pages={pages} run={run_id}.
+      with site={site} pages={pages} run={run_id} api={api}.
     params:
       site: {type: site, required: true, site_needs: browser}
       pages: {type: int, min: 1, from_site: browser_pages}
@@ -80,21 +166,49 @@ profiles:
       - mcp__claude-in-chrome__tabs_create_mcp
       - mcp__claude-in-chrome__navigate
       - mcp__claude-in-chrome__javascript_tool
-      - mcp__claude-in-chrome__find
-      - mcp__claude-in-chrome__form_input
-      - mcp__claude-in-chrome__computer
       - mcp__claude-in-chrome__tabs_close_mcp
       - Bash(scripts/findhome run attach:*)
       - Bash(scripts/findhome run close:*)
-      - Write(./inbox/**)
-      - Edit(./inbox/**)
-    max_turns: 40               # room for search inputs (e.g. 5 move-in dates × date picker clicks)
-    turns_per: {param: pages, turns: 12}   # per page: next-page click + extract + file, for every input set
+    max_turns: 12
+    turns_per: {param: pages, turns: 3}    # per page: navigate + extract.js (it posts the page to the app)
     args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
            "--output-format", "stream-json", "--verbose"]
     launchers: [cli, vscode]
     timeout_min: 30
+    env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
+  site_field_report:
+    label: Browser agent - field report of a site (every field, coverage, ad status)
+    kind: onboarding
+    command: claude
+    prompt: >-
+      Use the find-home skill: follow .agents/skills/find-home/prompts/site_field_report.md exactly for site={site}
+      (run={run_id}), picking 3-5 listing pages of different types from the site's search page. Start with
+      `scripts/findhome run attach {run_id}`; end with `scripts/findhome run close --run {run_id} --outcome
+      ok|partial|failed --summary "<3-6 lines>"`.
+    params:
+      site: {type: site, required: true, site_needs: not_origin}
+      model: {type: choice, choices: [haiku, sonnet, opus], default: opus, label: Model}
+    allowed_tools:
+      - Read
+      - mcp__claude-in-chrome__tabs_context_mcp
+      - mcp__claude-in-chrome__tabs_create_mcp
+      - mcp__claude-in-chrome__navigate
+      - mcp__claude-in-chrome__javascript_tool
+      - mcp__claude-in-chrome__find
+      - mcp__claude-in-chrome__tabs_close_mcp
+      - Bash(scripts/findhome run attach:*)
+      - Bash(scripts/findhome run close:*)
+      - Write(./sites/*/reports/**)
+      - Edit(./sites/*/reports/**)
+    max_turns: 60
+    args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
+           "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
+           "--output-format", "stream-json", "--verbose"]
+    launchers: [cli, vscode]
+    timeout_min: 45
     env_passthrough: [PATH, HOME, USER, LOGNAME, TMPDIR, LANG]
   site_onboarding:
     label: Browser agent - onboard or repair a site (Claude in Chrome)
@@ -134,6 +248,7 @@ profiles:
       - Edit(./runs/**)
     max_turns: 80
     args: ["-p", "{prompt}", "--model", "{model}", "--chrome", "--strict-mcp-config", "--session-id", "{session_id}",
+           "-n", "findhome-{profile}-{run_short}",
            "--permission-mode", "dontAsk", "--allowedTools", "{allowed_tools}", "--max-turns", "{max_turns}",
            "--output-format", "stream-json", "--verbose"]
     launchers: [vscode, cli]

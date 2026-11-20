@@ -10,6 +10,7 @@ import asyncio
 import importlib.util
 import logging
 import time
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from urllib.parse import urlparse
 from urllib.robotparser import RobotFileParser
@@ -67,27 +68,68 @@ async def robots_allows(url: str, user_agent: str) -> bool:
         return True
 
 
-async def enrich_new(conn, site: SiteConfig, scanner, items: list[ListingIn], limit: int | None = None) -> int:
-    """Detail-page enrichment for listings not seen before (scanner.enrich), capped and polite."""
+def passes_hard_filters(bundle: ConfigBundle, item: ListingIn) -> bool:
+    """The profile's hard filters on what the list gave (rent, size, rooms, contract, search area), before any page
+    is read. Commute is left out: it needs a commute run, and it is not what keeps a listing out today."""
+    from findhome.domain.scoring import evaluate_area, hard_filter_failures
+
+    prof = bundle.profile.kinds.get(item.listing_kind)
+    if prof is None:
+        return False
+    listing = item.model_dump(mode="json")
+    return not hard_filter_failures(prof.hard_filters, listing, [], evaluate_area(bundle, listing))
+
+
+def _stale(checked_at: str | None, refresh_days: int) -> bool:
+    if not checked_at:
+        return True
+    try:
+        when = datetime.fromisoformat(checked_at)
+    except ValueError:
+        return True
+    return datetime.now(UTC) - (when if when.tzinfo else when.replace(tzinfo=UTC)) > timedelta(days=refresh_days)
+
+
+async def enrich_details(conn, bundle: ConfigBundle, site: SiteConfig, scanner, items: list[ListingIn],
+                         limit: int | None = None, refresh: bool = False) -> dict[str, int]:
+    """Listing-page reads (scanner.enrich), polite and capped. With fetch.details.only_passing, every listing that
+    passes the hard filters and is new, or has no page read (attributes.details_checked_at), or one older than
+    refresh_days (any age with `refresh`, after a parser fix); otherwise only listings not seen before. An enriched item is marked so ingest stores the page data
+    even when the list view is unchanged."""
     cfg = site.fetch.get("details") or {}
+    counts = {"details_read": 0, "details_failed": 0, "details_skipped_cap": 0}
     if not cfg.get("enabled") or not hasattr(scanner, "enrich"):
-        return 0
+        return counts
     cap = int(cfg.get("max_per_run", 10)) if limit is None else limit
-    done = 0
+    only_passing, refresh_days = bool(cfg.get("only_passing")), int(cfg.get("refresh_days", 30))
+    attempted = 0
     for i, item in enumerate(items):
-        if done >= cap:
-            break
-        if await repo.source_exists(conn, site.slug, item.source.external_id):
+        stored = await repo.source_attributes(conn, site.slug, item.source.external_id)
+        if only_passing:
+            if not passes_hard_filters(bundle, item):
+                continue
+            if stored is not None and not refresh and not _stale(stored.get("details_checked_at"), refresh_days):
+                continue
+        elif stored is not None:
             continue
-        if done:
+        if attempted >= cap:
+            counts["details_skipped_cap"] += 1
+            continue
+        if attempted:
             await asyncio.sleep(float(site.politeness.get("min_delay_s", 3)))
+        attempted += 1
         try:
-            item.attributes["_list_hash"] = content_hash(item)
-            items[i] = await scanner.enrich(item)
-            done += 1
+            list_hash = content_hash(item)
+            known = (stored or {}).get("floorplans") or []
+            enriched = await (scanner.enrich(item, known) if only_passing else scanner.enrich(item))
+            enriched.attributes["_list_hash"] = list_hash
+            enriched.attributes["_details"] = True
+            items[i] = enriched
+            counts["details_read"] += 1
         except Exception as exc:  # noqa: BLE001 - enrichment is best effort
+            counts["details_failed"] += 1
             log.warning("%s: enrich %s failed: %s", site.slug, item.source.external_id, exc)
-    return done
+    return counts
 
 
 async def collect(site: SiteConfig, bundle: ConfigBundle, max_pages: int | None = None,
@@ -152,7 +194,7 @@ def scriptable(bundle: ConfigBundle) -> list[str]:
 
 
 async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False, max_pages: int | None = None,
-                    trigger: str = "app") -> dict[str, Any]:
+                    trigger: str = "app", refresh_details: bool = False) -> dict[str, Any]:
     site = bundle.sites.get(slug)
     if site is None:
         raise ScanError(f"unknown site '{slug}'")
@@ -167,7 +209,8 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
     try:
         scanner = make_scanner(site)
         items, stats, filt = await collect(site, bundle, max_pages, scanner=scanner)
-        enriched = await enrich_new(conn, site, scanner, items, limit=2 if dry_run else None)
+        details = await enrich_details(conn, bundle, site, scanner, items, limit=2 if dry_run else None,
+                                       refresh=refresh_details)
     except Exception as exc:
         if run_id:
             await repo.finish_scan_run(conn, run_id, "error", {}, str(exc))
@@ -176,19 +219,55 @@ async def scan_site(conn, bundle: ConfigBundle, slug: str, dry_run: bool = False
                                "pages": stats.pages, "seen": stats.items, "parsed": stats.parsed,
                                "filtered": sum(filt.get("filtered", {}).values()),
                                "parse_errors": stats.parse_errors, "errors": stats.errors, "filters": filt,
-                               "enriched": enriched}
+                               **details,
+                               # a scripted scan spends no tokens: its cost is its requests (list pages + page reads)
+                               "requests": stats.pages + details["details_read"] + details["details_failed"]}
     if dry_run:
         summary["preview"] = [i.model_dump(mode="json", exclude_defaults=True) for i in items[:3]]
     else:
         res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
         summary.update(new=res.created, changed=res.updated, unchanged=res.unchanged, dup_cross_site=res.duplicate,
                        short_ids_new=[i.short_id for i in res.items if i.outcome == "created"][:50])
+        touched = [i.short_id for i in res.items if i.outcome in ("created", "updated")]
+        if touched:                      # new and changed listings get their score now, not at the next recompute
+            from findhome.rescore import score_listings
+
+            ids = [r["id"] for r in await (await conn.execute(
+                "SELECT id FROM listings WHERE short_id = ANY(%s)", (touched,))).fetchall()]
+            try:
+                summary["scored"] = (await score_listings(conn, ids, bundle))["scored"]
+            except Exception as exc:  # noqa: BLE001 - the scan's data is stored; scores can be recomputed
+                log.warning("%s: scoring after the scan failed: %s", slug, exc)
+        summary.update(await feed_status(conn, site, scanner, items, stats))
         await repo.finish_scan_run(conn, run_id, "error" if stats.errors and not items else
                                    "partial" if stats.errors else "ok",
                                    {k: v for k, v in summary.items() if k not in ("filters", "short_ids_new")},
                                    "; ".join(stats.errors) or None, pages=stats.pages)
     summary["seconds"] = round(time.monotonic() - t0, 1)
     return summary
+
+
+async def feed_status(conn, site: SiteConfig, scanner, items: list[ListingIn], stats: ScanStats) -> dict[str, Any]:
+    """Ad status from a scan, free: the listed sources are open; on a site whose feed is complete (one response with
+    every open ad, ad_status.feed_complete_min in site.yaml), its open or unknown sources missing from the feed get
+    ad_status.feed_missing_status. A feed with errors or fewer ads than the minimum closes nothing."""
+    now = datetime.now(UTC).isoformat(timespec="seconds")
+    seen = [i.source.external_id for i in items]
+    out: dict[str, Any] = {"status_open": await repo.mark_seen_open(conn, site.slug, seen,
+                                                                   {"rule": "listed by a scan", "at": now})}
+    rules, feed = site.ad_status or {}, getattr(scanner, "feed_ids", None)
+    if feed is None or not rules.get("feed_complete_min"):
+        return out
+    if stats.errors or len(feed) < int(rules["feed_complete_min"]):
+        out["status_note"] = (f"feed of {len(feed)} ads with {len(stats.errors)} errors: treated as incomplete, "
+                              "nothing closed")
+        return out
+    await repo.mark_seen_open(conn, site.slug, feed, {"rule": "in the feed", "at": now})
+    out["status_closed"] = await repo.close_missing(
+        conn, site.slug, feed, rules.get("feed_missing_status", "applications_closed"),
+        {"rule": "not in the feed", "feed_url": (site.fetch.get("api") or {}).get("endpoint"), "feed_size": len(feed),
+         "at": now})
+    return out
 
 
 def summary_line(s: dict[str, Any]) -> str:
@@ -199,4 +278,7 @@ def summary_line(s: dict[str, Any]) -> str:
             f"{s.get('changed', 0)} changed, "
             f"{s.get('dup_cross_site', 0)} dup-cross-site, {s.get('unchanged', 0)} unchanged, "
             f"{s['parse_errors']} parse errors (method={s['method']}, {s.get('seconds', 0)}s)")
+    if s.get("details_read") or s.get("details_failed") or s.get("details_skipped_cap"):
+        line += (f"; details {s.get('details_read', 0)} read, {s.get('details_failed', 0)} failed"
+                 + (f", {s['details_skipped_cap']} over the cap" if s.get("details_skipped_cap") else ""))
     return line + "".join(f"\n  ! {e}" for e in s.get("errors", []))

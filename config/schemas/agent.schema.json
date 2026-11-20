@@ -164,6 +164,48 @@
           }
         ]
       }
+    },
+    "prices": {
+      "type": "object",
+      "description": "Estimated $ per million tokens by model id, used only for runs that end without a result event (the result's own cost wins). Keys: input, output, cache_read, cache_write_5m, cache_write_1h.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "input": {
+            "type": "number",
+            "minimum": 0
+          },
+          "output": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_read": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_write_5m": {
+            "type": "number",
+            "minimum": 0
+          },
+          "cache_write_1h": {
+            "type": "number",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "ad_status": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "How long an ad's status stays trusted. A source whose status a scan or a status check last confirmed more than stale_after_days ago is stale: the status job's default subset takes it, and Candidates marks the row.",
+      "properties": {
+        "stale_after_days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90
+        }
+      }
     }
   },
   "additionalProperties": false,

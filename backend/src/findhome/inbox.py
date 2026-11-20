@@ -52,7 +52,21 @@ def site_parser(slug: str):
     return mod.to_listing
 
 
-def to_listings(data: Any) -> list[ListingIn]:
+FILE_STAMP = re.compile(r"(\d{8})T\d{4,6}")
+
+
+def seen_date(name: str) -> str:
+    """The day an inbox file's page was read: the UTC stamp in its name (site-20261105T204500-p1.json), else today."""
+    m = FILE_STAMP.search(name)
+    if m:
+        d = m.group(1)
+        return f"{d[:4]}-{d[4:6]}-{d[6:]}"
+    return datetime.now(UTC).date().isoformat()
+
+
+def to_listings(data: Any, seen: str | None = None) -> list[ListingIn]:
+    """Listings of an inbox file. Raw site docs ('docs' + 'parser') get `_seen`, the day the page was read, so a
+    parser can date a card that gives a day without a year."""
     if isinstance(data, dict) and "docs" in data:
         if not data.get("parser"):
             raise ValueError("'docs' needs a 'parser' (site slug)")
@@ -60,7 +74,7 @@ def to_listings(data: Any) -> list[ListingIn]:
         items = []
         for d in data["docs"]:
             try:
-                items.append(convert(d))
+                items.append(convert({**d, "_seen": seen} if seen and isinstance(d, dict) else d))
             except ValueError as exc:      # e.g. an id the browser tool masked and no URL to recover it from
                 log.warning("inbox: %s doc skipped: %s", data["parser"], exc)
         if data["docs"] and not items:
@@ -85,7 +99,7 @@ def file_meta(data: Any, items: list[ListingIn]) -> dict[str, Any]:
 
 def _move(path: Path, folder: str, error: str | None = None) -> None:
     dest = path.parent / folder
-    dest.mkdir(exist_ok=True)
+    dest.mkdir(parents=True, exist_ok=True)
     target = dest / path.name
     if target.exists():
         target = dest / f"{path.stem}-{datetime.now(UTC):%H%M%S%f}{path.suffix}"
@@ -94,28 +108,115 @@ def _move(path: Path, folder: str, error: str | None = None) -> None:
         target.with_suffix(".error.txt").write_text(error, encoding="utf-8")
 
 
+async def _late_for(conn, run: str | None) -> str | None:
+    """The file belongs to a run that is over for the app: cancelled, or ended more than 15 minutes ago (a late write
+    from an agent that lived on). Such files are parked, never imported."""
+    if not run:
+        return None
+    row = await (await conn.execute(
+        """SELECT id, status, finished_at < clock_timestamp() - interval '15 minutes' AS long_ago
+           FROM agent_runs WHERE id::text = %s""", (str(run),))).fetchone()
+    if row and (row["status"] == "cancelled" or (row["status"] not in ("running", "waiting") and row["long_ago"])):
+        return str(row["id"])
+    return None
+
+
+async def _page_usage(conn, scan_run_id: str, meta: dict[str, Any], cards: int, res,
+                      data: dict[str, Any] | None = None) -> None:
+    """One line per imported result page: its cards, new listings and the tokens the agent used since the previous
+    page, kept in scan_runs.counts.pages and written to the agent run's log."""
+    from findhome.agentrun import usage as u
+    from findhome.config.store import get_store
+
+    bundle = get_store().bundle
+    mark = await runs_repo.usage_mark(conn, meta.get("run"), dict(bundle.agent.prices) if bundle else {})
+    page = str(meta.get("page") or "?")
+    data = data or {}
+    total = data.get("total_shown") or data.get("totalCount")       # the site's counter for this search
+    entry = {"cards": cards, "new": res.created, "updated": res.updated, "duplicates": res.duplicate,
+             **({"total": total} if total else {}), **({"last_page": data["last_page"]} if "last_page" in data else {}),
+             **({"usage": mark} if mark else {})}
+    await conn.execute("""UPDATE scan_runs SET counts = jsonb_set(coalesce(counts, '{}'::jsonb), '{pages}',
+                                 coalesce(counts->'pages', '{}'::jsonb) || jsonb_build_object(%s::text, %s::jsonb))
+                          WHERE id = %s""", (page, json.dumps(entry), scan_run_id))
+    run = await (await conn.execute("SELECT log_path FROM agent_runs WHERE id::text = %s",
+                                    (str(meta.get("run") or ""),))).fetchone()
+    if run and run["log_path"]:
+        from findhome.core.paths import repo_root
+
+        line = f"page {page}: {cards} cards, {res.created} new" + (
+            f" · {u.short(mark['tokens'], mark['cost_estimate'])}" if mark else "")
+        with (repo_root() / run["log_path"]).open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"t": datetime.now(UTC).isoformat(), "s": "system", "m": line}, ensure_ascii=False) + "\n")
+
+
+async def import_data(conn, data: Any, name: str) -> dict[str, Any]:
+    """Import one result page (an inbox file's content, or a page posted by extract.js): ingest its listings into the
+    scan run of its agent run, mark them open (listed by the site), and record the page's counts. Commits."""
+    items = to_listings(data, seen_date(name))
+    meta = file_meta(data, items)
+    run_id = None
+    if meta["site"]:
+        run_id = await runs_repo.batch_scan_run(conn, meta["site"], meta["method"], meta["run"], name)
+    res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
+    for site in {i.source.site_slug for i in items}:          # listed in search results: the site says open
+        await repo.mark_seen_open(conn, site, [i.source.external_id for i in items if i.source.site_slug == site],
+                                  {"rule": "in search results", "page": meta.get("page"), "file": name})
+    if run_id:
+        await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
+        await _page_usage(conn, run_id, meta, len(items), res, data if isinstance(data, dict) else {})
+    touched = [i.short_id for i in res.items if i.outcome in ("created", "updated")]
+    if touched:          # scored now, as a scripted scan does: "passes the hard filters" must be true for the chain
+        from findhome.rescore import score_listings
+
+        ids = [r["id"] for r in await (await conn.execute(
+            "SELECT id FROM listings WHERE short_id = ANY(%s)", (touched,))).fetchall()]
+        try:
+            await score_listings(conn, ids)
+        except Exception as exc:  # noqa: BLE001 - the page's data is stored; scores can be recomputed
+            log.warning("inbox: scoring %s failed: %s", name, exc)
+    await conn.commit()
+    return {"file": name, "created": res.created, "updated": res.updated, "unchanged": res.unchanged,
+            "duplicate": res.duplicate, "scan_run_id": run_id, "cards": len(items), "page": meta.get("page")}
+
+
 async def import_file(conn, path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-        items = to_listings(data)
-        meta = file_meta(data, items)
-        run_id = None
-        if meta["site"]:
-            run_id = await runs_repo.batch_scan_run(conn, meta["site"], meta["method"], meta["run"], path.name)
-        res = await repo.ingest(conn, IngestRequest(listings=items, scan_run_id=run_id))
-        if run_id:
-            await runs_repo.add_to_scan_run(conn, run_id, res, seen=len(items))
-        await conn.commit()
+        late = await _late_for(conn, data.get("run") if isinstance(data, dict) else None)
+        if late:
+            await conn.execute("UPDATE agent_runs SET late_files = late_files + 1 WHERE id = %s", (late,))
+            await conn.commit()
+            _move(path, f"cancelled/{late}")
+            log.info("inbox: %s parked: its run %s is over", path.name, late)
+            return {"file": path.name, "parked": late}
+        summary = await import_data(conn, data, path.name)
     except Exception as exc:  # noqa: BLE001 - a bad file must not stop the others
         await conn.rollback()
         _move(path, "failed", f"{exc.__class__.__name__}: {exc}")
         log.warning("inbox: %s failed: %s", path.name, exc)
         return {"file": path.name, "error": str(exc)}
     _move(path, "processed")
-    summary = {"file": path.name, "created": res.created, "updated": res.updated, "unchanged": res.unchanged,
-               "duplicate": res.duplicate, "scan_run_id": run_id}
     log.info("inbox: %s", summary)
     return summary
+
+
+async def import_page_post(conn, site: str, run: str, doc: dict[str, Any]) -> dict[str, Any]:
+    """A result page posted by extract.js (POST /api/inbox/raw, kind page): kept in inbox/processed as the record a
+    file would leave, imported at once. The answer is the short line the agent needs to page on."""
+    if doc.get("translated"):
+        return {"translated": True, "stop": "page translated: turn off Chrome translation for Swedish"}
+    page = doc.get("page") or 1
+    name = f"{site}-{datetime.now(UTC).strftime('%Y%m%dT%H%M%S')}-p{page}.json"
+    data = {**doc, "site": site, "parser": site, "source": "agent_browser", "run": run}
+    folder = inbox_dir() / "processed"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / name).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    async with _import_lock():
+        res = await import_data(conn, data, name)
+    total = doc.get("total_shown") or doc.get("totalCount")
+    return {"page": page, "cards": res["cards"], "new": res["created"], "updated": res["updated"],
+            "duplicates": res["duplicate"], "total": total, "last_page": doc.get("last_page"), "file": name}
 
 
 def scan_urls(site, bundle, pages: int | None = None) -> list[str]:
@@ -131,40 +232,11 @@ def scan_urls(site, bundle, pages: int | None = None) -> list[str]:
     return [q.url for q in HttpListScanner(site, save_raw=False).build_queries(params, limit)]
 
 
-def move_in_sweep(start, end) -> list[str]:
-    """Dates to try in a site's move-in field: move_in_from, then the 1st of every following month up to move_in_to."""
-    from datetime import date
-
-    def as_date(v):
-        return v if isinstance(v, date) else date.fromisoformat(str(v)) if v else None
-    a, b = as_date(start), as_date(end)
-    if not a or not b or b < a:
-        return []
-    out, cur = [a], date(a.year + (a.month == 12), a.month % 12 + 1, 1)
-    while cur <= b:
-        out.append(cur)
-        cur = date(cur.year + (cur.month == 12), cur.month % 12 + 1, 1)
-    return [d.isoformat() for d in out]
-
-
-def browser_inputs(site, bundle) -> dict[str, Any]:
-    """The search inputs a browser scan sets on the result page and every combination of values to try, from the
-    profile (scan.browser.inputs). The app computes them so the agent never invents a value (e.g. today)."""
-    cap = (site.scan or {}).get("browser") or {}
-    inputs = cap.get("inputs") or []
-    paging = {"next_page": cap["next_page"]} if cap.get("next_page") else {}
-    if not inputs:
-        return paging
-    hf = dict(bundle.profile.kinds[site.kinds[0]].hard_filters) if bundle and site.kinds[0] in bundle.profile.kinds else {}
-    sets: list[dict[str, str]] = [{}]
-    missing = []
-    for inp in inputs:
-        if inp.get("filter") == "move_in_from":
-            dates = move_in_sweep(hf.get("move_in_from"), hf.get("move_in_to"))
-            if not dates:
-                missing.append("move_in_from / move_in_to")
-            sets = [{**s, inp["label"]: d} for s in sets for d in dates]
-    return {"inputs": inputs, "input_sets": [] if missing else sets, "inputs_missing": missing, **paging}
+def browser_paging(site) -> dict[str, Any]:
+    """How a browser scan pages: every result page is a URL of scan_urls, opened in order. `page_size` (cards per full
+    page) lets the agent stop after a short page; the app never asks it to type into a search form."""
+    pag = (site.fetch or {}).get("pagination") or {}
+    return {"page_size": pag.get("page_size")} if pag.get("page_size") else {}
 
 
 async def write_state(conn, bundle=None) -> None:
@@ -173,9 +245,14 @@ async def write_state(conn, bundle=None) -> None:
     from findhome.config.store import get_store
 
     bundle = bundle or get_store().bundle
+    totals = {r["site_slug"]: r["total"] for r in await (await conn.execute(
+        """SELECT DISTINCT ON (site_slug) site_slug,
+                  (SELECT max((p.value->>'total')::int) FROM jsonb_each(counts->'pages') p) AS total
+           FROM scan_runs WHERE jsonb_typeof(counts->'pages') = 'object'     -- a scripted scan stores a page count
+           ORDER BY site_slug, started_at DESC""")).fetchall()}
     rows = await (await conn.execute(
         """SELECT s.site_slug, count(*) AS n, max(s.last_seen_at) AS last_seen,
-                  max(l.attributes->>'publishedAt') AS last_published
+                  max(COALESCE(l.attributes->>'publishedOrBumpedAt', l.attributes->>'publishedAt')) AS last_published
            FROM listing_sources s JOIN listings l ON l.id = s.listing_id GROUP BY s.site_slug""")).fetchall()
     by_site = {r["site_slug"]: r for r in rows}
     slugs = set(by_site) | set(bundle.sites if bundle else [])
@@ -191,7 +268,8 @@ async def write_state(conn, bundle=None) -> None:
             # active sites, and browser sites waiting for their verification scan (unverified, browser on)
             "scan_urls": scan_urls(site, bundle) if site and (site.status == "active" or (
                 site.status == "unverified" and site.browser_scan()[0])) else [],
-            **(browser_inputs(site, bundle) if site else {}),
+            **(browser_paging(site) if site else {}),
+            "last_total": totals.get(slug),            # the site's counter in the last browser scan
             "updated_at": datetime.now(UTC).isoformat()}, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
 
 

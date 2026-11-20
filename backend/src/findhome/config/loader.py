@@ -115,6 +115,13 @@ def _cross_checks(raw: dict[str, Any], sites: dict[str, Any]) -> list[str]:
                 errors.append(f"profile.yaml: kinds/{kind}/hard_filters/{key}: not in filters_catalog.yaml")
             elif kind not in catalog[key]["kinds"]:
                 errors.append(f"profile.yaml: kinds/{kind}/hard_filters/{key}: filter not defined for kind '{kind}'")
+    # in --permission-mode dontAsk a lone Write(path) rule is denied: the agent can create the file only with Edit too
+    for name, prof in (raw.get("agent", {}).get("profiles") or {}).items():
+        tools = set(prof.get("allowed_tools") or [])
+        for t in sorted(tools):
+            if t.startswith("Write(") and "Edit(" + t[len("Write("):] not in tools:
+                errors.append(f"agent.yaml: profiles/{name}/allowed_tools: {t} needs {'Edit(' + t[len('Write('):]} too "
+                              "(a lone Write rule is denied in dontAsk mode)")
     cats = raw["locations"]["categories"]
     day_types = raw["time_model"]["day_types"]
     seen_ids: set[str] = set()

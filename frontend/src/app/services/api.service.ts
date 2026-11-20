@@ -9,8 +9,7 @@ import {
   ConnectivityPlan, ConnectivityRoutes, ConnectivityScope,
   GeoCollection, Health, HouseLocation, Listing, ListingDetail, TransitResult, ZoneStats,
   PoiCategory, ProbeResult, SavedProbe, Site, TransitLine, TransitMeta, ZoneCommute,
-  IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef,
-} from '../models';
+  IndicesMap, ZoneCentroids, ZoneFacts, ZoneHeatmap, ZoneIndices, ZoneLines, ZoneRef, CancelResult } from '../models';
 
 /** Thin typed wrapper over the FastAPI endpoints (proxied by ng serve to :8200). */
 @Injectable({ providedIn: 'root' })
@@ -19,7 +18,8 @@ export class ApiService {
 
   health(): Observable<Health> { return this.http.get<Health>('/health'); }
 
-  listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number; origin?: string; site?: string; scanRun?: string } = {}) {
+  listings(opts: { status?: string; q?: string; includeRejected?: boolean; limit?: number; origin?: string; site?: string; scanRun?: string;
+                   closed?: 'exclude' | 'include' | 'only'; moveInMisses?: boolean } = {}) {
     let p = new HttpParams().set('limit', String(opts.limit ?? 5000));
     if (opts.status) p = p.set('status', opts.status);
     if (opts.q) p = p.set('q', opts.q);
@@ -27,6 +27,8 @@ export class ApiService {
     if (opts.site) p = p.set('site', opts.site);
     if (opts.scanRun) p = p.set('scan_run', opts.scanRun);
     if (opts.includeRejected === false) p = p.set('include_rejected', 'false');
+    if (opts.closed) p = p.set('closed', opts.closed);
+    if (opts.moveInMisses) p = p.set('move_in_misses', 'true');
     return this.http.get<{ config_hash: string; items: Listing[] }>('/api/listings', { params: p });
   }
   listing(id: string) { return this.http.get<ListingDetail>(`/api/listings/${id}`); }
@@ -76,7 +78,8 @@ export class ApiService {
     return this.http.post<AgentStart>('/api/agent-runs', { profile, params, launcher });
   }
   /** Cancel one run (its id) or every running run of a profile (its name). */
-  cancelAgent(target: string) { return this.http.post<{ cancelled: boolean | number }>(`/api/agent-runs/${target}/cancel`, {}); }
+  cancelAgent(target: string) { return this.http.post<CancelResult>(`/api/agent-runs/${target}/cancel`, {}); }
+  reconcileAgent(id: string) { return this.http.post<{ status: string | null; liveness: string | null }>(`/api/agent-runs/${id}/reconcile`, {}); }
 
   jobs() { return this.http.get<{ items: Job[] }>('/api/jobs'); }
   job(key: string) { return this.http.get<Job>(`/api/jobs/${key}`); }

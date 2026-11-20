@@ -1,6 +1,8 @@
 """Listings: list with scores, detail, lifecycle status and feedback."""
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from findhome.api.state import bundle
@@ -26,9 +28,15 @@ def _with_zone(rows: list[dict]) -> list[dict]:
 async def list_listings(status: str | None = None, kind: str | None = None, q: str | None = None,
                         include_rejected: bool = True, limit: int = Query(200, le=5000), since: str | None = None,
                         origin: str | None = None, site: str | None = None, scan_run: str | None = None,
+                        closed: Literal["exclude", "include", "only"] = "exclude", move_in_misses: bool = False,
                         conn=Depends(get_conn)):
+    """`closed`: listings none of whose sources is open (applications closed, let, removed, not found) are hidden by
+    default; `include` shows them too, `only` shows just them. `move_in_misses`: with include_rejected false, also
+    the homes rejected only by the move-in window (move_in_to, move_in_from_slack)."""
+    from findhome.jobs.subset import stale_days
+
     rows = await repo.list_listings(conn, bundle().config_hash, status, kind, q, include_rejected, limit, since,
-                                    origin, site, scan_run)
+                                    origin, site, scan_run, closed, stale_days(), move_in_misses)
     return {"config_hash": bundle().config_hash, "items": _with_zone(rows)}
 
 
@@ -37,7 +45,7 @@ async def scale(kind: str = "rent", conn=Depends(get_conn)):
     """Values of the listings still in the running (scored, not rejected) and your targets, to colour rent, size,
     rooms and rent per m² by percentile and target."""
     b = bundle()
-    rows = await repo.list_listings(conn, b.config_hash, None, kind, None, True, 1000, None)
+    rows = await repo.list_listings(conn, b.config_hash, None, kind, None, True, 1000, None, closed="exclude")
     return vs.value_scale(rows, b.profile.kinds.get(kind))
 
 
@@ -54,13 +62,19 @@ async def detail(short_id: str, conn=Depends(get_conn)):
     score = await (await conn.execute("SELECT total, rejected_by, breakdown, computed_at FROM scores "
                                       "WHERE listing_id = %s AND config_hash = %s", (L["id"], b.config_hash))).fetchone()
     _with_zone([L])
+    from findhome.domain.issues import listing_issues
+
+    tr = await (await conn.execute(f"SELECT {repo.LAST_READ_TRANSLATED_SQL} AS t FROM listings l WHERE l.id = %s",
+                                   (L["id"],))).fetchone()
     return {
+        "issues": [i.as_dict() for i in listing_issues({**L, "last_read_translated": tr["t"]})],
         "listing": L, "score": score, "score_stale": score is None,
         "commute": await repo.commute_for(conn, L["id"], b.config_hash),
         "feedback": await repo.feedback_for(conn, L["id"]),
         "evaluations": await repo.evaluations_for(conn, L["id"], 5),
         "sources": await repo.listing_sources(conn, L["id"]),
         "events": await repo.status_events(conn, L["id"]),
+        "ad_status_events": await repo.source_status_events(conn, L["id"]),
     }
 
 

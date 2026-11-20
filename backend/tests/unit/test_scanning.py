@@ -35,8 +35,8 @@ def site(**over):
 def test_filters_resolve(tmp_repo):
     b = load_all(tmp_repo / "config", tmp_repo / "sites")
     r = resolve(b, site(), "rent")
-    assert r.params == {"pets": 1}                 # max_rent is null (TODO user), pets_allowed derived True
-    assert "min_rooms_rok" in r.local_only
+    assert r.params == {}                          # max_rent is null (TODO user); pets never go in a URL
+    assert "min_rooms_rok" in r.local_only and "pets_allowed" in r.local_only
 
 
 @pytest.mark.asyncio
@@ -60,7 +60,7 @@ async def test_generic_http_scanner_parses_items(tmp_repo, tmp_path, monkeypatch
     from findhome.pets import ingest_candidate
     assert ingest_candidate(first)[0] == "ask"
     assert items[1].has_sovalkov is True
-    assert "pets=1" in pages[0] and "page=1" in pages[0]
+    assert "pets=1" not in pages[0] and "page=1" in pages[0]          # pets are decided in the database
     assert first.source.raw_snapshot_path.endswith("page-1.html")
 
 

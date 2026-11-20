@@ -14,6 +14,8 @@ and report it.
 1. Read `sites/<slug>/NAVIGATION.md` §2-§7 and `site.yaml` `filter_map` (`ui_step` entries tell you what to
    click). Use the profile's hard filters and the **Search area** section from the history digest: search those
    zones or the smallest wider area the site offers, never outside `findhome area show`'s bbox.
+   A page Chrome has translated is never read: stop and say "turn off Chrome translation for Swedish". When the app
+   started you (`site=… pages=… run=… api=…`), follow [browser_scan_site.md](browser_scan_site.md) instead.
 2. If the site folder has an `extract.js` (e.g. `sites/qasa/extract.js`), use it: open each result page, run the
    file's code with the browser's JavaScript tool, save the returned JSON to the run folder and ingest it with
    `scripts/findhome ingest listings -f <file> --parser <slug> --source agent_browser`. Then skip steps 3-6.
@@ -23,6 +25,8 @@ and report it.
 4. Collect the new ones into JSON (ListingIn, see references/data_contract.md): `source.site_slug`,
    `source.external_id`, `source.url`, rent, size, rooms, address, area, pets text → `pet_status` +
    `pet_evidence`, contract text, dates. Unknown stays null. Do not paste page text into the conversation.
+   **The address rule:** copy the address as the site gives it; never complete a missing street or number; the
+   parts you have go into `attributes.address_parts`, the rest null.
 5. Open a detail page only when the card lacks pets/contract/rooms information (max 5 per run).
 6. `scripts/findhome ingest listings -f $FINDHOME_RUN_DIR/<slug>_listings.json --source agent_browser`.
 7. Note in NAVIGATION.md anything that changed in the site's flow.

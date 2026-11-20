@@ -4,6 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { fmtKr, fmtNum, fmtScore, petClass, scoreColor } from '../format';
 import { PetBadge } from '../components/pet-badge';
+import { AdStatusBadge } from '../components/ad-status-badge';
+import { IssueTip } from '../components/issue-tip';
+import { issuesOf } from '../issues';
 import { ScoreTip } from '../components/score-tip';
 import { SiteLogo } from '../components/site-logo';
 import { ZoneMinimap } from '../components/zone-minimap';
@@ -25,7 +28,7 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
  */
 @Component({
   selector: 'fh-candidates',
-  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet],
+  imports: [FormsModule, RouterLink, CandidateFilters, ScoreTip, ZoneMinimap, DecimalPipe, DatePipe, PetBadge, SiteLogo, NgTemplateOutlet, AdStatusBadge, IssueTip],
   template: `
   <div class="fh-page-head">
     <h1>Candidates</h1>
@@ -37,6 +40,14 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <button type="button" class="fh-rej-toggle" [class.on]="fs.hideRejected()" [attr.aria-pressed]="fs.hideRejected()" (click)="toggleRejected()"
       [title]="fs.hideRejected() ? 'Rejected homes are hidden: click to show them' : 'Rejected homes are shown: click to hide them'">
       <span class="fh-rej-dot"></span>{{ fs.hideRejected() ? 'Rejected hidden' : 'Hide rejected' }}</button>
+    @if (fs.hideRejected()) {
+      <button type="button" class="fh-rej-toggle fh-movein-toggle" [class.on]="!fs.moveInMisses()" [attr.aria-pressed]="fs.moveInMisses()" (click)="toggleMoveIn()"
+        [title]="fs.moveInMisses() ? 'Homes rejected only by your move-in window (too early beyond the slack, or after move_in_to) are shown, their date in red: click to hide them' : 'Show the homes rejected only by your move-in window (config/profile.yaml move_in_from, slack and move_in_to)'">
+        <span class="fh-rej-dot"></span>{{ fs.moveInMisses() ? 'Move-in misses shown' : 'Show move-in misses' }}</button>
+    }
+    <button type="button" class="fh-rej-toggle fh-closed-toggle" [class.on]="fs.hideClosed()" [attr.aria-pressed]="fs.hideClosed()" (click)="toggleClosed()"
+      [title]="fs.hideClosed() ? 'Homes whose ad is closed on every site (applications over, let, removed, gone) are hidden: click to show them' : 'Closed ads are shown: click to hide them'">
+      <span class="fh-rej-dot"></span>{{ fs.hideClosed() ? 'Closed hidden' : 'Hide closed' }}</button>
     <button class="btn btn-sm btn-outline-primary" [disabled]="!!recomputing()" (click)="recompute()"
             title="Every home: its transport and services scores from the exact address (when missing), then all scores">
       @if (recomputing(); as rc) { <span class="spinner-border spinner-border-sm me-1"></span>{{ recomputeLabel(rc) }} }
@@ -102,13 +113,15 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <table class="table table-sm table-hover align-middle">
       <thead><tr><th>Id</th>
         @for (c of columns; track c.key) { <ng-container *ngTemplateOutlet="th; context: { $implicit: c.key, label: c.label, tip: c.tip, cls: c.cls }" /> }
+        <th class="fh-stale-col" title="A clock: the ad's status was not confirmed recently, it may have closed"></th>
       </tr></thead>
       <tbody>
         @for (r of pageRows(); track r.short_id; let j = $index) {
           @let i = page() * pageSize() + j;
-          <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
-            (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()">
-            <td class="fh-mono text-nowrap"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a></td>
+          <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)">
+            <td class="text-nowrap"><a class="fh-id-badge" [routerLink]="['/candidates', r.short_id]"
+              (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()" (focus)="hoverIn(r, $event)" (blur)="hoverOut()">{{ r.short_id }}</a>
+              @if (r.ad_open === false) { <fh-ad-status class="ms-1" [status]="r.ad_sources?.[0]?.status" [site]="r.ad_sources?.[0]?.site" [checkedAt]="r.ad_sources?.[0]?.checked_at" /> }</td>
             <td>
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
               @if (r.score_stale) { <span class="text-body-secondary small" title="no score for the current config"> ·stale</span> }
@@ -121,12 +134,14 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
             @let rr = values.rate(r, 'rent_sek'); @let rm = values.rate(r, 'rent_per_m2'); @let mv = values.moveIn(r);
             <td class="text-nowrap" [style.color]="mv?.colour" [title]="mv?.title ?? (r.available_from ? '' : 'The ad gives no move-in date')">
               {{ r.available_from ? (r.available_from | date: 'd MMM y') : '–' }}</td>
+            <td class="text-center">@if (r.issue_codes?.length) { <fh-issue-tip [issues]="issuesOf(r)" /> }</td>
             <td [style.color]="ro?.colour" [title]="ro?.title ?? ''">{{ num(r.rooms_rok) }}{{ r.has_sovalkov ? '+alkov' : '' }}</td>
             <td [style.color]="rs?.colour" [title]="rs?.title ?? ''">{{ num(r.size_m2) }}</td>
             <td class="text-nowrap" [style.color]="rr?.colour" [title]="rr?.title ?? ''">{{ kr(r.rent_sek) }}</td>
             <td [style.color]="rm?.colour" [title]="rm?.title ?? ''" class="small">{{ perM2(r) == null ? '' : (perM2(r)! | number: '1.0-0') }}</td>
             <td><fh-pet-badge [status]="r.pet_status" [source]="r.pet_source" [evidence]="r.pet_evidence" /></td>
             <td class="small">{{ r.contract_type?.replace('_', '-') ?? '' }}{{ r.contract_end ? ' → ' + r.contract_end : '' }}</td>
+            <td class="fh-stale-col">@if (r.ad_stale) { <span class="fh-stale" [title]="staleTip(r)" aria-label="Ad status not confirmed recently">⏱</span> }</td>
           </tr>
         }
       </tbody>
@@ -207,6 +222,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
     { key: 'services', label: 'Services', cls: 'text-center', tip: 'The home\'s services score, 0-100, from its exact address: walks to groceries, pharmacy, gym, park, vet and how many are near. Click to sort.' },
     { key: 'status', label: 'Status' }, { key: 'area', label: 'Area / address' },
     { key: 'move_in', label: 'Move in', tip: 'The move-in date the ad gives, against your window in config/profile.yaml (move_in_from → move_in_to): green inside, amber before, red after (rejected). Click to sort.' },
+    { key: 'issues', label: 'Issues', cls: 'text-center', tip: 'What the listing is missing (move-in, photos, floor plan, street number …): hover the badge for each issue and whether the ad lacks it or the extraction should be checked. Click to sort.' },
     { key: 'rooms', label: 'Rooms' }, { key: 'size', label: 'm²' }, { key: 'rent', label: 'Rent' }, { key: 'per_m2', label: 'kr/m²' },
     { key: 'pets', label: 'Pets' }, { key: 'contract', label: 'Contract' },
   ];
@@ -244,6 +260,15 @@ export class CandidatesPage implements OnInit, OnDestroy {
   }
   protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
   protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
+  protected issuesOf = issuesOf;
+  protected toggleMoveIn(): void { this.fs.moveInMisses.update((v) => !v); this.load(true); }
+  protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
+  /** "Ad status last confirmed 9 days ago": why the row has a clock. */
+  protected staleTip(r: Listing): string {
+    if (!r.ad_checked_at) return 'Ad status never checked: it may have closed. The status job checks it.';
+    const days = Math.floor((Date.now() - new Date(r.ad_checked_at).getTime()) / 86_400_000);
+    return `Ad status last confirmed ${days} day${days === 1 ? '' : 's'} ago: it may have closed. The status job checks it.`;
+  }
 
   ngOnInit(): void {
     this.api.recomputeStatus().subscribe({ next: (st) => { if (st.running) this.follow(st); }, error: () => {} });
@@ -266,12 +291,15 @@ export class CandidatesPage implements OnInit, OnDestroy {
     return `${this.sites.name(o)} · found on ${via}`;
   }
 
-  protected hoverIn(r: Listing, ev: MouseEvent): void {
+  /** The home card, from the id badge only (hover or keyboard focus): other cells keep their own tooltips. */
+  protected hoverIn(r: Listing, ev: Event): void {
     if (this.tipTimer) clearTimeout(this.tipTimer);
-    const row = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    const badge = ev.currentTarget as HTMLElement;
+    const row = (badge.closest('tr') ?? badge).getBoundingClientRect();
+    const x = ev instanceof MouseEvent && ev.clientX ? ev.clientX : badge.getBoundingClientRect().right;
     this.tipTimer = setTimeout(() => {
       const w = 380, h = 470, vw = window.innerWidth, vh = window.innerHeight;
-      const left = ev.clientX + 24 + w < vw ? ev.clientX + 24 : Math.max(8, ev.clientX - w - 24);
+      const left = x + 24 + w < vw ? x + 24 : Math.max(8, x - w - 24);
       const top = Math.max(8, Math.min(row.top - 40, vh - h - 8));
       this.tip.set({ row: r, top, left });
     }, 250);
@@ -294,6 +322,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   load(pulse = false): void {
     this.loading.set(true);
     this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.fs.hideRejected(),
+      closed: this.fs.hideClosed() ? 'exclude' : 'include', moveInMisses: this.fs.hideRejected() && this.fs.moveInMisses(),
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
       next: (res) => {
         this.all.set(res.items); this.fs.base.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set('');

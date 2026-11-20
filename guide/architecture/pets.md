@@ -12,13 +12,22 @@ only, with the quoted evidence kept, and by a fixed precedence of who may decide
 |---|---|---|
 | `user` (4) | `POST /api/listings/{id}/pet`, the `no_pets` feedback tag | "landlord confirmed by phone" |
 | `agent` (3) | evaluations with `pet_status` + `pet_evidence`, `findhome jobs submit` | "'Husdjur efter överenskommelse.'" |
-| `site` (2) | the site's structured flag, `attributes.pets_flag` (Qasa `petsAllowed=true`, a "Husdjur ok" badge) | "Qasa house rules: pets allowed" |
+| `site` (2) | the site's structured flag, `attributes.pets_flag`: `true` (Qasa `petsAllowed=true`, a "Husdjur ok" badge), or `"ask"` for a site that leaves pets to the landlord (Samtrygg's unticked row "Husdjur tillåtet — saknas"; an explicit yes or no in the text then decides) | "Qasa house rules: pets allowed" |
 | `keywords` (1) | the wording rules on title, description and `attributes.pets_text` | "Inga husdjur." |
 
 [`apply_pet()`](../../backend/src/findhome/pets/apply.py#L13) is the single rule: a candidate replaces the current
 value only when its source ranks at least as high; `unknown` never replaces a known value; the same answer again
 changes nothing ([`set_pet()`](../../backend/src/findhome/db/repo.py)). So keywords never override a site flag, a
 site never overrides the agent, and nothing overrides you.
+
+**Pets are never a search filter on a site.** A site-side pet filter (Qasa's `rules=pets`) shows only ads whose
+house rules already say yes, so every `ask` and `unknown` ad would never be ingested. Scans read everything and the
+precedence above decides; [`resolve()`](../../backend/src/findhome/scanning/filters.py) never puts `pets_allowed`
+in a URL, whatever a `filter_map` says.
+
+**Why pets are not a listing issue.** A missing pet answer is not shown among the listing issues
+([introduction.md](introduction.md)): the status has its own precedence and sources, the pet badge already shows
+`unknown` (and `conflict`), and the pet jobs exist to resolve it. Listing it twice would only add noise.
 
 ## At ingest
 

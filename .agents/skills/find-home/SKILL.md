@@ -49,11 +49,14 @@ are read with the Read tool.
 | Find new candidates (scheduled or manual) | [prompts/run_scan.md](prompts/run_scan.md) |
 | Evaluate new/changed listings | [prompts/run_evaluate.md](prompts/run_evaluate.md) |
 | Add a website | [prompts/site_onboarding.md](prompts/site_onboarding.md) |
-| A site's scan broke | [prompts/site_repair.md](prompts/site_repair.md) |
+| Report every field a site's listing pages show, with coverage (required by onboarding, runnable alone) | [prompts/site_field_report.md](prompts/site_field_report.md) |
+| A site's scan broke, or a field's coverage fell | [prompts/site_repair.md](prompts/site_repair.md) |
 | Scan a site that needs a browser | [prompts/browser_scan.md](prompts/browser_scan.md) |
 | Browser scan of one site started by the app (`site=… pages=… run=…`), writing to `inbox/` | [prompts/browser_scan_site.md](prompts/browser_scan_site.md) |
 | Qasa scan in the Claude desktop app (Cowork), writing to `inbox/` | [prompts/qasa_browser_scan.md](prompts/qasa_browser_scan.md) |
 | Check pet policies for a job run started by the app (`job_run=… n=… run=…`) | [prompts/pet_agent_check.md](prompts/pet_agent_check.md) |
+| Read listing pages for a details job started by the app (`job_run=… n=… run=… api=…`) | [prompts/listing_details.md](prompts/listing_details.md) |
+| Check whether ads are still open for a status job started by the app (`job_run=… n=… run=… api=…`) | [prompts/listing_status.md](prompts/listing_status.md) |
 | Ask a landlord about the two cats | [prompts/pet_inquiry.md](prompts/pet_inquiry.md) |
 | Turn feedback into search changes | [prompts/research_guidance.md](prompts/research_guidance.md) |
 
@@ -63,7 +66,8 @@ There, you work through the connected `find_home` folder and the built-in browse
 `127.0.0.1:8200` is usually not reachable. Then: read state from `runs/state/<site>.json` (written by the app:
 `last_published`, `scan_urls`) instead of calling `findhome`, and write results as JSON files into `inbox/`
 (format in `inbox/README.md`); the running app imports them. Site prompts written for this mode are short and
-procedural so a small model (Haiku) can run them on a schedule.
+procedural; they are written for Sonnet. Use Haiku only for trivially easy steps, since it did poorly in browser
+tests. The model is picked per run in the app.
 
 ## Hard rules
 
@@ -72,9 +76,13 @@ procedural so a small model (Haiku) can run them on a schedule.
 - After any YAML edit run `scripts/findhome config validate` and fix what it reports.
 - Never change profile weights or hard filters on your own: propose them in
   `$FINDHOME_RUN_DIR/proposed_config.patch.yaml` ([prompts/research_guidance.md](prompts/research_guidance.md)).
-- Never store or type credentials. Never try to get around a site's bot protection (spoofed user agents,
-  headless browsers, private APIs): browse in the user's own browser session or stop and report. Sites with `auth.mode: browser_session` are used only through the user's
-  already logged-in browser session.
+- Never store, ask for or type site credentials. A site that needs a login is used only through the user's own
+  logged-in Chrome (`auth.mode: browser_session`). Never try to get around a site's bot protection (spoofed user
+  agents, headless browsers, private APIs): browse in the user's own browser session or stop and report.
+- **The address rule.** Copy the address as the site gives it. Never complete a missing street or number. Put the
+  parts you have into `address_parts` (the rest null); the app flags partial addresses.
+- A page Chrome has translated is never read: every site script answers `{translated: true}`; stop and say "turn
+  off Chrome translation for Swedish".
 - Respect each site's `politeness` (delay, max pages) and robots rules. Personal use only.
 - Set `pet_status` only with quoted evidence (`pet_evidence`). Two cats: an explicit "no" excludes a listing.
 - Never send messages to landlords. Drafts only.

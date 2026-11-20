@@ -6,7 +6,7 @@ Tuning is the scoring-v1 backlog task.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from findhome.config.loader import ConfigBundle
@@ -57,6 +57,10 @@ def hard_filter_failures(hf: dict[str, Any], listing: dict[str, Any], commute: l
     avail = _as_date(listing.get("available_from"))
     if avail and hf.get("move_in_to") and avail > _as_date(hf["move_in_to"]):
         fails.append("move_in_to")
+    slack = hf.get("move_in_from_slack_days")             # early is fine up to a point: then two rents for too long
+    if avail and hf.get("move_in_from") and slack is not None \
+            and avail < _as_date(hf["move_in_from"]) - timedelta(days=int(slack)):
+        fails.append("move_in_from_slack")
     for cat, limit in (hf.get("max_commute_min_by_category") or {}).items():
         meds = [float(c["median_min"]) for c in commute if c.get("category") == cat and c.get("median_min") is not None]
         if meds and min(meds) > limit:
@@ -74,12 +78,22 @@ def _cost(p, hf, L):
 
 
 def _space(p, hf, L):
+    """Size ramp (min_size_m2 → ideal_size_m2), blended with a rooms ramp (min_rooms_rok → ideal_rooms_rok, weight
+    rooms_weight, 0.3) when ideal_rooms_rok is set and the rooms are known: a one-room flat of the same size scores
+    lower than a two-room one."""
     size = L.get("size_m2")
     if size is None:
         return None, "size unknown"
     ideal = p.get("ideal_size_m2") or 55
     low = hf.get("min_size_m2") or ideal * 0.6
-    return _lin(-float(size), -ideal, -low), f"{size} m² vs ideal {ideal}"
+    size_s = _lin(-float(size), -ideal, -low)
+    rooms, r_ideal = L.get("rooms_rok"), p.get("ideal_rooms_rok")
+    if rooms is None or not r_ideal:
+        return size_s, f"{size} m² vs ideal {ideal}"
+    r_low = hf.get("min_rooms_rok") or 1
+    rooms_s = 1.0 if r_ideal <= r_low else _lin(-float(rooms), -float(r_ideal), -float(r_low))
+    w = float(p.get("rooms_weight", 0.3))
+    return (1 - w) * size_s + w * rooms_s, f"{size} m² vs ideal {ideal} · {float(rooms):g} rok vs ideal {float(r_ideal):g}"
 
 
 def _commute(p, hf, L, commute: list[dict], bundle: ConfigBundle):

@@ -51,7 +51,14 @@ the provider caches (`routing_cache`, `geocode_cache`, `poi_cache`) and `sites`,
 records for every scan and agent session; [`011_listing_origin.sql`](../../backend/migrations/011_listing_origin.sql)
 adds `listings.origin_site`; [`012_pets.sql`](../../backend/migrations/012_pets.sql) adds the `conflict` pet status,
 `pet_source` and `pet_checked_at`; [`013_jobs.sql`](../../backend/migrations/013_jobs.sql) adds `jobs`, `job_runs`
-and `job_items`.
+and `job_items`; [`014_agent_outcome.sql`](../../backend/migrations/014_agent_outcome.sql) the agent's own verdict;
+[`015_agent_run_process.sql`](../../backend/migrations/015_agent_run_process.sql) the run's process (pid, session
+name), its liveness and the late files parked after Cancel;
+[`016_agent_usage.sql`](../../backend/migrations/016_agent_usage.sql) the token usage of runs and job items;
+[`017_listing_details_job.sql`](../../backend/migrations/017_listing_details_job.sql) the details jobs and their item
+outcomes; [`018_ad_status.sql`](../../backend/migrations/018_ad_status.sql) the ad status per source
+(`listing_sources.ad_status`, `source_status_events`) and the status jobs ([jobs.md](jobs.md#ad-status));
+[`019_status_due.sql`](../../backend/migrations/019_status_due.sql) the status job's default subset.
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -63,7 +70,9 @@ and `job_items`.
 rounded size, 500 SEK price band, plus a fuzzy address check). Change detection uses the source's own content
 hash, so two sites listing the same flat do not overwrite each other on every scan. Each listing records its
 `origin_site`, the site it was first published on: an aggregator's `platforms` map turns `attributes.platform`
-into a site slug (Qasa carries HomeQ and Blocket Bostad homes), otherwise the site it was found on. The pet status
+into a site slug (Qasa carries HomeQ and Blocket Bostad homes), otherwise the site it was found on. An update
+merges `attributes` key by key, so a list-only scan keeps what a listing-page read stored; the keys with a fixed
+shape are checked at ingest ([agent_contract.md](agent_contract.md#writing-only-through-the-api)). The pet status
 is decided at ingest by source precedence ([pets.md](pets.md)). Ingest with a scan run id links each source to it
 ([agent_contract.md](agent_contract.md#runs)).
 
@@ -82,9 +91,15 @@ items parsed by [`scanning/generic.py`](../../backend/src/findhome/scanning/gene
 API with a field map) or by an optional `sites/<slug>/scanner.py` (for example
 [`sites/bostadsformedlingen/scanner.py`](../../sites/bostadsformedlingen/scanner.py), one request for the whole
 region's feed). `local_filter.search_area_buffer_m` drops items farther than that from the search area. A scanner
-may also implement `enrich`: the runner calls it for listings not seen before, up to `fetch.details.max_per_run`,
-and hashes the list-page view so later scans of the same listing stay `unchanged`. Then the items are ingested
-into a scan run. Raw pages are saved under `data/raw/`. Only `active` sites are scanned; a dry run works on any
+may also implement `enrich`, which reads a listing's own page
+([`enrich_details()`](../../backend/src/findhome/scanning/runner.py#L93)). With `fetch.details.only_passing`, the
+runner calls it for every listing that passes the profile's hard filters on the list's values
+([`passes_hard_filters()`](../../backend/src/findhome/scanning/runner.py#L71), commute left out) and is new, has no
+page read (`attributes.details_checked_at`) or one older than `refresh_days`; without it, for listings not seen
+before. Pages are read with the site's delay, up to `max_per_run`. The list-page view is hashed, so later list-only
+scans of the same listing stay `unchanged`, while a page read is always stored. Then the items are ingested into a
+scan run, and new and changed listings are scored at once
+([`score_listings()`](../../backend/src/findhome/rescore.py)). Raw pages are saved under `data/raw/`. Only `active` sites are scanned; a dry run works on any
 scriptable site and stores nothing. Browser-only sites (Qasa: 429 to scripts) are scanned by the browser agent
 ([agent_contract.md](agent_contract.md#runs)).
 [`scanning/probe.py`](../../backend/src/findhome/scanning/probe.py) inspects a new site and recommends a fetch method.
@@ -118,9 +133,26 @@ sites, runs, jobs, job, settings) and a folder for the map. [`services/api.servi
 [`proxy.conf.json`](../../frontend/proxy.conf.json) sends `/api` and `/health` to :8200 (there is no BFF).
 Settings edits whole YAML files in CodeMirror; Locations edits points through JSON-patch operations.
 
+**Listing issues.** A missing value is shown, never silently empty.
+[`listing_issues()`](../../backend/src/findhome/domain/issues.py) computes them from the listing row on every request
+(never stored, so they are true after any scan, job or edit): `move_in_missing`, `photos_missing`,
+`floorplan_missing`, `description_missing`, `address_partial`, `coords_missing` / `coords_approximate`,
+`rent_missing` / `size_missing` / `rooms_missing` and `page_translated` (the last page read stopped on a translated
+page). Each has a class: `not_in_source` (the ad does not give it: its page was read, `details_checked_at`, or it
+gives words like "Nu") or `check_extraction` (its page was never read, or every ad has it), with a hint. List rows
+carry `issue_codes`, the listing its full `issues`. The ad status, pets and contract terms are not issues: they have
+their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
+
 **Candidates list.** [`candidates.ts`](../../frontend/src/app/pages/candidates.ts) is the triage table (keys in
-its header). The server applies the status, the search, the scope chips and **Hide rejected** (a red badge: filled
-while rejected homes show, outlined while they are hidden). The page then applies the ranges of the **Filters**
+its header). The server applies the status, the search, the scope chips, **Hide rejected** (a red badge: filled
+while rejected homes show, outlined while they are hidden) and **Hide closed** (amber, the same way: homes whose ad
+is closed on every site). While rejected homes are hidden, **Show move-in misses** (cyan, the same way) brings back
+the homes rejected only by the move-in window (`move_in_to`, `move_in_from_slack`; `GET /api/listings?move_in_misses=true`),
+their date in red. The id is a violet pill (`.fh-id-badge`); hovering or focusing **it** opens the home card, so the
+other cells keep their own tooltips. The **Issues** column shows a yellow "⚠ n" badge; hovering it opens the tape tooltip
+([`fh-issue-tip`](../../frontend/src/app/components/issue-tip.ts): a yellow panel in an animated yellow-black border,
+still under reduced motion) with each issue, its class and hint. A clock at the end of a row says the ad's status
+was not confirmed in `agent.yaml` `ad_status.stale_after_days`. The page then applies the ranges of the **Filters**
 bubble (ranges and chips) and the sort ([`rows`](../../frontend/src/app/pages/candidates.ts#L200)). Every column header but Id sorts:
 the first click puts the better end first (score high, rent low, move-in early), the second reverses, and homes
 without the value stay last. The default is score, high first.
@@ -136,8 +168,8 @@ stay in and the label shows ≤ / +. Homes without the value stay in unless you 
 steps (rent bars of 1 000 kr); a short one, one bar per value (rooms). Hovering a bar shows its values and how many
 homes it holds ([`showTip()`](../../frontend/src/app/pages/candidate-filters.ts#L366)).
 
-Under the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets** and
-**Contract** ([`CAT_FIELDS`](../../frontend/src/app/pages/candidate-filters.ts#L55)). Chosen chips of one group are
+Under the sliders, chips filter by **Website** (the site a home was first published on or found on), **Pets**,
+**Contract** and **Issues** (one chip per issue, and "No issues") ([`CAT_FIELDS`](../../frontend/src/app/pages/candidate-filters.ts#L55)). Chosen chips of one group are
 alternatives (any of them); groups and sliders combine. A chip is outlined until chosen, then filled with its
 colour and glowing, like the Hide rejected badge; its count is the homes it would keep with the other filters. After Hide rejected changes, every chart opens
 for a moment ([`flash()`](../../frontend/src/app/pages/candidate-filters.ts#L168)) and animates to the new homes.
@@ -175,10 +207,18 @@ live match count, N, launcher). Agent launches go through
 and copies the prompt). Pet badges ([`fh-pet-badge`](../../frontend/src/app/components/pet-badge.ts)) show who set
 the status (U / A / S / K) and the evidence; the detail page lets you set your own answer.
 
-**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) (PDF floor plans as links) shows a listing's `photo_urls` and
+**Photos.** [`fh-gallery`](../../frontend/src/app/components/gallery.ts) shows a listing's `photo_urls` and
 `floorplan_urls` (Photos / Floor plans tabs, thumbnails, a full-screen viewer with arrow keys, Esc, swipe and
-double-click for 1:1). It loads the images lazily from the site's own URLs; images that fail to load are dropped
-from the count. The detail page shows it at the top, foldable
+double-click for 1:1). It loads the images lazily from the site's own URLs; photos that fail to load are dropped
+from the count, while a plan that fails becomes a link card.
+
+**Floor plans.** Sites link plans as images, as PDFs (often without `.pdf` in the URL) or as interactive viewer
+pages. [`classify_floorplan()`](../../backend/src/findhome/scanning/floorplans.py) gives each link its kind once,
+from one HEAD request's content type (the extension when HEAD is refused), and renders a PDF's first page to
+`data/floorplans/<sha1>.png`, served by `GET /api/floorplans/<sha1>.png`. The result is kept in
+`attributes.floorplans` (`{url, kind, preview, unit}`), and a link already there is never fetched again. The gallery
+shows an image as it is, a PDF by its preview with a "PDF ↗" link to the original (a link card when there is no
+preview), and a viewer page as an "Interactive floor plan ↗" card. The detail page shows it at the top, foldable
 ([`band`](../../frontend/src/app/components/gallery.ts#L164)): folded (the default), one band of thumbnails; a
 thumbnail or the ▸ toggle unfolds it to the main image on that photo. There, only ⛶ opens the viewer; the map's
 listing panel shows a three-thumbnail strip (`compact`), fetching the listing on selection because map features carry no photos. Listings with exactly 6
@@ -204,10 +244,14 @@ of its shortcut is in the tooltip. The list sits in a bright gradient frame and 
 Map (the `bright-frame` mixin in [`app.scss`](../../frontend/src/app/app.scss)). Collapsed, box 1 is a rail of the
 same badges.
 
-**House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) loads the listing and its
+**House page.** The detail page ([`detail.ts`](../../frontend/src/app/pages/detail.ts)) shows a ⚠ next to the id
+when the listing has issues (the same tape tooltip), loads the listing and its
 house analysis (`GET /api/listings/{id}/location`) side by side. Its main column, top to bottom: the photo band;
 the description card (title, address, the key facts as labelled bubbles coloured like the candidates table, ✓ / ✕ / ?
-chips for lift and balcony, the ad's text); **On the map**; **This home** and **Its zone** side by side; **Travel to
+chips for lift and balcony, the ad's text); **Issues** (one row per issue with its class and hint, and **Complete
+details**, which runs the details job on this listing only: the agent one for browser sites, the in-app one for
+Bostadsförmedlingen); **Contract and conditions** (contract terms with the ad's wording on hover, requirements,
+what the rent includes, amenities; display-only, never scored, hidden when the ad gives none); **On the map**; **This home** and **Its zone** side by side; **Travel to
 your points** and **Transit routes**, both folded to their header until clicked (`collapsed`); the **Commute** table;
 the latest agent evaluation (pros, cons and questions for the landlord as lists). The side column holds **Where**,
 **Score** (folded to its total until clicked; each group as a bar coloured by its score), **Pets** (your answer as

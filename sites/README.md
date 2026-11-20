@@ -8,6 +8,13 @@ One folder per website: `sites/<slug>/`
 | `NAVIGATION.md` | How to use the site well: search flow, filters, listing anatomy, pet wording, traps. Written and kept current by the agent. |
 | `scanner.py` | Optional. `make_scanner(site)` for sites the generic scanner cannot handle (Playwright, embedded JSON, a whole-region feed); `to_listing(doc)` converts browser-extracted items from `inbox/`. |
 | `extract.js` | Browser-only sites: run by the browser agent on a result page already loaded in your Chrome (reads the page, sends no requests). |
+| `detail_extract.js` | Browser-only sites: run on one listing page for the details job; reads the page's structured data first (JSON-LD, page state), visible text only for what that lacks. `scanner.py` `detail_to_listing(doc)` maps its output to the fields the page had; an optional `ad_status_of(doc)` returns the ad status the page shows. |
+| `status_check.js` | Browser-only sites: run on one listing page for the status job; returns `{status, evidence, price?}` (open, rented, removed, not_found, unknown) by the rules in its header. Scripted sites put their page rules in `site.yaml` `ad_status` instead (`removed_url`, `box_selector`, `box`), and a site with a whole-region feed sets `feed_complete_min` so a complete feed closes what it no longer lists. |
+
+Every browser script starts with the same check: a page Chrome has translated (`html.translated-ltr`, or a `lang`
+that is not Swedish) returns `{translated: true}` and is not read, since labels, dates and even street names change.
+Scripts read with `textContent`, never `innerText`. Inbox files of raw site docs give each doc `_seen`, the day the
+page was read (from the file name), so a parser can date a card that shows a day without a year.
 | `logo.svg` / `logo.png` | Optional. The site's logo for the app (`brand.logo`); without it the app falls back to `brand.favicon` or the site's favicon. |
 | `probe/*.md` | Reports from `findhome site probe` (committed; raw dumps under `probe/raw/` are not). |
 
@@ -16,7 +23,7 @@ One folder per website: `sites/<slug>/`
 | Site | Status | How it is scanned |
 |---|---|---|
 | [Qasa](qasa/site.yaml) | active | browser agent only ([`extract.js`](qasa/extract.js)): qasa.com answers scripts with 429; manual start, ≤ 20 pages (`risk_note`) |
-| [Bostadsförmedlingen](bostadsformedlingen/site.yaml) | active | script: one request to the region-wide JSON feed ([`scanner.py`](bostadsformedlingen/scanner.py)), new listings' pages read for the description |
+| [Bostadsförmedlingen](bostadsformedlingen/site.yaml) | active | script: one request to the region-wide JSON feed ([`scanner.py`](bostadsformedlingen/scanner.py)); the pages of listings that pass the hard filters are read in the same scan (move-in, photos, floor plans, contract terms, units of project ads, description) |
 | [Samtrygg](samtrygg/site.yaml) | active | browser agent only ([`extract.js`](samtrygg/extract.js)): every month of your move-in window, paged, including the search pages robots.txt disallows (`risk_note`) |
 | [Blocket Bostad](blocket-bostad/site.yaml), [HomeQ](homeq/site.yaml) | disabled, `role: origin` | never scanned: their listings arrive through Qasa (`platforms`) |
 
@@ -27,10 +34,13 @@ One folder per website: `sites/<slug>/`
 `role: origin` sites are never scanned; an aggregator's `platforms` maps its `attributes.platform` values to them,
 so a listing shows where it was first published. `risk_note` records a decision to scan despite robots.txt or the
 terms (who, when, limits). `local_filter` holds scanner-side filters (`exclude_flags`, `search_area_buffer_m`).
-`scan.browser.inputs` lists search fields the browser agent sets on the result page before extracting (label,
-selector, how); the app derives the values to try from the profile (e.g. every month of the move-in window).
-`scan.browser.next_page` says how to reach further result pages inside the page (a next-page control) when they
-have no URL of their own; the browser agent then reads up to the chosen number of pages for every input set.
+Browser sites are searched **by URL**: `fetch.list_url_template` + `fixed_params` + the page param
+(`pagination: {type: page_param, param, page_size, max_pages}`); the agent opens one URL per page and stops after
+the last or a short page (fewer cards than `page_size`). The volume rule: read everything a site lists while it fits
+the page cap and filter in the database. `fetch.url_filter_policy` documents when hard filters still go in the URL
+(`mode: never`, or `when_over_cap` with the measured `expected_total_unfiltered`); pet and date filters never do,
+whatever the `filter_map` says. `scan.browser.inputs` (search fields set in the page) stays in the schema for a
+site whose search can only be set by a form; no site uses it.
 
 ## General filters → site filters
 
@@ -54,6 +64,13 @@ every key:
    in your Chrome ([`browser_scan_site.md`](../.agents/skills/find-home/prompts/browser_scan_site.md)), started
    from the Sites page (Claude CLI in the background, or a prefilled Claude Code tab in VS Code), and writes
    `inbox/` files the app imports into the run.
+
+A scripted site whose list lacks the listing's details reads each listing's page in the same scan, through
+`scanner.py` `enrich` and `fetch.details`: `enabled`, `only_passing` (read every listing that passes the hard
+filters and has no page read, or one older than `refresh_days`, default 30; without it, new listings only) and
+`max_per_run`, a safety cap. After a parser fix, `findhome scan <slug> --refresh-details` reads those pages again
+whatever their age. Pages are saved under `data/raw/<slug>/<stamp>/pages/`. Floor plan links go through
+`classify_floorplan()` (image, PDF with a cached preview, or viewer page).
 
 Scripted methods use no tokens. Only `active` sites with `scan.script` enabled are scanned (`findhome scan --all`);
 `--dry-run` works on any status and is how a scripted site is verified.

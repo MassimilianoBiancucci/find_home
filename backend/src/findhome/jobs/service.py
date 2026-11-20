@@ -194,7 +194,7 @@ async def cancel_run(conn, run_id: str) -> dict:
 
 # ── agent protocol ──────────────────────────────────────────
 async def next_item(conn, run_id: str) -> dict | None:
-    run = await _one(conn, "SELECT status FROM job_runs WHERE id = %s", (run_id,))
+    run = await _one(conn, "SELECT status, job_key, settings FROM job_runs WHERE id = %s", (run_id,))
     if not run:
         raise JobError("no such job run")
     if run["status"] != "running":
@@ -212,6 +212,25 @@ async def next_item(conn, run_id: str) -> dict | None:
     sources = await _all(conn, "SELECT site_slug, url FROM listing_sources WHERE listing_id = %s AND url IS NOT NULL "
                                "ORDER BY first_seen_at", (item["listing_id"],))
     left = await _one(conn, "SELECT count(*) AS n FROM job_items WHERE job_run_id = %s AND state = 'queued'", (run_id,))
+    if run["job_key"] == "listing_status":          # the source to check first: on the job's sites, still open
+        sites = (run["settings"].get("subset") or {}).get("sites") or [s["site_slug"] for s in sources]
+        srcs = await _all(conn, """SELECT site_slug, url, ad_status FROM listing_sources
+                                   WHERE listing_id = %s AND url IS NOT NULL AND site_slug = ANY(%s)
+                                   ORDER BY (ad_status IN ('open', 'unknown')) DESC, last_seen_at DESC""",
+                          (item["listing_id"], list(sites)))
+        now = srcs[0]["ad_status"] if srcs else "unknown"
+        return {"short_id": L["short_id"], "title": L["title"], "area": L["area"], "address": L["address_raw"],
+                "urls": [s["url"] for s in srcs], "sites": [s["site_slug"] for s in srcs], "ad_status": now,
+                "why": f"ad status now: {now}", "left_after_this": left["n"]}
+    if run["job_key"] == "listing_details":         # what the page read should fill
+        from findhome.jobs.details import missing_of
+
+        missing = await missing_of(conn, item["listing_id"])
+        return {"short_id": L["short_id"], "title": L["title"], "area": L["area"], "address": L["address_raw"],
+                "urls": [s["url"] for s in sources], "sites": [s["site_slug"] for s in sources],
+                "missing": missing, "why": "missing: " + (", ".join(missing) or "nothing (page never read)"),
+                "current": {"pet_status": L["pet_status"], "pet_source": L["pet_source"],
+                            "pet_evidence": L["pet_evidence"]}, "left_after_this": left["n"]}
     return {"short_id": L["short_id"], "title": L["title"], "area": L["area"], "address": L["address_raw"],
             "urls": [s["url"] for s in sources], "sites": [s["site_slug"] for s in sources],
             "current": {"pet_status": L["pet_status"], "pet_source": L["pet_source"], "pet_evidence": L["pet_evidence"]},
@@ -242,7 +261,19 @@ async def submit(conn, run_id: str, short_id: str, pet: str, evidence: str | Non
                        (Jsonb(res["before"]), Jsonb(after) if after else None, evidence, page_url, outcome, note,
                         item["id"]))
     await conn.execute("UPDATE job_runs SET counts = %s WHERE id = %s", (Jsonb(await _counts(conn, run_id)), run_id))
+    await mark_item_usage(conn, run_id, item["id"])
     return {"short_id": short_id.upper(), "outcome": outcome, "after": after, "note": note}
+
+
+async def mark_item_usage(conn, run_id: str, item_id) -> None:
+    """The tokens the agent used on this item: its run's usage since the previous submit (#12 usage marks)."""
+    from findhome.api.state import bundle
+    from findhome.db import runs_repo
+
+    run = await _one(conn, "SELECT agent_run_id FROM job_runs WHERE id = %s", (run_id,))
+    mark = await runs_repo.usage_mark(conn, run and run["agent_run_id"], dict(bundle().agent.prices))
+    if mark:
+        await conn.execute("UPDATE job_items SET usage = %s WHERE id = %s", (Jsonb(mark), item_id))
 
 
 async def undo(conn, item_id: int) -> dict:

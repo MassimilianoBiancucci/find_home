@@ -18,7 +18,7 @@ from selectolax.lexbor import LexborNode as Node
 
 from findhome.config.models import SiteConfig
 from findhome.core.paths import data_dir
-from findhome.domain.models import ListingIn, SourceIn
+from findhome.domain.models import DESCRIPTION_MAX, ListingIn, SourceIn
 from findhome.domain.normalize import contract_type_from_text, parse_int, parse_number, parse_rooms
 from findhome.scanning.base import Query, RawItem
 
@@ -79,7 +79,7 @@ def build_listing(site: SiteConfig, values: dict[str, Any], page_url: str, snaps
     if not ext:
         raise ValueError("item has neither external_id nor url")
     if "description_excerpt" in fields:
-        fields["description_excerpt"] = str(fields["description_excerpt"])[:1200]
+        fields["description_excerpt"] = str(fields["description_excerpt"])[:DESCRIPTION_MAX]
     kind = site.kinds[0]
     return ListingIn(source=SourceIn(site_slug=site.slug, external_id=ext, url=url, method="script",
                                      raw_snapshot_path=snapshot), listing_kind=kind, **fields)

@@ -69,6 +69,35 @@ describe('fh-gallery', () => {
     expect(el.querySelector('.fh-gal-main')).toBeNull();
   });
 
+  it('shows the three plan kinds: an image, a PDF by its cached first page, a viewer page as a link card', () => {
+    const plans = ['https://plans.example/p1', 'https://plans.example/p2.pdf', 'https://viewer.example/v/3', 'https://plans.example/p4.jpg'];
+    const f = make({ photos, plans, plansMeta: [
+      { url: plans[0], kind: 'pdf', preview: 'a'.repeat(40) }, { url: plans[1], kind: 'pdf' },
+      { url: plans[2], kind: 'viewer' }, { url: plans[3], kind: 'image' }] });
+    const el = f.nativeElement as HTMLElement;
+    (el.querySelectorAll<HTMLButtonElement>('.fh-gal-tabs button'))[1].click();
+    f.detectChanges();
+    const at = (i: number) => { f.componentInstance['index'].set(i); f.detectChanges(); return el.querySelector('.fh-gal-main') as HTMLElement; };
+    expect((at(0).querySelector('img') as HTMLImageElement).src).toContain('/api/floorplans/' + 'a'.repeat(40) + '.png');
+    expect(at(0).querySelector('.fh-gal-orig')?.getAttribute('href')).toBe(plans[0]);
+    expect(at(1).querySelector('.fh-gal-pdf')?.textContent).toContain('PDF floor plan');
+    expect(at(2).querySelector('.fh-gal-pdf')?.textContent).toContain('Interactive floor plan');
+    expect((at(3).querySelector('img') as HTMLImageElement).src).toContain('p4.jpg');
+  });
+
+  it('keeps a plan whose image fails as a link card, but drops a broken photo', () => {
+    const plans = ['https://plans.example/gone.png'];
+    const f = make({ photos, plans });
+    const g = f.componentInstance as unknown as { broken(u: string): void };
+    g.broken(plans[0]); g.broken(photos[0]);
+    f.detectChanges();
+    const el = f.nativeElement as HTMLElement;
+    const tabs = el.querySelectorAll<HTMLButtonElement>('.fh-gal-tabs button');
+    expect(tabs[0].textContent).toContain('3');
+    tabs[1].click(); f.detectChanges();
+    expect(el.querySelector('.fh-gal-main .fh-gal-pdf')?.textContent).toContain('Floor plan');
+  });
+
   it('compact mode shows three thumbnails and the rest as +N', () => {
     const el = make({ photos, compact: true }).nativeElement as HTMLElement;
     expect(el.querySelectorAll('.fh-gal-strip .fh-gal-thumb').length).toBe(3);

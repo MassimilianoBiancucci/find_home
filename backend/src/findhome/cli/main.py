@@ -126,6 +126,14 @@ def config_schema(which: str = typer.Argument("ingest", help="ingest"),
             ann = str(f.annotation).replace("typing.", "").replace("<class '", "").replace("'>", "")
             ann = ann.replace("findhome.domain.models.", "").replace("|", "\\|")
             lines.append(f"| `{fname}` | {ann} | {'yes' if f.is_required() else ''} | {f.description or ''} |")
+    from findhome.domain.attributes import attribute_summary
+
+    lines += ["\n### ListingIn.attributes: fixed keys\n",
+              ("Checked at ingest; any other key is free. Keep the raw wording next to a parsed value "
+               "(`guaranteed_raw`, `notice_raw`, `move_in_raw`). `?` = may be null.\n"), "| Key | Shape |", "|---|---|"]
+    for key, shape in attribute_summary().items():
+        cell = shape.replace("|", "\\|")
+        lines.append(f"| `{key}` | `{cell}` |")
     typer.echo("\n".join(lines))
 
 
@@ -142,10 +150,12 @@ def serve(port: int = 8200, reload: bool = False):
 @app.command()
 def scan(site: str = typer.Argument(..., help="Site slug or --all"),
          dry_run: bool = typer.Option(False, "--dry-run", help="Fetch and parse, do not store."),
-         max_pages: Optional[int] = typer.Option(None, "--max-pages")):
+         max_pages: Optional[int] = typer.Option(None, "--max-pages"),
+         refresh_details: bool = typer.Option(False, "--refresh-details",
+                                              help="Read the pages of passing listings again (after a parser fix).")):
     """Scripted scan (api/http) of a site: fetch → normalize → dedupe → ingest. One line per site."""
     res = _api().post("/api/scans", {"site": "all" if site in ("--all", "all") else site, "dry_run": dry_run,
-                                     "max_pages": max_pages,
+                                     "max_pages": max_pages, "refresh_details": refresh_details,
                                      "trigger": "agent" if os.environ.get("FINDHOME_AGENT_RUN_ID") else "cli"})
     _out(res, "\n".join(r["line"] for r in res["results"]) or "no active sites")
 
@@ -400,17 +410,55 @@ def jobs_next(job_run: str = typer.Argument(..., help="The job run id from your 
     _out({"item": item}, "\n".join([
         f"{item['short_id']}  {item['title'] or ''} · {item['area'] or ''}",
         f"  open: {item['urls'][0] if item['urls'] else '(no URL)'}",
-        f"  now: pets {item['current']['pet_status']} ({item['current']['pet_source'] or 'no source'}): "
-        f"{item['current']['pet_evidence'] or '-'}",
+        f"  site: {item['sites'][0] if item['sites'] else '-'}",
+        *([f"  {item['why']}"] if "missing" in item or "ad_status" in item else [
+            f"  now: pets {item['current']['pet_status']} ({item['current']['pet_source'] or 'no source'}): "
+            f"{item['current']['pet_evidence'] or '-'}"]),
         f"  {item['left_after_this']} more after this one"]))
+
+
+@jobs_app.command("post-detail")
+def jobs_post_detail(job_run: str, site: str = typer.Option(..., "--site"), url: str = typer.Option(..., "--url"),
+                     doc_file: Path = typer.Option(..., "--doc-file", help="the script's doc saved as JSON"),
+                     kind: str = typer.Option("detail", "--kind", help="detail (detail_extract.js) | status "
+                                                                       "(status_check.js)")):
+    """Fallback when the page could not post its data itself (local network access not allowed, app down): send the
+    output of detail_extract.js or status_check.js for one listing page."""
+    if kind not in ("detail", "status"):
+        typer.secho("--kind must be detail or status", fg="red")
+        raise typer.Exit(2)
+    run = os.environ.get("FINDHOME_AGENT_RUN_ID")
+    if not run:
+        typer.secho("FINDHOME_AGENT_RUN_ID is not set (the app sets it for runs it starts)", fg="red")
+        raise typer.Exit(2)
+    doc = json.loads(doc_file.read_text(encoding="utf-8"))
+    res = _api().post("/api/inbox/raw", {"kind": kind, "site": site, "run": run, "job_run": job_run, "url": url,
+                                         "doc": doc.get("doc", doc)})
+    _out(res, f"{res.get('short_id')}: {res.get('outcome')}" + (f" ({res['status']})" if res.get("status") else "")
+         + (f"; still missing: {', '.join(res['missing'])}" if res.get("missing") else ""))
 
 
 @jobs_app.command("submit")
 def jobs_submit(job_run: str, short_id: str,
-                pet: str = typer.Option(..., "--pet", help="yes | no | ask | unknown"),
+                pet: Optional[str] = typer.Option(None, "--pet", help="yes | no | ask | unknown (pet check jobs)"),
                 evidence: Optional[str] = typer.Option(None, "--evidence", help="The exact pet sentence from the page"),
-                url: Optional[str] = typer.Option(None, "--url", help="The page you read")):
-    """Record what the listing page says about pets (quote it); unknown when it says nothing."""
+                url: Optional[str] = typer.Option(None, "--url", help="The page you read"),
+                fields_file: Optional[Path] = typer.Option(
+                    None, "--fields-file", help="Details jobs: JSON {fields: {...}, evidence: {field: quote}, page_url}"),
+                gone: bool = typer.Option(False, "--gone", help="Details jobs: the ad no longer exists")):
+    """Pet check: record what the page says about pets (quote it). Details job: record the values you read in the
+    page's free text, each with its quote (--fields-file), or that the ad is gone (--gone)."""
+    if fields_file or gone:
+        spec = json.loads(fields_file.read_text(encoding="utf-8")) if fields_file else {}
+        body = {"short_id": short_id, "fields": spec.get("fields") or {}, "field_evidence": spec.get("evidence") or {},
+                "url": spec.get("page_url") or url, "gone": gone}
+        res = _api().post(f"/api/job-runs/{job_run}/submit", body)
+        _out(res, f"{res['short_id']}: " + ("gone" if gone else f"changed {', '.join(res.get('changed') or []) or 'nothing'}"
+             + (f"; still missing: {', '.join(res['missing'])}" if res.get("missing") else "")))
+        return
+    if not pet:
+        typer.secho("give --pet (pet check) or --fields-file / --gone (details job)", fg="red")
+        raise typer.Exit(2)
     res = _api().post(f"/api/job-runs/{job_run}/submit",
                       {"short_id": short_id, "pet": pet, "evidence": evidence, "url": url})
     _out(res, f"{res['short_id']}: {res['outcome']}" + (f" ({res['note']})" if res.get("note") else ""))

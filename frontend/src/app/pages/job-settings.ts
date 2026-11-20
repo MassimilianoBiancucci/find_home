@@ -6,7 +6,8 @@ import { LaunchButton } from '../components/launch-button';
 import { PagesStepper } from '../components/pages-stepper';
 import { PetBadge } from '../components/pet-badge';
 import { SiteLogo } from '../components/site-logo';
-import { Job, JobPreview, JobSettings, JobSubset, Launcher } from '../models';
+import { AdStatus, Job, JobPreview, JobSettings, JobSubset, Launcher } from '../models';
+import { AD_STATUS_LABEL } from '../components/ad-status-badge';
 import { ApiService, apiError } from '../services/api.service';
 import { MODEL_HINT, MODEL_LABEL, ProfilesStore } from '../services/profiles.store';
 import { SitesStore } from '../services/sites.store';
@@ -48,6 +49,16 @@ export const parseIds = (t: string) => t.split(/[\s,;]+/).map((x) => x.trim().to
       @for (p of sources; track p) { <button type="button" class="fh-fchip" [class.active]="has('pet_source', p)" (click)="flip('pet_source', p)">{{ p }}</button> }
     </div>
   </div>
+  @if (j.type.startsWith('listing_status') || sub.ad_status_in?.length) {
+    <div class="fh-field"><span class="fh-field-label">Ad status now</span>
+      <div class="d-flex flex-wrap gap-1">
+        @for (a of adStatuses; track a) { <button type="button" class="fh-fchip" [class.active]="has('ad_status_in', a)" (click)="flip('ad_status_in', a)">{{ adLabel[a] }}</button> }
+      </div>
+      <div class="form-check form-switch mt-1">
+        <input id="js-unseen" class="form-check-input" type="checkbox" [ngModel]="!!sub.not_seen_since_last_scan" (ngModelChange)="set('not_seen_since_last_scan', $event)" />
+        <label class="form-check-label small" for="js-unseen">not listed by the site's last scan</label></div>
+    </div>
+  }
   <div class="fh-field"><span class="fh-field-label">Found on</span>
     <div class="d-flex flex-wrap gap-1">
       @for (s of scanned(); track s.slug) {
@@ -149,6 +160,8 @@ export class JobSettingsPanel implements OnChanges {
   readonly saved = output<Job>();
   readonly ran = output<unknown>();
   protected pets = PET; protected sources = SOURCES; protected launcherOptions: Launcher[] = ['cli', 'vscode'];
+  protected adStatuses: AdStatus[] = ['open', 'unknown', 'applications_closed', 'rented', 'removed', 'not_found'];
+  protected adLabel = AD_STATUS_LABEL;
   protected form = signal<JobSettings>({ subset: {}, n: 1 });
   protected ids = signal('');
   protected preview = signal<JobPreview | null>(null);
@@ -208,10 +221,12 @@ export class JobSettingsPanel implements OnChanges {
     this.savedJson.set(JSON.stringify(this.payload()));
   }
 
-  has(k: 'pet_status' | 'pet_source' | 'sites' | 'origin_sites', v: string): boolean { return (this.form().subset[k] ?? []).includes(v); }
-  flip(k: 'pet_status' | 'pet_source' | 'sites' | 'origin_sites', v: string): void {
-    const cur = this.form().subset[k] ?? [];
-    this.set(k, cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]);
+  has(k: 'pet_status' | 'pet_source' | 'sites' | 'origin_sites' | 'ad_status_in', v: string): boolean {
+    return ((this.form().subset[k] ?? []) as string[]).includes(v);
+  }
+  flip(k: 'pet_status' | 'pet_source' | 'sites' | 'origin_sites' | 'ad_status_in', v: string): void {
+    const cur = (this.form().subset[k] ?? []) as string[];
+    this.set(k, (cur.includes(v) ? cur.filter((x) => x !== v) : [...cur, v]) as never);
   }
   set<K extends keyof JobSubset>(k: K, v: JobSubset[K]): void { this.form.update((f) => ({ ...f, subset: { ...f.subset, [k]: v } })); }
   setN(n: number): void { this.form.update((f) => ({ ...f, n })); }

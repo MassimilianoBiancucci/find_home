@@ -20,6 +20,7 @@ kinds:
       accept_sovalkov: false        # TODO(user): does 1 rok + sleeping alcove count as a bedroom?
       move_in_from: null            # TODO(user): earliest move-in date (YYYY-MM-DD)
       move_in_to: null              # TODO(user): latest move-in date
+      move_in_from_slack_days: null # TODO(user): days before move_in_from still accepted (null = any earlier date)
       areas_include: []             # TODO(user): e.g. [Södermalm, Kungsholmen]; empty = anywhere
       areas_exclude: []
       contract_types: [first_hand, second_hand, sublet]
@@ -34,7 +35,7 @@ kinds:
       space:
         enabled: true
         weight: 2
-        params: {ideal_size_m2: 55}
+        params: {ideal_size_m2: 55, ideal_rooms_rok: 2}   # rooms count for 30 % (rooms_weight) when set
       commute:
         enabled: true
         weight: 4

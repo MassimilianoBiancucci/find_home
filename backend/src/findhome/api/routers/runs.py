@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 
 from findhome.agentrun import launcher
 from findhome.api.state import bundle
@@ -24,6 +26,53 @@ async def inbox_import():
     from findhome.core.db import pool
 
     return {"results": await inbox.import_all(pool())}
+
+
+class RawIn(BaseModel):
+    """What a browser script posts from a listing site's page (the only request a script may send)."""
+    kind: Literal["detail", "status", "page"]
+    site: str
+    run: str = Field(description="The open agent run the script works for")
+    url: str | None = None
+    job_run: str | None = None
+    doc: dict | None = None
+
+
+@router.post("/inbox/raw")
+async def inbox_raw(body: RawIn, conn=Depends(get_conn)):
+    """A page's extracted data, posted by the site's script (detail_extract.js, status_check.js), so it never passes
+    through the agent's context. Accepted only for an open agent run, from the site's own origin (api/raw_cors.py)."""
+    import uuid as _uuid
+
+    from findhome.jobs.details import raw_detail
+    from findhome.jobs.service import JobError
+
+    try:
+        _uuid.UUID(body.run)
+    except ValueError as exc:
+        raise HTTPException(422, "run must be an agent run id") from exc
+    run = await runs_repo.get_agent_run(conn, body.run)
+    if not run or run["status"] != "running":
+        raise HTTPException(409, "no open agent run with this id")
+    if body.kind == "page":                          # a result page of a browser scan (extract.js)
+        if body.doc is None:
+            raise HTTPException(422, "a page post needs doc")
+        from findhome import inbox
+
+        try:
+            return await inbox.import_page_post(conn, body.site, body.run, body.doc)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+    if not body.url or body.doc is None:
+        raise HTTPException(422, f"a {body.kind} post needs url and doc")
+    try:
+        if body.kind == "status":
+            from findhome.jobs.status import apply_status
+
+            return await apply_status(conn, body.site, body.url, body.doc, body.job_run)
+        return await raw_detail(conn, body.site, body.url, body.doc, body.job_run)
+    except JobError as exc:
+        raise HTTPException(404, str(exc)) from exc
 
 
 @router.post("/runs/backfill-inbox")
@@ -56,7 +105,8 @@ async def agent_run(run_id: str, conn=Depends(get_conn)):
     row = await runs_repo.get_agent_run(conn, run_id)
     if not row:
         raise HTTPException(404, "no such agent run")
-    return row
+    report = await runs_repo.scan_report(conn, run_id) if row.get("profile") == "browser_scan" else None
+    return {**row, **({"scan_report": report} if report else {})}
 
 
 @router.get("/agent-profiles")
@@ -76,8 +126,21 @@ async def start(body: AgentRunRequest):
 
 @router.post("/agent-runs/{target}/cancel")
 async def cancel(target: str):
-    """Cancel one run (its id) or every running run of a profile (its name)."""
-    return {"cancelled": await launcher.cancel(target)}
+    """Cancel one run (its id) or every open run of a profile (its name). Stops only that run's agent process and its
+    children: {status: stopped | not_running | already_finished, killed, note}."""
+    try:
+        res = await launcher.cancel(target)
+    except launcher.AgentRunError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return {"cancelled": res["status"] in ("stopped", "not_running"), **res}
+
+
+@router.post("/agent-runs/{run_id}/reconcile")
+async def reconcile(run_id: str, conn=Depends(get_conn)):
+    """Check one open run against the live Claude sessions now ("Mark as ended" when its session is gone)."""
+    counts = await launcher.reconcile(conn, only=run_id)
+    row = await runs_repo.get_agent_run(conn, run_id)
+    return {**counts, "status": row["status"] if row else None, "liveness": row.get("liveness") if row else None}
 
 
 @router.patch("/agent-runs/{run_id}")

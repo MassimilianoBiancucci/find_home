@@ -14,14 +14,17 @@ from psycopg import OperationalError
 from psycopg_pool import PoolTimeout
 
 from findhome import __version__, inbox
+from findhome.api.raw_cors import RawInboxCors
 from findhome.api.routers import config as config_router
-from findhome.api.routers import digest, ingest, jobs, listings, map as map_router, runs, scoring, sites
-from findhome.api.routers import geocode as geocode_router
-from findhome.api.routers import geo as geo_router
-from findhome.api.routers import probe as probe_router
 from findhome.api.routers import connectivity as connectivity_router
-from findhome.api.routers import zone as zone_router
+from findhome.api.routers import digest, ingest, jobs, listings, runs, scoring, sites
+from findhome.api.routers import files as files_router
+from findhome.api.routers import geo as geo_router
+from findhome.api.routers import geocode as geocode_router
 from findhome.api.routers import house as house_router
+from findhome.api.routers import map as map_router
+from findhome.api.routers import probe as probe_router
+from findhome.api.routers import zone as zone_router
 from findhome.config.loader import ConfigError
 from findhome.config.store import get_store
 from findhome.core import db
@@ -82,10 +85,15 @@ async def lifespan(app: FastAPI):
     await _sync_sites_safe()
     watcher = asyncio.create_task(store.watch())
     inbox_watcher = asyncio.create_task(inbox.watch(db.pool()))
+    # runs left open by a reload are matched with the live Claude sessions at startup, then every 60 s; the agents
+    # themselves are never stopped by a shutdown
+    from findhome.agentrun.launcher import watchdog
+
+    run_watchdog = asyncio.create_task(watchdog())
     try:
         yield
     finally:
-        for task in (watcher, inbox_watcher):
+        for task in (watcher, inbox_watcher, run_watchdog):
             task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await task
@@ -96,6 +104,7 @@ app = FastAPI(title="find_home API", version=__version__, lifespan=lifespan,
               description="Local API of the find_home app. The agent writes through the findhome CLI, which calls this API.")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4400", "http://127.0.0.1:4400"],
                    allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(RawInboxCors)          # listing sites' pages may post extracted data to /api/inbox/raw only
 
 
 @app.exception_handler(ConfigError)
@@ -133,5 +142,5 @@ async def health():
 
 
 for r in (config_router, listings, ingest, scoring, digest, sites, runs, jobs, map_router, geocode_router, geo_router,
-          probe_router, connectivity_router, zone_router, house_router):
+          probe_router, connectivity_router, zone_router, house_router, files_router):
     app.include_router(r.router)

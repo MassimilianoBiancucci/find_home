@@ -174,6 +174,8 @@ class AgentProfile(_Base):
 
 class AgentConfig(_Base):
     profiles: dict[str, AgentProfile]
+    prices: dict[str, dict[str, float]] = Field(default_factory=dict)   # $ per million tokens, for estimates only
+    ad_status: dict[str, Any] = Field(default_factory=lambda: {"stale_after_days": 7})   # when a status is stale
 
 
 # ── geo, search area ─────────────────────────────────────────
@@ -267,6 +269,7 @@ class SiteConfig(_Base):
     filter_map: dict[str, dict[str, Any]]
     field_map: dict[str, Any] = Field(default_factory=dict)
     pets: dict[str, Any] = Field(default_factory=dict)
+    ad_status: dict[str, Any] = Field(default_factory=dict)    # how the site says an ad is closed (#11)
     auth: dict[str, Any]
     politeness: dict[str, Any]
     schedule: dict[str, Any] = Field(default_factory=dict)

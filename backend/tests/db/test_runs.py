@@ -129,7 +129,8 @@ def test_vscode_launcher_registers_a_waiting_run(client):
     assert bad.status_code == 409 and "origin-only" in bad.json()["detail"]
     other = client.post("/api/agent-runs", json={"profile": "browser_scan", "params": {"site": "qasa"},
                                                  "launcher": "vscode"}).json()
-    assert client.post(f"/api/agent-runs/{other['id']}/cancel").json() == {"cancelled": True}
+    res = client.post(f"/api/agent-runs/{other['id']}/cancel").json()
+    assert res["cancelled"] is True and res["status"] == "not_running" and res["killed"] == 0   # nothing to stop
     import shutil
 
     from findhome.core.paths import repo_root

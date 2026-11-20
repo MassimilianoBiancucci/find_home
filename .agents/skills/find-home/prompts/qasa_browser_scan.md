@@ -19,7 +19,8 @@ output: inbox/qasa-<UTC yyyymmddThhmmss>-p<N>.json per page with new listings; a
 
 1. Read `runs/state/qasa.json`. Note `last_published` (may be null) and `scan_urls` (one URL per page).
    If the file is missing, use this single URL and treat `last_published` as null:
-   `https://qasa.com/se/sv/find-home?searchAreas=Stockholms_l%C3%A4n~~se&sharedHome=privateHome&minRoomCount=2&rules=pets&page=1`
+   `https://qasa.com/se/sv/find-home?searchAreas=Stockholms_l%C3%A4n~~se&sharedHome=privateHome&page=1`
+   (never add a pet or date filter: the app judges pets and dates itself)
 2. Read `sites/qasa/extract.js` (you will run its code as is).
 3. Open one new browser tab (Claude in Chrome: call `tabs_context_mcp` first, then `tabs_create_mcp`).
 4. For each URL in `scan_urls`, in order:
@@ -43,3 +44,8 @@ If a browser tool is refused or says the browser is not connected, stop and repo
 The app must be running to import the files right away; otherwise it imports them at its next start
 (`scripts/findhome ingest inbox` imports by hand). Evaluating the new listings is a separate run
 (`prompts/run_evaluate.md`).
+
+Rules for every page: a page Chrome has translated answers `{translated: true}`: stop and say "turn off Chrome
+translation for Swedish". Copy `docs` exactly (the app re-derives masked ids from the URLs); never complete an
+address. A whole page can be cut by the browser tool at 50 KB: when the app is reachable, the app-started scan
+([browser_scan_site.md](browser_scan_site.md)) posts each page to the app instead.

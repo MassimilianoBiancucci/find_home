@@ -23,6 +23,11 @@ describe('Sites page grouping', () => {
     expect(live.get('bostadsformedlingen')).toMatchObject({ type: 'scan', id: 's' });
     expect(live.has('samtrygg')).toBe(false);
   });
+  it('does not count a run whose session the watchdog found gone', () => {
+    const live = liveBySite({ agent_runs: [{ id: 'g', status: 'running', site_slug: 'qasa', liveness: 'gone', scan_runs: [] } as any],
+      scan_runs: [] });
+    expect(live.has('qasa')).toBe(false);
+  });
   it('makes monograms from site names', () => {
     expect(monogram('HomeQ')).toBe('HQ');
     expect(monogram('Blocket Bostad')).toBe('BB');

@@ -12,6 +12,8 @@ filters:
   accept_sovalkov: {type: boolean, kinds: [rent, buy], description: Whether a sleeping alcove counts as a bedroom}
   move_in_from: {type: date, kinds: [rent], description: Earliest acceptable move-in date}
   move_in_to: {type: date, kinds: [rent], description: Latest acceptable move-in date}
+  move_in_from_slack_days: {type: integer, unit: days, kinds: [rent], description: How many days before move_in_from
+      a move-in is still accepted (unset = any earlier date passes)}
   areas_include: {type: string_list, kinds: [rent, buy], description: Areas or districts to keep (empty = all)}
   areas_exclude: {type: string_list, kinds: [rent, buy], description: Areas or districts to drop}
   contract_types: {type: enum_list, values: [first_hand, second_hand, sublet], kinds: [rent], description: Accepted 

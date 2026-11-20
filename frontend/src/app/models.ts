@@ -34,6 +34,16 @@ export interface Listing {
   origin_site?: string | null;
   /** Sites the home was found on (listing_sources). */
   found_on?: string[] | null;
+  /** False when none of its sources is open any more (applications closed, let, removed, not found). */
+  ad_open?: boolean;
+  /** The ad status on each site it was found on. */
+  ad_sources?: { site: string; status: AdStatus; checked_at?: string | null }[] | null;
+  /** Codes of what the listing is missing (backend domain/issues.py; computed per request). */
+  issue_codes?: string[];
+  /** The latest confirmation (scan or status check) of an open or unchecked source. */
+  ad_checked_at?: string | null;
+  /** Still open, but not confirmed for agent.yaml ad_status.stale_after_days days: the ad may have closed. */
+  ad_stale?: boolean;
   available_from?: string | null;
   description_excerpt?: string | null;
   photo_urls: string[];
@@ -75,7 +85,14 @@ export interface CommuteRow {
 
 export interface Feedback { polarity: 'like' | 'dislike' | 'neutral'; tags: string[]; note?: string | null; actor: string; at: string; }
 export interface Evaluation { summary: string; pros: string[]; cons: string[]; questions_for_landlord: string[]; extracted: Record<string, unknown>; at: string; }
-export interface Source { site_slug: string; external_id: string; url?: string | null; source_method: string; first_seen_at: string; last_seen_at: string; scan_run_id?: string | null; first_scan_run_id?: string | null; }
+export type AdStatus = 'open' | 'applications_closed' | 'rented' | 'removed' | 'not_found' | 'unknown';
+export interface Source {
+  site_slug: string; external_id: string; url?: string | null; source_method: string; first_seen_at: string; last_seen_at: string;
+  scan_run_id?: string | null; first_scan_run_id?: string | null;
+  ad_status?: AdStatus; status_checked_at?: string | null; status_evidence?: Record<string, unknown> | null;
+}
+/** A change of an ad's status on one site (scan, status job or you). */
+export interface AdStatusEvent { at: string; from_status?: AdStatus | null; to_status: AdStatus; actor: string; evidence?: Record<string, unknown> | null; site_slug: string; }
 export interface StatusEvent { from_status?: string | null; to_status: string; actor: string; note?: string | null; at: string; }
 
 export interface ListingDetail {
@@ -87,6 +104,9 @@ export interface ListingDetail {
   evaluations: Evaluation[];
   sources: Source[];
   events: StatusEvent[];
+  ad_status_events?: AdStatusEvent[];
+  /** What the listing is missing, with the class and a hint (backend domain/issues.py). */
+  issues?: { code: string; label: string; cls: 'not_in_source' | 'check_extraction'; hint: string }[];
 }
 
 export type SiteStatus = 'unverified' | 'active' | 'broken' | 'disabled';
@@ -129,7 +149,26 @@ export interface AgentRun {
   site_slug?: string | null; params?: Record<string, unknown> | null; session_id?: string | null; transcript_path?: string | null;
   cost_usd?: number | null; num_turns?: number | null; result?: AgentRunResult | null; duration_s?: number | null;
   scan_runs?: ScanRun[]; job_runs?: JobRun[];
+  /** The agent's process as the watchdog last saw it (claude agents --json): gone means no live session. */
+  liveness?: 'alive_busy' | 'alive_idle' | 'gone' | 'unknown' | null; pid?: number | null; session_name?: string | null;
+  last_seen_at?: string | null; late_files?: number | null;
+  /** Tokens per model (input, output, cache_read, cache_write_5m, cache_write_1h); live while running, exact at the end. */
+  usage?: Record<string, Record<string, number>> | null;
+  /** The cost is estimated from the price table (the run ended without a result event). */
+  cost_estimated?: boolean | null;
+  /** Browser scans: per result page, and the coverage against the site's counter (GET /api/agent-runs/{id}). */
+  scan_report?: { sites: ScanReportSite[] } | null;
 }
+export interface ScanReportPage {
+  page: number | string; cards?: number; new?: number; updated?: number; duplicates?: number; total?: number;
+  last_page?: boolean; usage?: { tokens?: Record<string, Record<string, number>>; cost_estimate?: number } | null;
+}
+export interface ScanReportSite {
+  site: string; pages: ScanReportPage[]; cards: number; total: number | null; coverage: number | null; new: number;
+  duplicates: number; line: string; warning: string | null;
+}
+/** What Cancel did: stopped the agent and its children, found nothing running, or the run had already ended. */
+export interface CancelResult { cancelled: boolean; status: 'stopped' | 'not_running' | 'already_finished'; killed: number; note?: string | null; }
 export interface ScanRun {
   id: string; site_slug: string; method: string; trigger: string; dry_run?: boolean; started_at: string; finished_at?: string | null;
   status: string; counts: ScanCounts; error?: string | null; agent_run_id?: string | null; batch_id?: string | null;
@@ -154,6 +193,10 @@ export interface JobSubset {
   sites?: string[]; origin_sites?: string[]; pet_status?: string[]; pet_source?: string[]; new_since?: string | null;
   passes_hard_filters?: boolean; order?: 'score_desc' | 'newest' | 'oldest'; short_ids?: string[];
   exclude_checked_within_days?: number | null; status?: string[];
+  /** Listings with a source in one of these ad statuses (status jobs). */
+  ad_status_in?: AdStatus[];
+  /** Listings with a source the site's last completed scan did not list. */
+  not_seen_since_last_scan?: boolean;
 }
 export interface JobSettings { subset: JobSubset; n: number; launcher?: Launcher; /** Agent jobs: model alias (haiku | sonnet | opus); the profile's default when unset. */ model?: string; }
 export interface JobRunBrief { id: string; status: string; counts: Record<string, number>; started_at: string; finished_at?: string | null; agent_run_id?: string | null; }
@@ -169,8 +212,11 @@ export interface JobRun {
 export interface PetState { pet_status: PetStatus; pet_source?: PetSource | null; pet_evidence?: string | null; }
 export interface JobItem {
   id: number; short_id: string; title?: string | null; area?: string | null; origin_site?: string | null; state: string;
-  before?: PetState | null; after?: PetState | null; evidence?: string | null; page_url?: string | null;
-  outcome?: 'changed' | 'unchanged' | 'conflict' | 'skipped' | 'error' | null; note?: string | null;
+  /** Pet jobs: the pet state; details jobs: the fields the item changed (column or attributes.<key>). */
+  before?: (PetState & Record<string, unknown>) | null; after?: (PetState & Record<string, unknown>) | null;
+  evidence?: string | null; page_url?: string | null;
+  outcome?: 'changed' | 'unchanged' | 'conflict' | 'skipped' | 'error' | 'gone' | 'unread' | 'translated' | null;
+  note?: string | null;
   current_pet?: PetStatus | null; current_source?: PetSource | null;
 }
 export interface JobRunDetail extends JobRun { items: JobItem[]; }

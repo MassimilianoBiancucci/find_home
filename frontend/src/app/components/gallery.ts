@@ -3,6 +3,11 @@ import { InfoButton } from './info';
 
 type Tab = 'photos' | 'plans';
 
+/** A floor plan's kind, from the listing's attributes.floorplans (classified once by the backend). */
+export interface FloorPlanMeta { url: string; kind: 'image' | 'pdf' | 'viewer'; preview?: string | null; unit?: string | null; }
+/** How a plan that is not an image is shown: a link card. */
+interface PlanCard { label: string; sub: string; }
+
 /**
  * Photo gallery of a listing: Photos / Floor plans tabs, a main image with a thumbnail strip, and a full-screen
  * viewer (arrow keys, Esc, swipe, double-click for 1:1). Images load lazily from the listing site's own URLs.
@@ -46,11 +51,14 @@ type Tab = 'photos' | 'plans';
       @if (list().length) {
         @if (!folded()) {
         <div class="fh-gal-main" [class.plan]="tab() === 'plans'" [class.still]="band()">
-          @if (isPdf(list()[index()])) {
-            <a class="fh-gal-pdf" [href]="list()[index()]" target="_blank" rel="noopener">PDF floor plan ↗<small>opens in a new tab</small></a>
+          @if (card(list()[index()]); as c) {
+            <a class="fh-gal-pdf" [href]="list()[index()]" target="_blank" rel="noopener">{{ c.label }} ↗<small>{{ c.sub }}</small></a>
           } @else {
-          <img [src]="list()[index()]" decoding="async" [alt]="(tab() === 'plans' ? 'Floor plan ' : 'Photo ') + (index() + 1)"
+          <img [src]="src(list()[index()])" decoding="async" [alt]="(tab() === 'plans' ? 'Floor plan ' : 'Photo ') + (index() + 1)"
             (click)="band() || openViewer(tab(), index())" (error)="broken(list()[index()])" />
+            @if (tab() === 'plans' && meta(list()[index()])?.kind === 'pdf') {
+              <a class="fh-gal-orig" [href]="list()[index()]" target="_blank" rel="noopener" title="The original PDF">PDF ↗</a>
+            }
           }
           @if (list().length > 1) {
             <button type="button" class="fh-gal-nav prev" aria-label="Previous" (click)="step(-1)">‹</button>
@@ -64,7 +72,8 @@ type Tab = 'photos' | 'plans';
             @for (u of list(); track u; let i = $index) {
               <button type="button" class="fh-gal-thumb" [class.active]="!folded() && i === index()" (click)="index.set(i); folded.set(false)"
                 [attr.aria-label]="'Show ' + (i + 1)">
-                @if (isPdf(u)) { <span class="fh-gal-pdf-thumb">PDF</span> } @else { <img [src]="u" loading="lazy" decoding="async" alt="" (error)="broken(u)" /> }
+                @if (card(u); as c) { <span class="fh-gal-pdf-thumb">{{ c.label === 'Interactive floor plan' ? 'VIEW' : 'PDF' }}</span> }
+                @else { <img [src]="src(u)" loading="lazy" decoding="async" alt="" (error)="broken(u)" /> }
               </button>
             }
           </div>
@@ -85,13 +94,13 @@ type Tab = 'photos' | 'plans';
         <button type="button" class="btn-close btn-close-white ms-auto" aria-label="Close" (click)="closeViewer()"></button>
       </div>
       <div class="fh-gal-vimg" [class.actual]="actual()" (click)="$event.stopPropagation()" (dblclick)="actual.set(!actual())">
-        <img [src]="vlist()[viewer()!.i]" decoding="async" alt="" />
+        <img [src]="src(vlist()[viewer()!.i])" decoding="async" alt="" />
       </div>
       @if (vlist().length > 1) {
         <button type="button" class="fh-gal-vnav prev" aria-label="Previous" (click)="$event.stopPropagation(); vstep(-1)">‹</button>
         <button type="button" class="fh-gal-vnav next" aria-label="Next" (click)="$event.stopPropagation(); vstep(1)">›</button>
       }
-      @for (u of neighbours(); track u) { <img class="fh-gal-preload" [src]="u" alt="" aria-hidden="true" /> }
+      @for (u of neighbours(); track u) { <img class="fh-gal-preload" [src]="src(u)" alt="" aria-hidden="true" /> }
     </div>
   }`,
   styles: [`
@@ -153,12 +162,16 @@ type Tab = 'photos' | 'plans';
     .fh-gal-preload { display: none; }
     .fh-gal-pdf { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
       font-weight: 600; color: #1c1c22; text-decoration: none; small { font-weight: 400; color: #555; } }
+    .fh-gal-orig { position: absolute; top: 8px; right: 8px; padding: 2px 9px; border-radius: 999px; font-size: .72rem; font-weight: 700;
+      color: #fff; background: rgba(28,28,34,.72); border: 1px solid rgba(255,255,255,.35); text-decoration: none; }
     .fh-gal-pdf-thumb { display: flex; align-items: center; justify-content: center; height: 100%; color: #ddd; font-size: .72rem; font-weight: 700; }
   `],
 })
 export class GalleryComponent {
   readonly photos = input<string[]>([]);
   readonly plans = input<string[]>([]);
+  /** Kind and cached preview of each plan (attributes.floorplans); without it, a URL ending in .pdf is a PDF. */
+  readonly plansMeta = input<FloorPlanMeta[] | null | undefined>(null);
   readonly compact = input(false);
   /** Foldable (listing page): starts folded to a band of thumbnails; only ⛶ opens the full-screen viewer. */
   readonly band = input(false);
@@ -173,11 +186,14 @@ export class GalleryComponent {
   protected viewer = signal<{ tab: Tab; i: number } | null>(null);
   protected actual = signal(false);
   private failed = signal<Set<string>>(new Set());
+  /** Plan images that failed to load: shown as their link card, since the link may still open in a new tab. */
+  private planFailed = signal<Set<string>>(new Set());
+  private metaByUrl = computed(() => new Map((this.plansMeta() ?? []).map((m) => [m.url, m])));
   private x0: number | null = null;
   private swiped = false;
 
-  /** Photos and plans without the images that failed to load (ad removed, URL gone). */
-  protected shown = (t: Tab) => (t === 'photos' ? this.photos() : this.plans()).filter((u) => !this.failed().has(u));
+  /** Photos without the images that failed to load (ad removed, URL gone); plans are always listed. */
+  protected shown = (t: Tab) => (t === 'photos' ? this.photos().filter((u) => !this.failed().has(u)) : this.plans());
   protected list = computed(() => this.shown(this.tab()));
   protected all = computed(() => this.shown('photos'));
   protected vlist = computed(() => { const v = this.viewer(); return v ? this.shown(v.tab) : []; });
@@ -188,14 +204,30 @@ export class GalleryComponent {
 
   constructor() {
     // a new listing (other photo list) starts at the first photo
-    effect(() => { this.photos(); this.plans(); untracked(() => { this.index.set(0); this.tab.set('photos'); this.failed.set(new Set()); }); });
+    effect(() => { this.photos(); this.plans(); untracked(() => { this.index.set(0); this.tab.set('photos'); this.failed.set(new Set()); this.planFailed.set(new Set()); }); });
   }
 
-  /** Some sites publish floor plans as PDF documents: shown as a link, not an image. */
+  /** Some sites publish floor plans as PDF documents: without a cached preview, shown as a link, not an image. */
   protected isPdf(u: string | undefined): boolean { return !!u && /\.pdf($|\?)/i.test(u); }
+  protected meta(u: string | undefined): FloorPlanMeta | undefined { return u ? this.metaByUrl().get(u) : undefined; }
+  /** The image to show for a URL: a PDF plan's cached first page, else the URL itself. */
+  protected src(u: string): string {
+    const m = this.meta(u);
+    return m?.kind === 'pdf' && m.preview ? `/api/floorplans/${m.preview}.png` : u;
+  }
+  /** A link card instead of an image: interactive viewer pages, PDFs without a preview, plan images that failed. */
+  protected card(u: string | undefined): PlanCard | null {
+    if (!u) return null;
+    const m = this.meta(u);
+    if (m?.kind === 'viewer') return { label: 'Interactive floor plan', sub: 'opens the site\'s viewer in a new tab' };
+    if (m ? m.kind === 'pdf' && !m.preview : this.isPdf(u)) return { label: 'PDF floor plan', sub: 'opens in a new tab' };
+    if (this.planFailed().has(u)) return { label: 'Floor plan', sub: 'the image did not load: open it on the site' };
+    return null;
+  }
   protected setTab(t: Tab): void { this.tab.set(t); this.index.set(0); }
   protected step(d: number): void { const n = this.list().length; if (n) this.index.set((this.index() + d + n) % n); }
   protected broken(u: string): void {
+    if (this.plans().includes(u) && !this.photos().includes(u)) { this.planFailed.update((s) => new Set(s).add(u)); return; }
     if (this.failed().has(u)) return;
     this.failed.update((s) => new Set(s).add(u));
     this.index.set(Math.min(this.index(), Math.max(0, this.list().length - 1)));
@@ -203,7 +235,7 @@ export class GalleryComponent {
 
   openViewer(tab: Tab, i: number): void {
     const u = this.shown(tab)[i];
-    if (this.isPdf(u)) { window.open(u, '_blank', 'noopener'); return; }
+    if (this.card(u)) { window.open(u, '_blank', 'noopener'); return; }
     this.actual.set(false);
     this.viewer.set({ tab, i });
   }

@@ -25,8 +25,11 @@ output. Everything except `db`, `config validate|hash|show|schema` and `run new`
 | `run attach <id>` | mark the run the app registered for you (`run=<id>` in your prompt) as started by this session | env lines |
 | `run backfill-inbox` | record runs for past browser scans in `inbox/processed` that have none (idempotent) | one line per scan |
 | `jobs list` | jobs with their last execution | one line per job |
-| `jobs next <job_run>` | the next listing of a job run to check (`done` when none is left) | 4 lines: id, URL, current pet status, how many left |
+| `jobs next <job_run>` | the next listing of a job run to check (`done` when none is left) | 5 lines: id, URL, site, what the job needs (pet status, missing fields or ad status), how many left |
 | `jobs submit <job_run> <id> --pet yes\|no\|ask\|unknown [--evidence "quote"] [--url]` | record what the listing page says about pets (quote required except for unknown) | `L-XXXX: changed\|unchanged` |
+| `jobs submit <job_run> <id> --fields-file f.json` / `--gone` | details job: values from the page's free text, each with its quote (`{"fields", "evidence", "page_url"}`); or the ad is gone | `L-XXXX: changed …; still missing: …` |
+| `jobs post-detail <job_run> --site s --url u --doc-file f.json [--kind detail\|status]` | fallback when a page script could not post its result itself (Chrome's local network access): send `detail_extract.js` or `status_check.js` output | `L-XXXX: changed\|unchanged (status)` |
+| 409 "run cancelled" from any command | the run was cancelled in the app: stop at once, no `run close` | — |
 | `geocode "<address>" [--refresh]` | check an address through the app's geocode cache | `lat, lon  display [cache\|provider]` or `not found (sent: ...)` |
 | `area show` | the search area: zones per piece with weight, kommuner, aliases, bbox, centre | ~5 lines |
 | `area check <lat> <lon>` | area score of a coordinate | `inside \| N m outside · score · best piece · zone` |

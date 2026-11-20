@@ -15,7 +15,7 @@ checklist: [personal_data.md](../principles/personal_data.md); setup: [`config/R
 | File | Role |
 |---|---|
 | `profile.yaml` (personal; [example](../../config/profile.example.yaml)) | per listing kind: `hard_filters` (gate) and `preferences` (weighted groups) |
-| [`filters_catalog.yaml`](../../config/filters_catalog.yaml) | canonical filter keys, used by `hard_filters` and every site's `filter_map` |
+| [`filters_catalog.yaml`](../../config/filters_catalog.yaml) | canonical filter keys, used by `hard_filters` and every site's `filter_map`. Only hard filters can become URL params, and `pets_allowed` (derived from `pet_status_exclude`) and the move-in dates never do ([`resolve()`](../../backend/src/findhome/scanning/filters.py)): pets and dates are judged in the database |
 | `locations.yaml` (personal; [example](../../config/locations.example.yaml)) | categories and points with trips and time windows |
 | [`time_model.yaml`](../../config/time_model.yaml) | day types, default sampling grid, reliability statistics |
 | [`poi.yaml`](../../config/poi.yaml) | nearby-service categories (OSM tags, radius, walking threshold, map icon and colour) |
@@ -567,6 +567,13 @@ comes from filtering on posting dates.
   reasons in `rejected_by`. `pet_status_exclude` defaults to `["no"]`; the pet status itself is decided at ingest
   ([pets.md](pets.md)), and `cat_suitability` reads `pet_status_score` (`conflict` defaults to 0.4). A sleeping alcove adds one room only when
   `accept_sovalkov` is true. `max_commute_min_by_category` uses the best median of that category's points.
+  `move_in_to` rejects a later move-in; `move_in_from_slack_days` (unset: any earlier date passes) rejects a move-in
+  more than that many days before `move_in_from` (`move_in_from_slack`). An unknown move-in passes (it is a listing
+  issue, not a rejection). Candidates colours the date green inside the window, amber before it within the slack,
+  red outside. The slack is a database filter only: browser searches send no date, so changing it needs no scan.
+- **space** blends a size ramp (`min_size_m2` → `ideal_size_m2`) with a rooms ramp (`min_rooms_rok` →
+  `ideal_rooms_rok`, weight `rooms_weight`, 0.3) when `ideal_rooms_rok` is set and the rooms are known, so a one-room
+  flat scores below a two-room one of the same size ([`_space()`](../../backend/src/findhome/domain/scoring.py#L80)).
 - Each enabled preference group returns a 0..1 score or `None` when its data is missing (for example cost while
   `max_rent_sek` and `ideal_rent_sek` are unset). The total is the weighted mean of the groups that returned a
   score. Groups: cost, space, commute (point weight × window weight, linear between `good_min` and `bad_min`,
@@ -593,8 +600,10 @@ comes from filtering on posting dates.
 - **neighbourhood** (off by default) combines three 0-100 parts: the home's services score, the home's transport
   score and the zone's services index, by default `house_services 0.5, house_transport 0.3, zone_services 0.2`;
   missing parts renormalise. Scoring reads only cached values
-  ([`_location()`](../../backend/src/findhome/api/routers/scoring.py#L65)). The Candidates page's **Recompute
-  scores** runs [`_recompute_all()`](../../backend/src/findhome/api/routers/scoring.py#L143) in the background
+  ([`location_for()`](../../backend/src/findhome/rescore.py#L30)). [`rescore.py`](../../backend/src/findhome/rescore.py)
+  holds the scoring of stored listings for every caller: the recompute endpoint, and `score_listings()`, which
+  scans and jobs call to re-score only the listings they touched. The Candidates page's **Recompute
+  scores** runs [`_recompute_all()`](../../backend/src/findhome/api/routers/scoring.py#L84) in the background
   (`POST /api/scores/recompute {"background": true}`, progress on `GET /api/scores/recompute/status`): it geocodes
   up to 60 listings without coordinates, computes the house analysis of every home that has none for the current
   inputs (local data, about 1-2 s each), then scores every listing. `findhome scores recompute` stays synchronous and

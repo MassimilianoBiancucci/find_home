@@ -3,7 +3,7 @@
 What `scripts/findhome ingest listings|evaluations` accepts. Unknown values stay `null`; never guess.
 Regenerate: `scripts/findhome config schema ingest --markdown > .agents/skills/find-home/references/data_contract.md` (then re-add this header).
 
-Rules: `pet_status` is yes / no / ask / unknown and needs `pet_evidence` (a quote) unless unknown; `conflict` is set by the app, never by you. Scanners put a site's structured pet badge in `attributes.pets_flag` ({value, evidence}) and free pet wording in `attributes.pets_text`: the app decides the status at ingest (user > agent > site > keywords). Pass `run` (your run id) on ingest so the listings are recorded in your run. `rooms_rok` counts 'rum och kök' (2 rok ≈ 1 bedroom); set `has_sovalkov` for a sleeping alcove. Money in SEK per month (rent) or total (price). Dates YYYY-MM-DD.
+Rules: `pet_status` is yes / no / ask / unknown and needs `pet_evidence` (a quote) unless unknown; `conflict` is set by the app, never by you. Scanners put a site's structured pet badge in `attributes.pets_flag` ({value, evidence}) and free pet wording in `attributes.pets_text`: the app decides the status at ingest (user > agent > site > keywords). Pass `run` (your run id) on ingest so the listings are recorded in your run. `rooms_rok` counts 'rum och kök' (2 rok ≈ 1 bedroom); set `has_sovalkov` for a sleeping alcove. Money in SEK per month (rent) or total (price). Dates YYYY-MM-DD. The address as the site gives it: never complete a missing street or number; the parts you have go into `attributes.address_parts`, the rest null (the app flags partial addresses).
 
 Minimal listing: `{"source": {"site_slug": "qasa", "external_id": "123", "url": "https://..."}, "rent_sek": 14500, "rooms_rok": 2, "size_m2": 54, "address_raw": "Hornsgatan 12", "pet_status": "ask", "pet_evidence": "Husdjur enligt överenskommelse"}`
 
@@ -43,7 +43,7 @@ Minimal listing: `{"source": {"site_slug": "qasa", "external_id": "123", "url": 
 | `description_excerpt` | str \| None |  |  |
 | `photo_urls` | list[str] |  |  |
 | `floorplan_urls` | list[str] |  |  |
-| `attributes` | dict[str, Any] |  | Anything not yet a column |
+| `attributes` | dict[str, Any] |  | Anything not yet a column; the fixed keys (contract_terms, requirements, amenities, utilities, floorplans, units, ranges, address_parts, price, move_in_raw, details_checked_at) are checked |
 
 ### SourceIn
 
@@ -69,3 +69,21 @@ Minimal listing: `{"source": {"site_slug": "qasa", "external_id": "123", "url": 
 | `pet_status` | Optional[Literal['yes', 'no', 'ask', 'unknown', 'conflict']] |  | Only with pet_evidence |
 | `pet_evidence` | str \| None |  |  |
 | `agent_run_id` | str \| None |  |  |
+
+### ListingIn.attributes: fixed keys
+
+Checked at ingest; any other key is free. Keep the raw wording next to a parsed value (`guaranteed_raw`, `notice_raw`, `move_in_raw`). `?` = may be null.
+
+| Key | Shape |
+|---|---|
+| `contract_terms` | `{guaranteed_months: int?, guaranteed_raw: str?, notice_months: int?, notice_raw: str?, extension_raw: str?, max_total_months: int?, estimated_months: int?, estimated_raw: str?, short_term: bool?}` |
+| `requirements` | `{min_income_sek: int?, max_household: int?, residual_income_sek: int?, residual_income_couple_sek: int?, raw: list[str]?}` |
+| `amenities` | `list[str]` |
+| `utilities` | `list[str]` |
+| `floorplans` | `list[{url: str, kind: Literal['image', 'pdf', 'viewer'], preview: str?, unit: str?}]` |
+| `units` | `list[{label: str?, rent_sek: int?, floor: int?, rooms_rok: float?, size_m2: float?, available_from: str?, floorplan_url: str?}]` |
+| `ranges` | `dict[str, Any]` |
+| `address_parts` | `{street: str?, number: str?, locality: str?, postcode: str?}` |
+| `price` | `{rent: int?, tenant_base_fee: int?, monthly_cost: int?}` |
+| `move_in_raw` | `str` |
+| `details_checked_at` | `str` |

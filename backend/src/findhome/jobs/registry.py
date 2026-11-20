@@ -24,6 +24,26 @@ TYPES: dict[str, JobType] = {
         "The agent opens each chosen listing in your Chrome, finds the exact pet sentence and records yes / no / ask "
         "with the quote (unknown when the page says nothing). Results apply at once; undo per listing.",
         profile="pet_agent_check", max_n=50),
+    "listing_details": JobType(
+        "listing_details", "agent", "Listing details by the agent",
+        "The agent opens each chosen listing's page in your Chrome and runs the site's detail_extract.js, which hands "
+        "the page's data (move-in, photos, floor, terms, description …) straight to the app. It then reads the page's "
+        "free text only for what is still missing, and records each value with its quote. Results apply at once; "
+        "undo per listing.", profile="listing_details", max_n=60),
+    "listing_details_script": JobType(
+        "listing_details_script", "inapp", "Listing details by script",
+        "For sites the app may read by script (Bostadsförmedlingen): reads each chosen listing's page again, as a scan "
+        "does, without tokens. Use it to refresh old listings without a full scan.", max_n=200),
+    "listing_status": JobType(
+        "listing_status", "agent", "Ad status check by the agent",
+        "The agent opens each chosen listing's page in your Chrome and runs the site's status_check.js, which tells "
+        "the app whether the ad is still open, let, removed or gone (with the evidence) and re-reads the price. Closed "
+        "listings leave Candidates (\"show closed\" brings them back). Undo per listing.",
+        profile="listing_status", max_n=80),
+    "listing_status_script": JobType(
+        "listing_status_script", "inapp", "Ad status check by script",
+        "For sites the app may read by script (Bostadsförmedlingen): reads the page of each chosen listing whose "
+        "applications closed, to tell a let flat from a removed ad (site.yaml ad_status rules). No tokens.", max_n=200),
 }
 
 

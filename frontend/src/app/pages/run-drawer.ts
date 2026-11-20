@@ -4,9 +4,10 @@ import { RouterLink } from '@angular/router';
 import { PetBadge } from '../components/pet-badge';
 import { SiteLogo } from '../components/site-logo';
 import { StatusChip } from '../components/status-chip';
-import { ScanRunListing } from '../models';
+import { ScanReportSite, ScanRunListing } from '../models';
 import { TimelineItem, fmtCost, isLive, resumeUrl, runVerdict } from '../run-format';
 import { ApiService, apiError } from '../services/api.service';
+import { ToastService } from '../services/toast.service';
 
 /** Detail of one run in the Runs drawer: header facts, handover, counts, cost, denials, the live log, its listings. */
 @Component({
@@ -20,7 +21,18 @@ import { ApiService, apiError } from '../services/api.service';
     @if (it.agent?.kind) { <span class="fh-chip fh-tone-muted">{{ it.agent!.kind }}</span> }
     @if (it.scan?.dry_run) { <span class="fh-chip fh-tone-off">dry run</span> }
     @if (it.site) { <fh-site-logo [slug]="it.site" [withName]="true" /> }
-    @if (live() && it.type === 'agent') { <button class="btn btn-sm btn-outline-danger ms-auto" (click)="cancel()">Cancel run</button> }
+    @if (it.agent?.liveness && live()) {
+      <span class="fh-chip" [class]="it.agent!.liveness === 'gone' ? 'fh-tone-off' : it.agent!.liveness === 'unknown' ? 'fh-tone-muted' : 'fh-tone-good'"
+        [title]="'Seen by the watchdog' + (it.agent!.last_seen_at ? ' at ' + (it.agent!.last_seen_at | date: 'HH:mm:ss') : '')">
+        {{ livenessLabel(it.agent!.liveness) }}</span>
+    }
+    @if (live() && it.type === 'agent') {
+      @if (it.agent?.liveness === 'gone') {
+        <button class="btn btn-sm btn-outline-secondary ms-auto" [disabled]="busy()" (click)="markEnded()">Mark as ended</button>
+      }
+      <button class="btn btn-sm btn-outline-danger" [class.ms-auto]="it.agent?.liveness !== 'gone'" [disabled]="busy()" (click)="cancel()">
+        {{ busy() ? 'Cancelling…' : 'Cancel run' }}</button>
+    }
     @if (live() && it.type === 'job') { <button class="btn btn-sm btn-outline-danger ms-auto" (click)="cancelJob()">Cancel job</button> }
   </div>
   @if (it.status === 'waiting') {
@@ -29,6 +41,10 @@ import { ApiService, apiError } from '../services/api.service';
   }
   @if (it.status === 'ended_no_handover') {
     <div class="alert alert-secondary py-2 small">The session ended without writing its handover (<code>findhome run close</code>). What it did is in the log and its scan runs.</div>
+  }
+  @if (it.status === 'cancelled' && it.agent?.late_files) {
+    <div class="alert alert-secondary py-2 small">{{ it.agent!.late_files }} file(s) arrived after Cancel: parked in
+      <code>inbox/cancelled/{{ it.id }}/</code>, not imported.</div>
   }
   @if (it.status === 'expired') {
     <div class="alert alert-secondary py-2 small">Nobody started this VS Code run in time; it expired.</div>
@@ -57,9 +73,35 @@ import { ApiService, apiError } from '../services/api.service';
     }
     <dt>Started</dt><dd>{{ it.started_at | date: 'medium' }}</dd>
     @if (finished()) { <dt>Finished</dt><dd>{{ finished() | date: 'medium' }}{{ it.duration ? ' · ' + it.duration : '' }}</dd> }
-    @if (it.cost || it.turns) { <dt>Cost</dt><dd>{{ it.cost || '–' }}{{ it.turns ? ' · ' + it.turns + ' turns' : '' }}</dd> }
+    @if (it.cost || it.turns) { <dt>Cost</dt><dd>{{ it.cost || '–' }}{{ it.turns ? ' · ' + it.turns + ' turns' : '' }}
+      @if (it.agent?.cost_estimated) { <small class="text-body-secondary">(estimated: the run sent no final result)</small> }</dd> }
+    @if (usageRows().length) {
+      <dt>Usage</dt>
+      <dd><table class="fh-usage">
+        <tr><th></th><th>in</th><th>out</th><th>cache read</th><th>cache write</th></tr>
+        @for (r of usageRows(); track r.model) {
+          <tr><td class="fh-mono">{{ r.model }}</td><td>{{ tok(r.input) }}</td><td>{{ tok(r.output) }}</td>
+            <td>{{ tok(r.cache_read) }}</td><td>{{ tok(r.cache_write) }}</td></tr>
+        }
+      </table>
+      @if (perUnit(); as pu) { <div class="small text-body-secondary">{{ pu }}</div> }</dd>
+    }
   </dl>
 
+  @for (r of report(); track r.site) {
+    <section class="fh-dsec"><h3>Scan report · {{ r.site }}</h3>
+      <div class="small mb-1" [class.text-danger]="r.warning">{{ r.line }} · {{ r.new }} new · {{ r.duplicates }} duplicates</div>
+      @if (r.warning) { <div class="fh-inline-err mb-1" style="max-width:none"><span>{{ r.warning }}</span></div> }
+      <table class="fh-usage">
+        <tr><th>page</th><th>cards</th><th>new</th><th>updated</th><th>dupl.</th><th>cost</th></tr>
+        @for (p of r.pages; track p.page) {
+          <tr><td>{{ p.page }}{{ p.last_page ? ' (last)' : '' }}</td><td>{{ p.cards ?? '–' }}</td><td>{{ p.new ?? '–' }}</td>
+            <td>{{ p.updated ?? '–' }}</td><td>{{ p.duplicates ?? '–' }}</td>
+            <td>{{ p.usage?.cost_estimate != null ? '≈ $' + p.usage!.cost_estimate!.toFixed(3) : '–' }}</td></tr>
+        }
+      </table>
+    </section>
+  }
   @if (counts().length) {
     <section class="fh-dsec"><h3>Counts</h3>
       <div class="d-flex flex-wrap gap-1">
@@ -121,6 +163,8 @@ import { ApiService, apiError } from '../services/api.service';
 })
 export class RunDrawer implements OnChanges, OnDestroy {
   private api = inject(ApiService);
+  private toast = inject(ToastService);
+  protected busy = signal(false);
   protected verdict = runVerdict;
   readonly item = input.required<TimelineItem>();
   /** Open another run in the drawer (a parent or a child). */
@@ -129,6 +173,8 @@ export class RunDrawer implements OnChanges, OnDestroy {
   protected log = signal<string[]>([]);
   protected logDone = signal(false);
   protected listings = signal<ScanRunListing[]>([]);
+  /** A browser scan's pages and coverage (cards read against the site's counter). */
+  protected report = signal<ScanReportSite[]>([]);
   protected loadingListings = signal(false);
   protected error = signal('');
   private es?: EventSource;
@@ -155,6 +201,17 @@ export class RunDrawer implements OnChanges, OnDestroy {
   protected json = (v: unknown) => JSON.stringify(v);
   protected hasKeys = (o: object) => Object.keys(o).length > 0;
   protected fmtCost = fmtCost;
+  /** Tokens by model, from the run's usage (live while it runs, the exact figures at the end). */
+  protected usageRows = computed(() => Object.entries(this.item().agent?.usage ?? {}).map(([model, t]) => ({
+    model, input: t['input'] ?? 0, output: t['output'] ?? 0, cache_read: t['cache_read'] ?? 0,
+    cache_write: (t['cache_write_5m'] ?? 0) + (t['cache_write_1h'] ?? 0) })));
+  /** Cost per result page of its scan runs, when they were imported page by page. */
+  protected perUnit = computed(() => {
+    const a = this.item().agent;
+    const pages = (a?.scan_runs ?? []).reduce((n, s) => n + Object.keys((s.counts as Record<string, unknown>)?.['pages'] ?? {}).length, 0);
+    return a?.cost_usd && pages ? `${pages} result page${pages === 1 ? '' : 's'} · ${fmtCost(a.cost_usd / pages)} per page` : '';
+  });
+  protected tok = (n: number) => (n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + 'M' : n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n));
   protected countTone = (k: string) => (k === 'new' || k === 'changed' ? 'good' : k.includes('error') ? 'bad' : k === 'conflict' ? 'mid' : 'muted');
 
   ngOnChanges(): void {
@@ -166,7 +223,11 @@ export class RunDrawer implements OnChanges, OnDestroy {
     this.log.set([]);
     this.logDone.set(false);
     this.listings.set([]);
+    this.report.set([]);
     if (it.type === 'agent') this.tail(it.id);
+    if (it.type === 'agent' && it.agent?.profile === 'browser_scan') {
+      this.api.agentRun(it.id).subscribe({ next: (r) => this.report.set(r.scan_report?.sites ?? []), error: () => {} });
+    }
     if (it.type === 'scan') {
       this.loadingListings.set(true);
       this.api.scanRun(it.id).subscribe({
@@ -185,9 +246,30 @@ export class RunDrawer implements OnChanges, OnDestroy {
     this.es.onerror = () => { this.es?.close(); this.logDone.set(true); };
   }
 
+  /** Cancel stops only this run's agent and its child commands; the toast says what happened. */
   cancel(): void {
-    this.api.cancelAgent(this.item().id).subscribe({ next: () => this.changed.emit(), error: (e) => this.error.set(apiError(e)) });
+    this.busy.set(true);
+    this.api.cancelAgent(this.item().id).subscribe({
+      next: (r) => {
+        this.busy.set(false);
+        const text = r.status === 'stopped' ? `Run cancelled: stopped ${r.killed} process${r.killed === 1 ? '' : 'es'}`
+          : r.status === 'not_running' ? 'Run marked cancelled: no agent process was running'
+          : 'The run had already ended';
+        this.toast.show(text, r.status === 'already_finished' ? 'info' : 'good', 6000, r.note ?? undefined);
+        this.changed.emit();
+      },
+      error: (e) => { this.busy.set(false); this.error.set(apiError(e)); this.toast.show('Cancel failed', 'bad', 8000, apiError(e)); },
+    });
   }
+  /** A run whose session is gone: let the watchdog check it now and close it. */
+  markEnded(): void {
+    this.busy.set(true);
+    this.api.reconcileAgent(this.item().id).subscribe({
+      next: (r) => { this.busy.set(false); this.toast.show(`Run checked: ${r.status ?? 'unknown'}`, 'info'); this.changed.emit(); },
+      error: (e) => { this.busy.set(false); this.error.set(apiError(e)); },
+    });
+  }
+  protected livenessLabel = (l: string) => ({ alive_busy: 'agent busy', alive_idle: 'agent idle', gone: 'agent gone', unknown: 'agent unknown' }[l] ?? l);
   cancelJob(): void {
     this.api.cancelJobRun(this.item().id).subscribe({ next: () => this.changed.emit(), error: (e) => this.error.set(apiError(e)) });
   }

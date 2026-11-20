@@ -130,7 +130,7 @@ def test_scan_qasa_with_mocked_http(client, monkeypatch):
     monkeypatch.setattr(runner, "make_scanner", fake_make)
     monkeypatch.setattr(runner.asyncio, "sleep", _no_sleep)
     dry = client.post("/api/scans", json={"site": "qasa", "dry_run": True}).json()["results"][0]
-    assert dry["parsed"] == 3 and dry["enriched"] == 0 and len(dry["preview"]) == 3   # details disabled for qasa
+    assert dry["parsed"] == 3 and dry["details_read"] == 0 and len(dry["preview"]) == 3   # details disabled for qasa
     assert client.get("/api/listings").json()["items"] == []          # dry run stores nothing
     real = client.post("/api/scans", json={"site": "all"}).json()["results"][0]
     assert real["new"] == 3, real

@@ -56,6 +56,14 @@
                   "format": "date",
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
                 },
+                "move_in_from_slack_days": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "description": "How many days before move_in_from a move-in is still accepted; null = any earlier date passes"
+                },
                 "areas_include": {
                   "type": "array",
                   "items": {
@@ -197,6 +205,14 @@
                   ],
                   "format": "date",
                   "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                },
+                "move_in_from_slack_days": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "description": "How many days before move_in_from a move-in is still accepted; null = any earlier date passes"
                 },
                 "areas_include": {
                   "type": "array",

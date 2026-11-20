@@ -36,6 +36,7 @@ filter_map:                     # canonical key (config/filters_catalog.yaml) â†
   areas_include: {param: null, local_only: true}
   contract_types: {param: null, local_only: true}
   move_in_from: {param: null, local_only: true}
+  move_in_from_slack_days: {param: null, local_only: true}
 field_map: {}                   # api method: ListingIn field â†’ JSON path, e.g. rent_sek: price.amount
 pets: {filter_available: unknown, typical_wording: []}
 auth: {mode: none}              # none | browser_session (agent uses your logged-in browser; never store credentials)
