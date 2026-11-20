@@ -103,7 +103,7 @@ export class ConnectivityService {
   /** Full-colour choropleth (Connectivity mode); call removeFill() on leave. */
   addFill(): void {
     this.state.addGroup({
-      id: 'connectivity', below: 'listings-halo',
+      id: 'connectivity', below: 'listings',
       sources: { 'conn-zones': { type: 'geojson', data: EMPTY as any } },
       layers: [
         { id: 'conn-fill', type: 'fill', source: 'conn-zones', paint: { 'fill-color': colourExpr, 'fill-opacity': this.opacity() } },
@@ -120,7 +120,7 @@ export class ConnectivityService {
     if (!this.state.map()) return;
     if (this.state.visible()['connectivity-tint'] === undefined) this.state.setVisible('connectivity-tint', false);
     this.state.addGroup({
-      id: 'connectivity-tint', below: 'listings-halo',
+      id: 'connectivity-tint', below: 'listings',
       sources: { 'conn-tint': { type: 'geojson', data: EMPTY as any } },
       layers: [
         { id: 'conn-tint-fill', type: 'fill', source: 'conn-tint', paint: { 'fill-color': colourExpr, 'fill-opacity': 0.14 } },

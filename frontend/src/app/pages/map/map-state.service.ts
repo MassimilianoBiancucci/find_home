@@ -95,6 +95,7 @@ export class MapStateService {
       map.addSource(id, stored && (spec as any).type === 'geojson' ? { ...(spec as any), data: stored } : spec);
     }
     const before = g.below ? this.firstLayerOf(map, g.below) : undefined;
+    if (g.below && !this.groups.has(g.below)) console.warn(`map group '${g.id}': below '${g.below}' is not a group id; drawn on top`);
     const vis = this.isVisible(g.id) ? 'visible' : 'none';
     for (const l of this.layersOf(g, map)) {
       if (map.getLayer(l.id)) continue;

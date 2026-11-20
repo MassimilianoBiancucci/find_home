@@ -45,7 +45,7 @@ export class PoiLayersService {
     const id = `poi-${c.key}`;
     if (this.state.visible()[id] === undefined) this.state.setVisible(id, ON_BY_DEFAULT.has(c.key));
     this.state.addGroup({
-      id, below: 'test-point',
+      id, below: 'listings',
       sources: { [id]: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
       layers: (style) => [
         { id, type: 'symbol', source: id, minzoom: MIN_ZOOM[c.key] ?? 10,

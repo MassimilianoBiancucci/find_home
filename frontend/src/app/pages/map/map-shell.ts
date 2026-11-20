@@ -216,7 +216,7 @@ export class MapShell {
       ],
     });
     this.state.addGroup({
-      id: 'listings-rejected',
+      id: 'listings-rejected', below: 'listings',        // the red dots under the houses
       layers: [{ id: 'listings-rejected', type: 'circle', source: 'listings', filter: ['!', scored] as any,
         paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 9, 4, 15, 7], 'circle-color': '#e53e3e', 'circle-opacity': 0.7,
           'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1, 'circle-stroke-opacity': 0.8 } }],

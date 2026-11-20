@@ -48,7 +48,7 @@ export class TransitLayersService {
     if (this.state.visible()[id] === undefined) this.state.setVisible(id, ON_BY_DEFAULT.has(mode));
     const w = WIDTH[mode] ?? 2;
     this.state.addGroup({
-      id, below: 'listings-halo',
+      id, below: 'listings',
       sources: { [id]: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
       layers: [
         { id: `${id}-casing`, type: 'line', source: id, minzoom: MIN_ZOOM[mode] ?? 0, layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -65,7 +65,7 @@ export class TransitLayersService {
   private addStations(map: MlMap): void {
     const id = 'transit-stations';
     this.state.addGroup({
-      id, below: 'listings-halo',
+      id, below: 'listings',
       sources: { [id]: { type: 'geojson', data: { type: 'FeatureCollection', features: [] } } },
       layers: (style) => [
         { id, type: 'symbol', source: id, minzoom: 11,
