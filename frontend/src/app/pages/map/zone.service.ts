@@ -232,13 +232,13 @@ export class ZoneService {
   }
 
   /**
-   * The heatmap's street lines lie on the ground under the 3D buildings (the group goes below them): a building in
-   * front hides the streets behind it, which still show faintly through its slight transparency, so the depth reads.
-   * Without 3D buildings (a style without a vector source) they go under the targets.
+   * The heatmap's street lines lie on the ground under the 3D buildings (MapStateService.raiseTop tucks them under,
+   * layer-order.ts): a building in front hides the streets behind it, which still show faintly through its slight
+   * transparency, so the depth reads.
    */
   private drawHeat(h: ZoneHeatmap): void {
     this.state.addGroup({
-      id: 'zone-heat', below: this.state.map()?.getLayer('zone-3d-buildings') ? 'zone-3d' : 'zone-targets',
+      id: 'zone-heat', below: 'zone-targets',
       sources: { 'zone-heat': { type: 'geojson', data: EMPTY as any } },
       layers: [{ id: 'zone-heat-line', type: 'line', source: 'zone-heat',
         layout: { 'line-cap': 'round', 'line-join': 'round' },

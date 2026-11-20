@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { HouseLocation, TransitResult } from '../../models';
 import { SET_COLOURS } from '../../set-colours';
 import { HOUSE_LAYERS, layersToRaise, transitFeatures, walkFeatures } from './house-layer.service';
+import { layersToTuck } from './layer-order';
 
 const walk = (minutes: number | null, path: [number, number][]) => ({ set: '', minutes, metres: 100, target: 'T', target_lonlat: null, path, count_within: 1 });
 const loc = {
@@ -42,10 +43,20 @@ describe('house layers', () => {
     expect(transitFeatures(null).features).toEqual([]);
   });
 
-  it('raises the house layers only when they are not already on top', () => {
-    expect(layersToRaise(['base', 'house-walk-line', 'house-pin', 'zone-heat-line'])).toEqual(['house-walk-line', 'house-pin']);
-    expect(layersToRaise(['base', 'zone-heat-line', 'house-walk-line', 'house-pin'])).toEqual([]);
+  it('raises the homes and the house layers only when they are not already on top', () => {
+    expect(layersToRaise(['base', 'house-transit-line', 'house-pin', 'zone-targets-pin'])).toEqual(['house-transit-line', 'house-pin']);
+    expect(layersToRaise(['base', 'zone-targets-pin', 'house-transit-line', 'house-pin'])).toEqual([]);
+    expect(layersToRaise(['base', 'house-pin', 'listings'])).toEqual(['listings', 'house-pin']);   // the homes, then the focused one
     expect(layersToRaise(['base', 'zone-heat-line'])).toEqual([]);
     expect(HOUSE_LAYERS.at(-1)).toBe('house-pin');
+  });
+
+  it('tucks the heatmap streets, then the walking paths, just under the 3D buildings', () => {
+    expect(layersToTuck(['base', 'zone-3d-buildings', 'zone-heat-line', 'house-walk-casing', 'house-walk-line', 'house-pin']))
+      .toEqual(['zone-heat-line', 'house-walk-casing', 'house-walk-line']);
+    expect(layersToTuck(['base', 'house-walk-casing', 'house-walk-line', 'zone-heat-line', 'zone-3d-buildings']))
+      .toEqual(['zone-heat-line', 'house-walk-casing', 'house-walk-line']);              // the walks above the streets
+    expect(layersToTuck(['base', 'zone-heat-line', 'house-walk-casing', 'house-walk-line', 'zone-3d-buildings', 'house-pin'])).toEqual([]);
+    expect(layersToTuck(['base', 'zone-heat-line', 'house-walk-line'])).toEqual([]);   // no buildings: nothing to do
   });
 });

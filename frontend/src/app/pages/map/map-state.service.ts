@@ -1,5 +1,5 @@
 import { Injectable, isDevMode, signal } from '@angular/core';
-import { layersToRaise } from './layer-order';
+import { BUILDINGS, layersToRaise, layersToTuck } from './layer-order';
 import type { LayerSpecification, Map as MlMap, SourceSpecification, StyleSpecification } from 'maplibre-gl';
 
 export type MapLib = typeof import('maplibre-gl');
@@ -71,14 +71,16 @@ export class MapStateService {
 
   /**
    * Keeps the homes on top of every mode's layers (zone heatmap, 3D buildings, service pins, area shapes, lines), and
-   * the zone view's focused home above them (layer-order.ts). Runs after each group is added and each style load;
+   * the zone view's focused home above them, and the zone view's ground lines under its 3D buildings (layer-order.ts). Runs after each group is added and each style load;
    * a mode that moves its own layers up calls it after.
    */
   raiseTop(): void {
     const map = this.map();
     if (!map || !this.loaded) return;
-    const order = (map.getStyle()?.layers ?? []).map((l) => l.id);
-    for (const id of layersToRaise(order)) if (map.getLayer(id)) map.moveLayer(id);
+    const ids = () => (map.getStyle()?.layers ?? []).map((l) => l.id);
+    for (const id of layersToRaise(ids())) if (map.getLayer(id)) map.moveLayer(id);
+    // the zone view's ground lines (heatmap streets, then the home's walks) just under its 3D buildings
+    for (const id of layersToTuck(ids())) if (map.getLayer(id)) map.moveLayer(id, BUILDINGS);
   }
 
   removeGroup(id: string): void {

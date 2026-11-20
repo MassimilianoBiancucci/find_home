@@ -512,14 +512,15 @@ loads the house analysis and focuses the zone on the house: the camera flies to 
   core. Meanwhile its own listing marker is left out (`MapStateService.focusListing`, applied by the shell as a layer
   filter, `listingFilters()`), so it is drawn once;
 - the walking path to the nearest target of each set in the set's colour, labelled with the minutes in
-  green / yellow / red;
+  green / yellow / red; the paths lie on the ground under the 3D buildings like the heatmap's streets (above them),
+  their labels on top;
 - the transit legs of the computed routes in their line colours along the track, walking legs dotted along the
   streets, those of the Routes tab only, the hovered one on top and glowing.
 
 **The homes stay on top in every mode.** [`layer-order.ts`](../../frontend/src/app/pages/map/layer-order.ts) lists the
 topmost layers, bottom to top: the homes (rejected dots, the houses' light, the houses), then the focused home's
 layers above. [`MapStateService.raiseTop()`](../../frontend/src/app/pages/map/map-state.service.ts) moves them to the top
-(only when they are not already there) after each group is added and each style load; a mode that moves its own
+(only when they are not already there) after each group is added and each style load, and tucks the zone view's ground lines (the heatmap's streets, then the home's walking paths: `UNDER_BUILDINGS`) just under its 3D buildings; a mode that moves its own
 layers up (the zone view's service pins) calls it after. So no heatmap, zone fill, 3D building, pin, area shape or
 line covers a home. Explore's pinned card has **⌖ Zone view**, which opens this view on the home. The right panel
 shows "This home" and "Routes" (the same components and the same `HouseTravelStore` as the house page) above the zone panel, with a Walk / Transit / Both switch. The Zone bubble's
