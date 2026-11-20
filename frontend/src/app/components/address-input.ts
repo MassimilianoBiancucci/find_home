@@ -1,7 +1,6 @@
-import { Component, ElementRef, OnDestroy, effect, inject, input, model, output, signal, viewChild } from '@angular/core';
+import { Component, OnDestroy, inject, input, model, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Subject, debounceTime, distinctUntilChanged, filter, switchMap, catchError, of } from 'rxjs';
-import type { Map as MlMap, Marker } from 'maplibre-gl';
 import { AddressSuggestion } from '../models';
 import { ApiService, apiError } from '../services/api.service';
 
@@ -58,35 +57,4 @@ export class AddressInput implements OnDestroy {
     else if (e.key === 'Escape') this.open.set(false);
   }
   ngOnDestroy(): void { this.sub.unsubscribe(); }
-}
-
-/** Small non-interactive map with one pin, to confirm a picked address. */
-@Component({
-  selector: 'fh-pin-preview',
-  template: `<div #el class="fh-pin"></div>`,
-  styles: [`.fh-pin { height: 140px; border-radius: 6px; border: 1px solid var(--bs-border-color); overflow: hidden; }`],
-})
-export class PinPreview implements OnDestroy {
-  private api = inject(ApiService);
-  readonly coords = input.required<[number, number]>();
-  private el = viewChild.required<ElementRef<HTMLDivElement>>('el');
-  private map?: MlMap;
-  private marker?: Marker;
-
-  constructor() {
-    effect(() => { const c = this.coords(); void this.show(c); });
-  }
-
-  private async show([lat, lon]: [number, number]): Promise<void> {
-    if (this.map) { this.map.setCenter([lon, lat]); this.marker?.setLngLat([lon, lat]); return; }
-    const mod: any = await import('maplibre-gl');
-    const ml: typeof import('maplibre-gl') = mod.default ?? mod;
-    this.api.mapSettings().subscribe((s) => {
-      this.map = new ml.Map({ container: this.el().nativeElement, style: s.style_url, center: [lon, lat], zoom: 15, interactive: false,
-        attributionControl: false });
-      this.marker = new ml.Marker({ color: '#a020e0' }).setLngLat([lon, lat]).addTo(this.map);
-    });
-  }
-
-  ngOnDestroy(): void { this.map?.remove(); }
 }
