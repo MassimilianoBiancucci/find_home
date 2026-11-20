@@ -29,6 +29,8 @@ export class MapStateService {
   readonly styleReady = signal(0);                  // bumps after each style (re)load + groups re-applied
   readonly settings = signal<MapSettings | null>(null);
   readonly selection = signal<Selection | null>(null);
+  /** The home the zone view is about (short id): drawn by the house layers, so the listing markers leave it out. */
+  readonly focusListing = signal<string | null>(null);
   readonly visible = signal<Record<string, boolean>>(this.readVisible());
   private groups = new Map<string, LayerGroup>();
   private data = new Map<string, unknown>();

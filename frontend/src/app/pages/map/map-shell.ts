@@ -51,6 +51,16 @@ export function pulseHalo(map: MlMap, layer = 'listings-halo'): () => void {
   return () => cancelAnimationFrame(raf);
 }
 
+/** A listing that no hard filter rejects (drawn as a house; the rejected ones are red dots). */
+const SCORED = ['==', ['coalesce', ['length', ['coalesce', ['get', 'rejected_by'], ['literal', []]]], 0], 0];
+
+/** The listing layers' filters, leaving out the focused home (the zone view draws it itself). */
+export function listingFilters(focus: string | null): Record<string, unknown> {
+  const notFocus = focus ? [['!=', ['get', 'short_id'], focus]] : [];
+  const all = (f: unknown) => (notFocus.length ? ['all', f, ...notFocus] : f);
+  return { 'listings-halo': all(SCORED), listings: all(SCORED), 'listings-rejected': all(['!', SCORED]) };
+}
+
 /** A listing's score colour on the map (the same steps as its house icon). */
 const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
   ['step', ['to-number', ['get', 'score'], 0], '#e53e3e', 0.5, '#d69e2e', 0.75, '#1f9d55']];
@@ -127,6 +137,15 @@ export class MapShell {
     effect(() => {
       const mode = this.theme.theme();
       untracked(() => this.applyStyle(mode));
+    });
+    // the zone view's focused home is drawn by its own layers: the listing markers leave it out
+    effect(() => {
+      const focus = this.state.focusListing(), map = this.state.map();
+      this.state.styleReady();
+      if (!map) return;
+      untracked(() => {
+        for (const [id, f] of Object.entries(listingFilters(focus))) if (map.getLayer(id)) map.setFilter(id, f as any);
+      });
     });
   }
 
@@ -205,7 +224,7 @@ export class MapShell {
   }
 
   private addBaseLayers(map: MlMap, pts: any, lst: any): void {
-    const scored = ['==', ['coalesce', ['length', ['coalesce', ['get', 'rejected_by'], ['literal', []]]], 0], 0];
+    const scored = SCORED;
     this.state.addGroup({
       id: 'buildings-3d',
       layers: (style) => {

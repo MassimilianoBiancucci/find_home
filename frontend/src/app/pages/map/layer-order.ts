@@ -5,7 +5,7 @@
  */
 export const LISTING_LAYERS = ['listings-rejected', 'listings-halo', 'listings'];
 /** The focused home's layers, bottom to top (house-layer.service.ts). */
-export const HOUSE_LAYERS = ['house-building-3d', 'house-glow', 'house-transit-line', 'house-walk-casing', 'house-walk-line',
+export const HOUSE_LAYERS = ['house-building-3d', 'house-glow', 'house-glow-core', 'house-transit-line', 'house-walk-casing', 'house-walk-line',
   'house-walk-label', 'house-transit-shade', 'house-transit-glow', 'house-transit-hi', 'house-transit-core', 'house-pin'];
 export const TOP_LAYERS = [...LISTING_LAYERS, ...HOUSE_LAYERS];
 

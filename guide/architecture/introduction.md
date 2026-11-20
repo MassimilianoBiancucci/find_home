@@ -507,7 +507,10 @@ loads the house analysis and focuses the zone on the house: the camera flies to 
 ([`ZoneService.select()`](../../frontend/src/app/pages/map/zone.service.ts) with a focus point). Then
 [`HouseLayerService`](../../frontend/src/app/pages/map/house-layer.service.ts) adds the `house` layers:
 - the building under the address, found with `queryRenderedFeatures` on the 3D building layer once tiles are
-  idle and extruded in the accent colour (a 12 m box when no footprint is found), a glow and a home pin;
+  idle and extruded in the accent colour (a 12 m box when no footprint is found); the home itself as the same house
+  marker as every listing, larger and bright violet (`houseId('#c44dff')`), inside a wide violet light with a brighter
+  core. Meanwhile its own listing marker is left out (`MapStateService.focusListing`, applied by the shell as a layer
+  filter, `listingFilters()`), so it is drawn once;
 - the walking path to the nearest target of each set in the set's colour, labelled with the minutes in
   green / yellow / red;
 - the transit legs of the computed routes in their line colours along the track, walking legs dotted along the
