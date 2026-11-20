@@ -20,8 +20,15 @@ const BLANK: StyleSpecification = { version: 8, sources: {}, layers: [{ id: 'bg'
  * The shell owns the base layers (listings, your points, 3D buildings) and swaps the base style with the colour mode.
  * The map provider sits behind this page only, so a Google adapter can replace it later (guide/documentation/google-apis.md).
  */
-/** The halo's radius by zoom, times `k` (the pulse). */
-const haloRadius = (k: number) => ['interpolate', ['linear'], ['zoom'], 9, 12 * k, 13, 18 * k, 16, 26 * k];
+/**
+ * A house's size by its score: the best homes big, the weakest very small (scores run about 0.3–0.9; unscored 0.6×).
+ * Scales both the house and its light.
+ */
+const SCORE_SIZE = ['case', ['==', ['get', 'score'], null], 0.6,
+  ['interpolate', ['linear'], ['to-number', ['get', 'score'], 0], 0.3, 0.35, 0.6, 0.85, 0.9, 1.6]];
+/** The light's radius by zoom and score, times `k` (the pulse): it reaches all round the house. */
+const haloRadius = (k: number) => ['interpolate', ['linear'], ['zoom'],
+  9, ['*', 17 * k, SCORE_SIZE], 13, ['*', 23 * k, SCORE_SIZE], 16, ['*', 31 * k, SCORE_SIZE]];
 
 /**
  * The houses' light breathes: the halo grows and fades on a slow 2.8 s cycle, redrawn about 12 times a second and only
@@ -196,11 +203,13 @@ export class MapShell {
       layers: [
         // a soft light in the score colour under each house, slowly pulsing (pulseHalo): visible on any base map or tint
         { id: 'listings-halo', type: 'circle', source: 'listings', filter: scored as any,
-          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.45, 'circle-blur': 0.85,
+          paint: { 'circle-color': SCORE_COLOUR, 'circle-radius': haloRadius(1), 'circle-opacity': 0.45, 'circle-blur': 0.7,
             'circle-pitch-alignment': 'map' } },
         { id: 'listings', type: 'symbol', source: 'listings', filter: scored as any,
-          layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-anchor': 'bottom',
-            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, 0.85, 13, 1.1, 16, 1.4],
+          layout: { 'icon-allow-overlap': true, 'icon-ignore-placement': true, 'icon-anchor': 'center',
+            'icon-size': ['interpolate', ['linear'], ['zoom'], 9, ['*', 0.85, SCORE_SIZE], 13, ['*', 1.1, SCORE_SIZE],
+              16, ['*', 1.4, SCORE_SIZE]],
+            'symbol-sort-key': ['coalesce', ['to-number', ['get', 'score']], 0],     // the best homes drawn on top
             'icon-image': ['case', ['==', ['get', 'score'], null], 'house:888888',
               ['step', ['to-number', ['get', 'score'], 0], 'house:e53e3e', 0.5, 'house:d69e2e', 0.75, 'house:1f9d55']] },
         } as any,
