@@ -900,3 +900,17 @@ a.fh-chipf { text-decoration: none; }
   &:first-of-type { border-top: 0; } }
 .fh-issue-cls { margin-left: 4px; padding: 0 7px; border-radius: 999px; font-size: .66rem; font-weight: 700; background: #e9ecef; color: #495057;
   &.check { background: #111; color: #ffd400; } }
+
+// ── The listing id on Candidates: a bright pill (violet, the app's accent) that alone opens the home card ──
+.fh-id-badge { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 999px; font-family: var(--bs-font-monospace);
+  font-size: .76rem; font-weight: 700; letter-spacing: .02em; color: #fff !important; text-decoration: none !important;
+  background: linear-gradient(135deg, #c86bff 0%, #990ae3 55%, #6a1fd1 100%);
+  box-shadow: 0 0 0 2px rgba(153, 10, 227, .18), 0 3px 10px -3px rgba(153, 10, 227, .65); text-shadow: 0 1px 1px rgba(0, 0, 0, .25);
+  transition: box-shadow .15s, transform .12s;
+  &:hover, &:focus-visible { transform: translateY(-1px); box-shadow: 0 0 0 3px rgba(153, 10, 227, .28), 0 0 14px rgba(200, 107, 255, .75); outline: none; } }
+[data-bs-theme='dark'] .fh-id-badge { box-shadow: 0 0 0 2px rgba(192, 132, 252, .25), 0 0 12px rgba(192, 132, 252, .45); }
+.fh-rej-toggle.fh-movein-toggle { border-color: #0ca5c2; background: linear-gradient(135deg, #4fd8ef 0%, #0ca5c2 50%, #087f96 100%);
+  box-shadow: 0 0 0 3px rgba(12, 165, 194, .2), 0 4px 14px -4px rgba(12, 165, 194, .75);
+  &:hover { box-shadow: 0 0 0 4px rgba(12, 165, 194, .28), 0 6px 18px -4px rgba(12, 165, 194, .85); }
+  &.on { background: transparent; color: #087f96; box-shadow: none; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #087f96; } } }
+[data-bs-theme='dark'] .fh-rej-toggle.fh-movein-toggle.on { color: #4fd8ef; border-color: #4fd8ef; .fh-rej-dot { box-shadow: inset 0 0 0 1.5px #4fd8ef; } }

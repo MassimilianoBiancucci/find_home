@@ -146,7 +146,10 @@ their own badges ([jobs.md](jobs.md#ad-status), [pets.md](pets.md)).
 **Candidates list.** [`candidates.ts`](../../frontend/src/app/pages/candidates.ts) is the triage table (keys in
 its header). The server applies the status, the search, the scope chips, **Hide rejected** (a red badge: filled
 while rejected homes show, outlined while they are hidden) and **Hide closed** (amber, the same way: homes whose ad
-is closed on every site). The **Issues** column shows a yellow "⚠ n" badge; hovering it opens the tape tooltip
+is closed on every site). While rejected homes are hidden, **Show move-in misses** (cyan, the same way) brings back
+the homes rejected only by the move-in window (`move_in_to`, `move_in_from_slack`; `GET /api/listings?move_in_misses=true`),
+their date in red. The id is a violet pill (`.fh-id-badge`); hovering or focusing **it** opens the home card, so the
+other cells keep their own tooltips. The **Issues** column shows a yellow "⚠ n" badge; hovering it opens the tape tooltip
 ([`fh-issue-tip`](../../frontend/src/app/components/issue-tip.ts): a yellow panel in an animated yellow-black border,
 still under reduced motion) with each issue, its class and hint. A clock at the end of a row says the ad's status
 was not confirmed in `agent.yaml` `ad_status.stale_after_days`. The page then applies the ranges of the **Filters**

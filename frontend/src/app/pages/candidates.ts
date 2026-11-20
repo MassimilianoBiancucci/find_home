@@ -40,6 +40,11 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
     <button type="button" class="fh-rej-toggle" [class.on]="fs.hideRejected()" [attr.aria-pressed]="fs.hideRejected()" (click)="toggleRejected()"
       [title]="fs.hideRejected() ? 'Rejected homes are hidden: click to show them' : 'Rejected homes are shown: click to hide them'">
       <span class="fh-rej-dot"></span>{{ fs.hideRejected() ? 'Rejected hidden' : 'Hide rejected' }}</button>
+    @if (fs.hideRejected()) {
+      <button type="button" class="fh-rej-toggle fh-movein-toggle" [class.on]="!fs.moveInMisses()" [attr.aria-pressed]="fs.moveInMisses()" (click)="toggleMoveIn()"
+        [title]="fs.moveInMisses() ? 'Homes rejected only by your move-in window (too early beyond the slack, or after move_in_to) are shown, their date in red: click to hide them' : 'Show the homes rejected only by your move-in window (config/profile.yaml move_in_from, slack and move_in_to)'">
+        <span class="fh-rej-dot"></span>{{ fs.moveInMisses() ? 'Move-in misses shown' : 'Show move-in misses' }}</button>
+    }
     <button type="button" class="fh-rej-toggle fh-closed-toggle" [class.on]="fs.hideClosed()" [attr.aria-pressed]="fs.hideClosed()" (click)="toggleClosed()"
       [title]="fs.hideClosed() ? 'Homes whose ad is closed on every site (applications over, let, removed, gone) are hidden: click to show them' : 'Closed ads are shown: click to hide them'">
       <span class="fh-rej-dot"></span>{{ fs.hideClosed() ? 'Closed hidden' : 'Hide closed' }}</button>
@@ -113,9 +118,9 @@ type Picker = { mode: 'like' | 'dislike'; tags: Set<string>; note: string } | nu
       <tbody>
         @for (r of pageRows(); track r.short_id; let j = $index) {
           @let i = page() * pageSize() + j;
-          <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)"
-            (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()">
-            <td class="fh-mono text-nowrap"><a [routerLink]="['/candidates', r.short_id]">{{ r.short_id }}</a>
+          <tr [style.background]="i === cursor() ? 'var(--fh-sel)' : null" (click)="cursor.set(i)" (dblclick)="open(r)">
+            <td class="text-nowrap"><a class="fh-id-badge" [routerLink]="['/candidates', r.short_id]"
+              (mouseenter)="hoverIn(r, $event)" (mouseleave)="hoverOut()" (focus)="hoverIn(r, $event)" (blur)="hoverOut()">{{ r.short_id }}</a>
               @if (r.ad_open === false) { <fh-ad-status class="ms-1" [status]="r.ad_sources?.[0]?.status" [site]="r.ad_sources?.[0]?.site" [checkedAt]="r.ad_sources?.[0]?.checked_at" /> }</td>
             <td>
               <fh-score-tip [total]="r.score" [breakdown]="r.breakdown" [rejected]="r.rejected_by" />
@@ -256,6 +261,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   protected sortBy(key: SortKey): void { this.fs.sortBy(key); }
   protected toggleRejected(): void { this.fs.hideRejected.update((v) => !v); this.load(true); }
   protected issuesOf = issuesOf;
+  protected toggleMoveIn(): void { this.fs.moveInMisses.update((v) => !v); this.load(true); }
   protected toggleClosed(): void { this.fs.hideClosed.update((v) => !v); this.load(true); }
   /** "Ad status last confirmed 9 days ago": why the row has a clock. */
   protected staleTip(r: Listing): string {
@@ -285,12 +291,15 @@ export class CandidatesPage implements OnInit, OnDestroy {
     return `${this.sites.name(o)} · found on ${via}`;
   }
 
-  protected hoverIn(r: Listing, ev: MouseEvent): void {
+  /** The home card, from the id badge only (hover or keyboard focus): other cells keep their own tooltips. */
+  protected hoverIn(r: Listing, ev: Event): void {
     if (this.tipTimer) clearTimeout(this.tipTimer);
-    const row = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+    const badge = ev.currentTarget as HTMLElement;
+    const row = (badge.closest('tr') ?? badge).getBoundingClientRect();
+    const x = ev instanceof MouseEvent && ev.clientX ? ev.clientX : badge.getBoundingClientRect().right;
     this.tipTimer = setTimeout(() => {
       const w = 380, h = 470, vw = window.innerWidth, vh = window.innerHeight;
-      const left = ev.clientX + 24 + w < vw ? ev.clientX + 24 : Math.max(8, ev.clientX - w - 24);
+      const left = x + 24 + w < vw ? x + 24 : Math.max(8, x - w - 24);
       const top = Math.max(8, Math.min(row.top - 40, vh - h - 8));
       this.tip.set({ row: r, top, left });
     }, 250);
@@ -313,7 +322,7 @@ export class CandidatesPage implements OnInit, OnDestroy {
   load(pulse = false): void {
     this.loading.set(true);
     this.api.listings({ status: this.status || undefined, q: this.q || undefined, includeRejected: !this.fs.hideRejected(),
-      closed: this.fs.hideClosed() ? 'exclude' : 'include',
+      closed: this.fs.hideClosed() ? 'exclude' : 'include', moveInMisses: this.fs.hideRejected() && this.fs.moveInMisses(),
       origin: this.origin() || undefined, site: this.site() || undefined, scanRun: this.scanRun() || undefined }).subscribe({
       next: (res) => {
         this.all.set(res.items); this.fs.base.set(res.items); this.cursor.set(0); this.loading.set(false); this.error.set('');

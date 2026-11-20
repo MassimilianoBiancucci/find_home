@@ -147,6 +147,8 @@ export class CandidateFiltersStore {
   readonly hideRejected = signal(false);
   /** Listings whose ad is closed on every site (applications over, let, removed, gone): hidden unless you ask. */
   readonly hideClosed = signal(true);
+  /** With rejected homes hidden: also show those rejected only by the move-in window (too early or too late). */
+  readonly moveInMisses = signal(false);
   /** The list's homes before the ranges (server filters and "hide rejected" applied): the bubble's distributions. */
   readonly base = signal<Listing[]>([]);
   /** Set for a moment when the list reloads after "hide rejected": the charts open and animate to the new data. */

@@ -158,3 +158,15 @@ def test_status_due_takes_unlisted_or_stale_sources_and_rows_say_stale(client, d
     assert ids({"sites": ["qasa"], "status_due": True}) == {fresh, old, never}   # the last scan listed none of them
     rows = {r["short_id"]: r for r in client.get("/api/listings").json()["items"]}
     assert rows[fresh]["ad_stale"] is False and rows[old]["ad_stale"] is True and rows[never]["ad_stale"] is True
+
+
+def test_move_in_misses_come_back_on_request(client, db_url):
+    early, late = _ingest(client, [_card(BF, "fict-m1", 1), _card(BF, "fict-m2", 2)])
+    client.post("/api/scores/recompute", json={"short_ids": [early, late]})
+    _sql(db_url, """UPDATE scores SET total = NULL, rejected_by = ARRAY['move_in_from_slack']
+                    WHERE listing_id = (SELECT listing_id FROM listing_sources WHERE external_id = 'fict-m1')""")
+    _sql(db_url, """UPDATE scores SET total = NULL, rejected_by = ARRAY['move_in_to', 'max_rent_sek']
+                    WHERE listing_id = (SELECT listing_id FROM listing_sources WHERE external_id = 'fict-m2')""")
+    rows = lambda q: {r["short_id"] for r in client.get(f"/api/listings?include_rejected=false{q}").json()["items"]}  # noqa: E731
+    assert early not in rows("") and late not in rows("")
+    assert early in rows("&move_in_misses=true") and late not in rows("&move_in_misses=true")   # rent fails too

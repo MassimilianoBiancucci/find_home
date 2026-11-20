@@ -287,7 +287,8 @@ async def source_exists(conn, site: str, ref: str) -> dict | None:
 async def list_listings(conn, config_hash: str, status: str | None = None, kind: str | None = None,
                         q: str | None = None, include_rejected: bool = True, limit: int = 200,
                         since: str | None = None, origin: str | None = None, site: str | None = None,
-                        scan_run: str | None = None, closed: str = "include", stale_days: int = 7) -> list[dict]:
+                        scan_run: str | None = None, closed: str = "include", stale_days: int = 7,
+                        move_in_misses: bool = False) -> list[dict]:
     """`closed`: include | exclude | only the listings none of whose sources is open (ad status, sub-plan #11).
     Each row gets `ad_checked_at` (the latest confirmation of an open or unchecked source) and `ad_stale` (still open,
     but not confirmed in `stale_days` days: the ad may have closed)."""
@@ -320,8 +321,9 @@ async def list_listings(conn, config_hash: str, status: str | None = None, kind:
     if since:
         where.append("l.last_changed_at > %s")
         params.append(since)
-    if not include_rejected:
-        where.append("(s.total IS NOT NULL OR s.listing_id IS NULL)")
+    if not include_rejected:          # with move_in_misses, also homes rejected only by the move-in window
+        where.append("(s.total IS NOT NULL OR s.listing_id IS NULL" + (
+            " OR s.rejected_by <@ ARRAY['move_in_to', 'move_in_from_slack']::text[])" if move_in_misses else ")"))
     params.append(limit)
     rows = await _fetchall(
         conn, f"""SELECT l.*, s.total AS score, s.rejected_by, s.breakdown, s.config_hash AS score_hash,

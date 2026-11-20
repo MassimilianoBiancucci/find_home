@@ -28,13 +28,15 @@ def _with_zone(rows: list[dict]) -> list[dict]:
 async def list_listings(status: str | None = None, kind: str | None = None, q: str | None = None,
                         include_rejected: bool = True, limit: int = Query(200, le=5000), since: str | None = None,
                         origin: str | None = None, site: str | None = None, scan_run: str | None = None,
-                        closed: Literal["exclude", "include", "only"] = "exclude", conn=Depends(get_conn)):
+                        closed: Literal["exclude", "include", "only"] = "exclude", move_in_misses: bool = False,
+                        conn=Depends(get_conn)):
     """`closed`: listings none of whose sources is open (applications closed, let, removed, not found) are hidden by
-    default; `include` shows them too, `only` shows just them."""
+    default; `include` shows them too, `only` shows just them. `move_in_misses`: with include_rejected false, also
+    the homes rejected only by the move-in window (move_in_to, move_in_from_slack)."""
     from findhome.jobs.subset import stale_days
 
     rows = await repo.list_listings(conn, bundle().config_hash, status, kind, q, include_rejected, limit, since,
-                                    origin, site, scan_run, closed, stale_days())
+                                    origin, site, scan_run, closed, stale_days(), move_in_misses)
     return {"config_hash": bundle().config_hash, "items": _with_zone(rows)}
 
 
