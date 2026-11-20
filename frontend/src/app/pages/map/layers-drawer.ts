@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { blipUrl, houseUrl } from '../../components/map-icons';
 import { MapStateService } from './map-state.service';
 import { PoiLayersService } from './poi-layers.service';
@@ -12,51 +12,60 @@ const OPEN_KEY = 'fh-map-layers-open';
 const TINT = 'linear-gradient(90deg,#1f9d55,#d6c94a,#b0303a)';
 
 /**
- * The map's layers in a drawer at the bottom of the map, in every mode (Explore, Area, Connectivity, Zone): one row
+ * The map's layers in a sheet under the map, as wide as it, in every mode (Explore, Area, Connectivity, Zone): one row
  * of toggle chips per group (map, places, transit), each in its layer's colour, filled and glowing while shown.
- * Folded to one pill that counts the layers on; open or folded is remembered in this browser.
+ * The Layers pill opens it: the sheet slides up and the map's bottom edge with it (the map shrinks to make room)
+ * while the pill fades out; a click on the map, the fold button or Escape slides both back down and the pill fades
+ * back in.
+ * Open or folded is remembered in this browser.
  */
 @Component({
   selector: 'fh-layers-drawer',
+  host: { '(document:keydown.escape)': 'close()', '[class.open]': 'open()' },
   template: `
-  <div class="fh-lyr" [class.open]="open()">
-    @if (open()) {
-      <div class="fh-lyr-panel" id="fh-lyr-panel">
-        @for (s of sections(); track s.title) {
-          <div class="fh-lyr-sec">
-            <span class="fh-lyr-h" [title]="s.hint ?? ''">{{ s.title }}</span>
-            <div class="fh-lyr-chips">
-              @for (c of s.chips; track c.id) {
-                <button type="button" class="fh-chipf fh-lyr-chip" [class.sel]="on(c)" [disabled]="c.disabled"
-                  [style.--lc]="c.colour" [attr.aria-pressed]="on(c)" [title]="c.title ?? (on(c) ? 'Hide ' : 'Show ') + c.label" (click)="flip(c)">
-                  @if (c.icon) { <img [src]="c.icon" width="16" height="16" alt="" /> }
-                  @else if (c.swatch) { <i class="fh-lyr-line" [style.background]="c.swatch"></i> }
-                  <span class="fh-chipf-t">{{ c.label }}</span>
-                  @if (c.n != null) { <span class="fh-chipf-n">{{ c.n }}</span> }
-                </button>
-              }
-              @if (s.note) { <span class="fh-lyr-note">{{ s.note }}</span> }
-            </div>
+  <div class="fh-lyr-clip">
+    <div class="fh-lyr-panel" id="fh-lyr-panel" [class.open]="open()" [attr.aria-hidden]="!open()" [attr.inert]="open() ? null : ''">
+      <button type="button" class="fh-lyr-fold" (click)="close()" title="Fold the layers away (or click the map)" aria-label="Fold the layers away">▾</button>
+      @for (s of sections(); track s.title) {
+        <div class="fh-lyr-sec">
+          <span class="fh-lyr-h" [title]="s.hint ?? ''">{{ s.title }}</span>
+          <div class="fh-lyr-chips">
+            @for (c of s.chips; track c.id) {
+              <button type="button" class="fh-chipf fh-lyr-chip" [class.sel]="on(c)" [disabled]="c.disabled"
+                [style.--lc]="c.colour" [attr.aria-pressed]="on(c)" [title]="c.title ?? (on(c) ? 'Hide ' : 'Show ') + c.label" (click)="flip(c)">
+                @if (c.icon) { <img [src]="c.icon" width="16" height="16" alt="" /> }
+                @else if (c.swatch) { <i class="fh-lyr-line" [style.background]="c.swatch"></i> }
+                <span class="fh-chipf-t">{{ c.label }}</span>
+                @if (c.n != null) { <span class="fh-chipf-n">{{ c.n }}</span> }
+              </button>
+            }
+            @if (s.note) { <span class="fh-lyr-note">{{ s.note }}</span> }
           </div>
-        }
-        @if (poi.error() || transit.error()) { <div class="small text-danger">{{ poi.error() || transit.error() }}</div> }
-      </div>
-    }
-    <button type="button" class="fh-lyr-tab" (click)="toggle()" [attr.aria-expanded]="open()" aria-controls="fh-lyr-panel"
-      [title]="open() ? 'Fold the layers away' : 'Choose the map layers'">
-      <i class="fh-lyr-caret">{{ open() ? '▾' : '▴' }}</i> Layers <span class="fh-lyr-count">{{ count() }}</span>
-    </button>
-  </div>`,
+        </div>
+      }
+      @if (poi.error() || transit.error()) { <div class="small text-danger">{{ poi.error() || transit.error() }}</div> }
+    </div>
+  </div>
+  <button type="button" class="fh-lyr-tab" [class.gone]="open()" (click)="toggle()" [attr.aria-expanded]="open()" aria-controls="fh-lyr-panel"
+    [attr.tabindex]="open() ? -1 : null" title="Choose the map layers">
+    <i class="fh-lyr-caret">▴</i> Layers <span class="fh-lyr-count">{{ count() }}</span>
+  </button>`,
   styles: [`
-    :host { position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3; pointer-events: none;
-      width: min(980px, calc(100% - 240px)); display: flex; justify-content: center; }
-    .fh-lyr { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 100%; }
-    .fh-lyr > * { pointer-events: auto; }
-    .fh-lyr-panel { display: flex; flex-direction: column; gap: 6px; max-width: 100%; max-height: 40vh; overflow: auto;
-      padding: 9px 12px; border-radius: 14px; background: color-mix(in srgb, var(--bs-body-bg) 88%, transparent);
-      backdrop-filter: blur(8px); border: 1px solid color-mix(in srgb, var(--fh-violet) 40%, transparent);
-      box-shadow: 0 0 0 3px var(--fh-violet-soft), 0 10px 28px -8px rgba(0, 0, 0, .45); animation: fh-lyr-in .18s ease-out; }
-    @keyframes fh-lyr-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    /* under the map, in the page flow: its height grows from 0 to the sheet's (0fr → 1fr), so the map above shrinks
+       with it and its bottom edge slides up and down with the sheet */
+    :host { position: relative; display: grid; grid-template-rows: 0fr; flex: none;
+      transition: grid-template-rows .42s cubic-bezier(.22, .9, .25, 1); }
+    :host(.open) { grid-template-rows: 1fr; }
+    .fh-lyr-clip { min-height: 0; overflow: hidden; }
+    .fh-lyr-panel { position: relative; margin-top: 8px; display: flex; flex-direction: column; gap: 6px; max-height: 38vh; overflow: auto;
+      padding: 12px 44px 12px 14px; border-radius: 8px; background: var(--bs-body-bg);
+      border: 1px solid color-mix(in srgb, var(--fh-violet) 55%, transparent);
+      box-shadow: inset 0 3px 0 var(--fh-violet-soft); visibility: hidden; transition: visibility 0s linear .42s; }
+    .fh-lyr-panel.open { visibility: visible; transition: visibility 0s; }
+    .fh-lyr-fold { position: absolute; top: 8px; right: 10px; width: 26px; height: 26px; border-radius: 50%; padding: 0;
+      border: 1.5px solid var(--fh-violet); background: transparent; color: var(--fh-violet); font-size: .8rem; line-height: 1;
+      cursor: pointer; transition: box-shadow .2s, transform .12s; }
+    .fh-lyr-fold:hover { box-shadow: 0 0 0 3px var(--fh-violet-soft); transform: translateY(1px); }
     .fh-lyr-sec { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: start; gap: 8px; }
     .fh-lyr-h { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--bs-secondary-color);
       padding-top: 5px; }
@@ -68,16 +77,20 @@ const TINT = 'linear-gradient(90deg,#1f9d55,#d6c94a,#b0303a)';
     .fh-lyr-line { display: inline-block; width: 16px; height: 4px; border-radius: 2px; box-shadow: 0 0 0 1px #0006; }
     .fh-lyr-chip.sel .fh-lyr-line { box-shadow: 0 0 0 1px #fff; }
     .fh-lyr-note { font-size: .72rem; color: var(--bs-secondary-color); }
-    .fh-lyr-tab { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 13px; border-radius: 999px; font-size: .8rem;
+    /* the pill floats over the map's bottom edge: fades out (and sinks a little) while the sheet is open, back in after */
+    .fh-lyr-tab { position: absolute; left: 50%; bottom: calc(100% + 28px); transform: translateX(-50%); z-index: 3;
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px 4px 13px; border-radius: 999px; font-size: .8rem;
       font-weight: 700; color: #fff; cursor: pointer; border: 1.5px solid #c43dff;
       background: linear-gradient(135deg, #ff6ad5 0%, #c43dff 50%, #6a5cff 100%); text-shadow: 0 1px 1px rgba(0, 0, 0, .25);
-      box-shadow: 0 0 0 3px rgba(196, 61, 255, .18), 0 4px 14px -4px rgba(196, 61, 255, .7); transition: transform .12s, box-shadow .2s; }
-    .fh-lyr-tab:hover { transform: translateY(-1px); box-shadow: 0 0 0 4px rgba(196, 61, 255, .25), 0 6px 18px -4px rgba(196, 61, 255, .85); }
+      box-shadow: 0 0 0 3px rgba(196, 61, 255, .18), 0 4px 14px -4px rgba(196, 61, 255, .7);
+      transition: opacity .35s ease .2s, transform .35s ease .2s, box-shadow .2s, visibility 0s; }
+    .fh-lyr-tab:hover { transform: translate(-50%, -1px); box-shadow: 0 0 0 4px rgba(196, 61, 255, .25), 0 6px 18px -4px rgba(196, 61, 255, .85); }
+    .fh-lyr-tab.gone { opacity: 0; transform: translate(-50%, 10px); pointer-events: none; visibility: hidden;
+      transition: opacity .25s ease, transform .25s ease, visibility 0s linear .25s; }
     .fh-lyr-caret { font-style: normal; font-size: .7rem; }
     .fh-lyr-count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: rgba(255, 255, 255, .25); text-align: center;
       font-variant-numeric: tabular-nums; }
-    @media (max-width: 700px) { :host { width: calc(100% - 20px); } }
-    @media (prefers-reduced-motion: reduce) { .fh-lyr-panel { animation: none; } }
+    @media (prefers-reduced-motion: reduce) { :host, .fh-lyr-panel, .fh-lyr-tab, .fh-lyr-tab.gone { transition: none; } }
   `],
 })
 export class LayersDrawer {
@@ -85,6 +98,23 @@ export class LayersDrawer {
   protected poi = inject(PoiLayersService);
   protected transit = inject(TransitLayersService);
   protected open = signal(this.readOpen());
+
+  constructor() {
+    // a click on the map folds the sheet away
+    let off: (() => void) | null = null;
+    effect(() => {
+      const map = this.state.map();
+      untracked(() => {
+        off?.();
+        off = null;
+        if (!map) return;
+        const fold = () => this.close();
+        map.on('click', fold);
+        off = () => map.off('click', fold);
+      });
+    });
+    inject(DestroyRef).onDestroy(() => off?.());
+  }
 
   protected sections = computed<Section[]>(() => {
     const map: Section = { title: 'Map', chips: [
@@ -120,9 +150,12 @@ export class LayersDrawer {
     else if (c.id.startsWith('transit-')) this.transit.toggle(c.id);
     else this.state.setVisible(c.id, !this.on(c));
   }
-  protected toggle(): void {
-    this.open.update((v) => !v);
-    try { localStorage.setItem(OPEN_KEY, this.open() ? '1' : '0'); } catch { /* storage unavailable */ }
+  protected toggle(): void { this.setOpen(!this.open()); }
+  close(): void { if (this.open()) this.setOpen(false); }
+  private setOpen(on: boolean): void {
+    this.state.anchorBottomUntil = performance.now() + 700;   // the sheet's slide (0.42 s) and a margin
+    this.open.set(on);
+    try { localStorage.setItem(OPEN_KEY, on ? '1' : '0'); } catch { /* storage unavailable */ }
   }
   private readOpen(): boolean {
     try { return localStorage.getItem(OPEN_KEY) === '1'; } catch { return false; }

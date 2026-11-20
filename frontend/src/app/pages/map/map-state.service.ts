@@ -32,6 +32,9 @@ export class MapStateService {
   private groups = new Map<string, LayerGroup>();
   private data = new Map<string, unknown>();
   private loaded = false;                           // map.isStyleLoaded() is false while tiles load, so track the style ourselves
+  /** Until this time (ms, performance.now) a change of the map's height keeps its bottom edge in place, so the map
+   *  slides up and down with the Layers sheet under it instead of re-centring (set by the sheet as it moves). */
+  anchorBottomUntil = 0;
 
   /** True once the current style has loaded and groups can be added. */
   ready(): boolean { return this.loaded && this.map() !== null; }

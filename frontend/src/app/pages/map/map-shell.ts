@@ -71,10 +71,10 @@ const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
       @if (missing().length) { <span class="small text-warning" title="Set an address or coords in Locations">no coords: {{ missing().join(', ') }}</span> }
       @if (error()) { <span class="small text-danger">{{ error() }}</span> }
     </div>
+    <div class="fh-map-col">
     <div class="fh-map-wrap">
       <div #mapEl class="fh-map"></div>
       <fh-map-context-menu />
-      <fh-layers-drawer />
       @if (conn.hover(); as h) {
         <div class="fh-hover">
           <b>{{ h.name }}</b>@if (h.estimate) {<sup title="straight-line estimate">~</sup>}
@@ -82,6 +82,8 @@ const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
           @if (h.weighted != null) { <span class="w">mix {{ h.weighted }}′</span> }
         </div>
       }
+    </div>
+    <fh-layers-drawer />
     </div>
     <router-outlet />
   </div>`,
@@ -91,8 +93,9 @@ const SCORE_COLOUR = ['case', ['==', ['get', 'score'], null], '#888888',
     .fh-modes { display: inline-flex; border: 1px solid var(--bs-border-color); border-radius: 999px; padding: 2px; background: var(--fh-sub);
       a { padding: 3px 14px; border-radius: 999px; text-decoration: none; color: var(--bs-secondary-color); font-size: .85rem; font-weight: 500;
         &.on { background: var(--fh-accent-fill); color: var(--fh-on-accent); box-shadow: 0 0 0 1px var(--fh-violet); } } }
-    .fh-map-wrap { flex: 1; min-height: 320px; position: relative; display: flex; }
-    .fh-map { flex: 1; min-height: 320px; border-radius: 8px; border: 1px solid var(--bs-border-color); overflow: hidden; }
+    .fh-map-col { flex: 1; min-height: 320px; display: flex; flex-direction: column; }
+    .fh-map-wrap { flex: 1; min-height: 200px; position: relative; display: flex; }
+    .fh-map { flex: 1; min-height: 200px; border-radius: 8px; border: 1px solid var(--bs-border-color); overflow: hidden; }
     .fh-hover { position: absolute; left: 10px; top: 10px; z-index: 2; display: flex; flex-wrap: wrap; gap: 4px 10px; max-width: 70%;
       padding: 5px 10px; border-radius: 8px; font-size: .8rem; background: rgba(20, 20, 24, .86); color: #f2f2f7;
       border: 1px solid rgba(192, 132, 252, .5); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); pointer-events: none;
@@ -127,6 +130,21 @@ export class MapShell {
     });
   }
 
+  /**
+   * Fits the map to its box and draws it in the same frame, so it never flashes blank while the box animates. While
+   * the Layers sheet moves, the map keeps its bottom edge: what sat just above the old edge stays there, the content
+   * slides with the sheet.
+   */
+  private resize(map: MlMap): void {
+    const canvas = map.getCanvas(), oldH = canvas.clientHeight, w = canvas.clientWidth;
+    const newH = this.el().nativeElement.clientHeight;
+    const anchor = performance.now() < this.state.anchorBottomUntil && oldH > 0 && newH > 0 && oldH !== newH;
+    const centre = anchor ? map.unproject([w / 2, oldH - newH / 2]) : null;
+    map.resize();
+    if (centre) map.jumpTo({ center: centre });
+    map.redraw();
+  }
+
   private styleUrl(mode: string): string | undefined {
     const s = this.state.settings();
     return s ? (mode === 'dark' && s.style_url_dark ? s.style_url_dark : s.style_url) : undefined;
@@ -156,7 +174,7 @@ export class MapShell {
         destroy.onDestroy(() => { this.state.detach(); map.remove(); });
         map.addControl(new ml.NavigationControl({ visualizePitch: true }), 'top-right');
         map.addControl(new ml.ScaleControl({ unit: 'metric' }), 'bottom-left');
-        new ResizeObserver(() => map.resize()).observe(this.el().nativeElement);
+        new ResizeObserver(() => this.resize(map)).observe(this.el().nativeElement);
         map.on('error', () => {
           if (this.state.ready() || this.styleFailed) return;
           this.styleFailed = true;

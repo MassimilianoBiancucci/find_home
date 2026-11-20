@@ -348,10 +348,16 @@ The map ([`pages/map/`](../../frontend/src/app/pages/map/map-shell.ts)) is one M
 `MapShell` and shared through [`MapStateService`](../../frontend/src/app/pages/map/map-state.service.ts) with
 the modes, which are child routes (`/map/explore`, `/map/area`, `/map/connectivity`, `/map/zone`). Modes add named layer
 groups (`addGroup`), toggle them (`setVisible`, persisted) and read the shared `selection`. The shell's **Layers
-drawer** ([`layers-drawer.ts`](../../frontend/src/app/pages/map/layers-drawer.ts)), folded to a glowing pill at the bottom
-of the map that counts the layers on, shows in every mode: one row of toggle chips per group (Map: listings, rejected,
-your points, commute tint; Places; Transit, with the lines and stations), each in its layer's colour and filled while
-shown. Open or folded is remembered in the browser (`fh-map-layers-open`). The base style is
+sheet** ([`layers-drawer.ts`](../../frontend/src/app/pages/map/layers-drawer.ts)) shows in every mode: one row of
+toggle chips per group (Map: listings, rejected, your points, commute tint; Places; Transit, with the lines and
+stations), each in its layer's colour and filled while shown. A glowing **Layers** pill over the map's bottom edge
+(counting the layers on) opens it: the sheet, as wide as the map, rounded and a small gap below it, slides up and the
+map's bottom edge with it, while the pill fades out; a click on the map, the fold button or Escape slides both back
+and the pill fades in. The sheet sits under the map in the page flow and grows from 0 (`grid-template-rows` 0fr → 1fr),
+so the map shrinks rather than being covered; `MapShell.resize()` redraws in the same frame (no blank canvas while
+the box animates) and, while the sheet moves (`MapStateService.anchorBottomUntil`), keeps the map's bottom edge in
+place, so the content slides with the sheet and closing returns to the same view. Open or folded is remembered in
+the browser (`fh-map-layers-open`). The base style is
 `map.style_url` (light) or `map.style_url_dark` from `config/providers.yaml`; switching the colour mode reloads
 the style and re-applies every group. A style that cannot load falls back to a blank background. In dark mode
 [`dark-style.ts`](../../frontend/src/app/pages/map/dark-style.ts) recolours the style's water layers after each style
