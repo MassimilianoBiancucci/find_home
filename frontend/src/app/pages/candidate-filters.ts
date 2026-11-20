@@ -4,6 +4,7 @@ import { SitesStore } from '../services/sites.store';
 import { fmtKr } from '../format';
 import { Listing } from '../models';
 import { ISSUE_LABEL } from '../issues';
+import { COLUMNS } from './candidate-columns';
 import { ValueScaleStore, valueOf } from '../value-scale';
 
 // ── Fields, filters and sorting of the candidates list (pure) ───────────────────────────────────────────────
@@ -106,29 +107,16 @@ export function histogram(values: number[], [min, max]: [number, number], step: 
   return bins;
 }
 
-export type SortKey = 'score' | 'transport' | 'services' | 'status' | 'area' | 'move_in' | 'issues' | 'rooms' | 'size' | 'rent' | 'per_m2' | 'pets' | 'contract';
+/** A column key of the Candidates table (candidate-columns.ts COLUMNS): each one sorts. */
+export type SortKey = string;
 export interface Sort { key: SortKey; dir: 1 | -1; }
-const PET_RANK: Record<string, number> = { yes: 4, ask: 3, conflict: 2, unknown: 1, no: 0 };
 /** Each column's value and the direction of its first click (the better end first). */
-export const SORTS: Record<SortKey, { get: (l: Listing) => number | string | null; first: 1 | -1 }> = {
-  score: { get: (l) => l.score ?? null, first: -1 },
-  transport: { get: (l) => l.house_transport ?? null, first: -1 },
-  services: { get: (l) => l.house_services ?? null, first: -1 },
-  status: { get: (l) => l.status, first: 1 },
-  area: { get: (l) => (l.area ?? l.address_raw ?? '').toLowerCase() || null, first: 1 },
-  move_in: { get: (l) => l.available_from ?? null, first: 1 },
-  issues: { get: (l) => l.issue_codes?.length ?? 0, first: 1 },
-  rooms: { get: (l) => l.rooms_rok ?? null, first: -1 },
-  size: { get: (l) => l.size_m2 ?? null, first: -1 },
-  rent: { get: (l) => l.rent_sek ?? null, first: 1 },
-  per_m2: { get: (l) => valueOf(l, 'rent_per_m2'), first: 1 },
-  pets: { get: (l) => PET_RANK[l.pet_status] ?? 1, first: -1 },
-  contract: { get: (l) => l.contract_type ?? null, first: 1 },
-};
+export const SORTS: Record<string, { get: (l: Listing) => number | string | null; first: 1 | -1 }> =
+  Object.fromEntries(COLUMNS.map((c) => [c.key, { get: c.sort, first: c.first }]));
 
 /** Sorted copy: homes without the value last in both directions; ties keep the server's order (score, then newest). */
 export function sortRows(rows: Listing[], s: Sort): Listing[] {
-  const get = SORTS[s.key].get;
+  const get = (SORTS[s.key] ?? SORTS['score']).get;
   return rows.map((l, i) => ({ l, i, v: get(l) })).sort((a, b) => {
     if (a.v == null || b.v == null) return a.v == null && b.v == null ? a.i - b.i : a.v == null ? 1 : -1;
     const c = a.v < b.v ? -1 : a.v > b.v ? 1 : 0;
@@ -169,7 +157,7 @@ export class CandidateFiltersStore {
   }
   sortBy(key: SortKey): void {
     const s = this.sort();
-    this.sort.set(s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: SORTS[key].first });
+    this.sort.set(s.key === key ? { key, dir: (s.dir * -1) as 1 | -1 } : { key, dir: SORTS[key]?.first ?? -1 });
   }
   private pulseTimer: ReturnType<typeof setTimeout> | null = null;
   flash(ms = 1800): void {

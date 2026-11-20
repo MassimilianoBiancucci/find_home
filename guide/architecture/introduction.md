@@ -58,7 +58,9 @@ name), its liveness and the late files parked after Cancel;
 [`017_listing_details_job.sql`](../../backend/migrations/017_listing_details_job.sql) the details jobs and their item
 outcomes; [`018_ad_status.sql`](../../backend/migrations/018_ad_status.sql) the ad status per source
 (`listing_sources.ad_status`, `source_status_events`) and the status jobs ([jobs.md](jobs.md#ad-status));
-[`019_status_due.sql`](../../backend/migrations/019_status_due.sql) the status job's default subset.
+[`019_status_due.sql`](../../backend/migrations/019_status_due.sql) the status job's default subset;
+[`020_ui_settings.sql`](../../backend/migrations/020_ui_settings.sql) UI preferences kept in the database (the
+Candidates columns and views).
 [`db/migrate.py`](../../backend/src/findhome/db/migrate.py) applies the SQL files in order and refuses edited ones.
 
 **Config.** YAML under [`config/`](../../config/README.md) and [`sites/`](../../sites/README.md), described in
@@ -156,6 +158,15 @@ was not confirmed in `agent.yaml` `ad_status.stale_after_days`. The page then ap
 bubble (ranges and chips) and the sort ([`rows`](../../frontend/src/app/pages/candidates.ts#L200)). Every column header but Id sorts:
 the first click puts the better end first (score high, rent low, move-in early), the second reverses, and homes
 without the value stay last. The default is score, high first.
+
+The **Columns** bubble ([`fh-candidate-columns`](../../frontend/src/app/pages/candidate-columns.ts), under Filters)
+chooses the columns and their order: the default ones, plus building and flat (floor, lift, balcony, built, furnished,
+alcove), contract and dates (contract from / to, guaranteed and notice months, short-term, Bostadsförmedlingen's apply
+by, the ad's move-in wording, deposit), ad and data (ad status per site, last confirmed, found on, first seen,
+changed, photos, plan) and score parts (each preference group, 0–100, and the zone). Every column sorts (`COLUMNS`
+gives each one its sort value). The shown columns are autosaved, and named views saved, in the app database
+(`ui_settings`, [`020_ui_settings.sql`](../../backend/migrations/020_ui_settings.sql),
+`GET|PUT /api/ui-settings/{key}`), so they survive clearing the browser; Reset brings back the default layout.
 
 The Filters bubble ([`fh-candidate-filters`](../../frontend/src/app/pages/candidate-filters.ts#L316), registered in
 box 1) has one two-ended slider per value: score, rent, rent per m², move-in date, rooms, size, transport and

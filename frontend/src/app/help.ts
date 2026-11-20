@@ -43,6 +43,10 @@ export const HELP: Record<string, HelpEntry> = {
     title: 'Filters', short: 'One two-ended slider per value: the list keeps the homes inside every range. Hover a slider to see how the homes spread over its values; the bright part of each bar is inside the range, given the other filters. Homes without a value stay unless you untick "without a value". Filters and sort stay while you open homes and come back.',
     engineer: ['pages/candidate-filters.ts: FILTER_FIELDS, applyFilters(), histogram() (the bars of a field apply every other range), sortRows(); CandidateFiltersStore holds filters, sort and hide rejected.'],
   },
+  'bubble.candidate-columns': {
+    title: 'Columns', short: 'Choose the columns of the list and their order: drag a shown column (or use ↑ ↓), ✕ hides it, a chip adds one (building, contract and dates, ad status and data, each score part). Every change is saved at once in the app. Save the current columns as a named view to switch between them; Reset brings back the default layout.',
+    engineer: ['pages/candidate-columns.ts: COLUMNS (label, sort), ColumnsStore (shown columns autosaved, named views) through GET/PUT /api/ui-settings/candidates.columns and candidates.views (table ui_settings, migration 020).'],
+  },
   'bubble.map-layers': {
     title: 'Layers', short: 'Switch map layers on and off: listings, your points, transit lines and stations, services (POIs).',
     config: ['config/poi.yaml (service categories)', 'config/locations.yaml (your points)'],
